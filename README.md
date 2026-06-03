@@ -63,33 +63,36 @@ Dois papéis: **admin** e **membro**. Só admin gerencia usuários (Admin › Us
 criar/convidar, mudar papel e remover. `/register` fica aberto **apenas** para criar o
 primeiro usuário (vira admin); depois novos acessos são por convite do admin.
 
-## Deploy na VPS (produção)
+## Deploy na VPS (sob `IP/openboard`, atrás do nginx existente)
 
-Imagem Docker (Next standalone) + Postgres + Caddy (HTTPS automático). Pré-requisitos na VPS:
-Docker + Docker Compose e um **domínio** apontando (registro A) para o IP da VPS.
+Imagem Docker (Next standalone) + Postgres. **Sem domínio/HTTPS próprio** — o app roda em
+subcaminho (`basePath /openboard`, definido no Dockerfile) e o **nginx já existente da VPS**
+faz o proxy de `/openboard` pra porta local do container.
 
 ```bash
-# 1. Clonar o projeto na VPS e entrar na pasta
-git clone <repo> openboard && cd openboard
+# 1. Clonar
+git clone https://github.com/igor-002/OpenBoard.git openboard && cd openboard
 
-# 2. Configurar variáveis de produção
+# 2. Variáveis de produção
 cp .env.production.example .env.production
-#   edite: POSTGRES_PASSWORD, AUTH_SECRET (openssl rand -base64 32), DOMAIN, ACME_EMAIL
+#   edite: POSTGRES_PASSWORD, AUTH_SECRET (openssl rand -base64 32), APP_PORT (ex. 3001)
 
-# 3. Subir tudo (build da imagem + db + caddy). Migrations rodam sozinhas no start.
+# 3. Subir (build + db + migrations + app). App escuta em 127.0.0.1:APP_PORT/openboard
 docker compose --env-file .env.production -f compose.prod.yml up -d --build
 
-# 4. Criar o primeiro admin: acesse https://SEU_DOMINIO/register (abre só nessa 1ª vez).
-#    (Opcional) popular dados de exemplo:
-#    docker exec -it openboard-app node node_modules/prisma/build/index.js db seed   # requer tsx (dev) — em geral NÃO usar em prod
+# 4. Proxy: cole o conteúdo de deploy/nginx-openboard.conf dentro do server { } do nginx,
+#    ajuste a porta se mudou APP_PORT, e recarregue:
+sudo nginx -t && sudo systemctl reload nginx
+
+# 5. Criar o admin: acesse http://SEU_IP/openboard/register (abre só na 1ª vez).
 ```
 
-- **Migrations:** o serviço `migrate` roda `prisma migrate deploy` e encerra; o `app` só sobe depois que ele conclui (a cada `up`).
-- **NÃO rode `db:seed` em produção** — ele apaga tudo e recria dados fictícios. O seed se recusa a rodar com `NODE_ENV=production` (só roda com `SEED_ALLOW_PROD=1`, o que **apaga dados reais**). Em produção, crie o admin via `/register` (1ª conta).
-- **TLS:** o Caddy emite/renova certificado Let's Encrypt para `DOMAIN` automaticamente.
-- **Backup:** `./scripts/backup.sh` faz `pg_dump` (agende no cron, ex. diário):
+- **basePath:** `/openboard` é "assado" no build (Dockerfile `ENV BASE_PATH=/openboard`). Outro prefixo → mude lá e rebuild.
+- **Migrations:** serviço `migrate` roda `prisma migrate deploy` e o `app` só sobe depois (a cada `up`).
+- **NÃO rode `db:seed` em produção** — apaga tudo (tem trava `NODE_ENV=production`). Admin via `/register`.
+- **Backup:** `./scripts/backup.sh` (`pg_dump`) — cron diário:
   `0 3 * * * cd /caminho/openboard && POSTGRES_USER=openboard POSTGRES_DB=openboard ./scripts/backup.sh`
-- **Atualizar versão:** `git pull && docker compose --env-file .env.production -f compose.prod.yml up -d --build`
+- **Atualizar:** `git pull && docker compose --env-file .env.production -f compose.prod.yml up -d --build`
 
 ## Milestones
 

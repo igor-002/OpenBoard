@@ -13,7 +13,10 @@ export async function proxy(req: NextRequest) {
   // Só protege rotas privadas. A página de login decide se manda pro dashboard
   // (checando o usuário real no banco) — evita loop com token órfão (usuário deletado).
   if (!session && !isAuthPage) {
-    return NextResponse.redirect(new URL("/login", req.url));
+    // clone() preserva o basePath (ex.: /openboard) no redirect.
+    const url = req.nextUrl.clone();
+    url.pathname = "/login";
+    return NextResponse.redirect(url);
   }
   return NextResponse.next();
 }

@@ -47,27 +47,10 @@ services:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
-    expose:
-      - "3000"
-
-  caddy:
-    image: caddy:2-alpine
-    container_name: openboard-caddy
-    restart: unless-stopped
+    # Publica só na interface local (127.0.0.1) — o nginx da VPS faz o proxy de /openboard.
+    # App responde em http://127.0.0.1:${APP_PORT}/openboard
     ports:
-      - "80:80"
-      - "443:443"
-    environment:
-      DOMAIN: ${DOMAIN}
-      ACME_EMAIL: ${ACME_EMAIL}
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data
-      - caddy_config:/config
-    depends_on:
-      - app
+      - "127.0.0.1:${APP_PORT:-3001}:3000"
 
 volumes:
   pgdata:
-  caddy_data:
-  caddy_config:
