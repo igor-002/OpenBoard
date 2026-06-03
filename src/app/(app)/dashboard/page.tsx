@@ -48,8 +48,20 @@ export default async function DashboardPage() {
         <StatCard icon="clock" label="Horas apontadas" value={data.hoursWeek} suffix="h" foot={`em ${data.hoursProjects} projetos`} accent="var(--st-review)" />
       </div>
 
-      {/* card "Horas de trabalho" oculto por enquanto */}
-      <div className="grid" style={{ gridTemplateColumns: "1fr", marginTop: "var(--gap)" }}>
+      <div className="grid" style={{ gridTemplateColumns: "1.7fr 1fr", marginTop: "var(--gap)" }}>
+        <Card
+          title="Projetos em andamento"
+          sub="Acompanhe o progresso de cada frente"
+          action={<Link className="btn btn-ghost" href="/projects">Ver todos <Icon name="chevRight" size={15} /></Link>}
+          pad={false}
+        >
+          <div style={{ padding: "4px 0 8px" }}>
+            {inProgress.slice(0, 5).map((p) => (
+              <ProjectRow key={p.id} p={p} />
+            ))}
+          </div>
+        </Card>
+
         <Card title="Status dos projetos" sub="Distribuição atual">
           <div className="row gap16" style={{ alignItems: "center" }}>
             <div style={{ position: "relative" }}>
@@ -76,22 +88,11 @@ export default async function DashboardPage() {
         </Card>
       </div>
 
-      <div className="grid" style={{ gridTemplateColumns: "1.7fr 1fr", marginTop: "var(--gap)" }}>
-        <Card
-          title="Projetos em andamento"
-          sub="Acompanhe o progresso de cada frente"
-          action={<Link className="btn btn-ghost" href="/projects">Ver todos <Icon name="chevRight" size={15} /></Link>}
-          pad={false}
-        >
-          <div style={{ padding: "4px 0 8px" }}>
-            {inProgress.slice(0, 5).map((p) => (
-              <ProjectRow key={p.id} p={p} />
-            ))}
-          </div>
-        </Card>
-
-        <div className="grid" style={{ gap: "var(--gap)", alignContent: "start" }}>
-          <Card title="Prazos próximos">
+      <div className="grid" style={{ gridTemplateColumns: "1fr 1fr", marginTop: "var(--gap)" }}>
+        <Card title="Prazos próximos">
+          {deadlines.length === 0 ? (
+            <div className="muted" style={{ fontSize: 13.5 }}>Nenhum prazo definido.</div>
+          ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
               {deadlines.map((p) => (
                 <div key={p.id} className="row between">
@@ -108,25 +109,25 @@ export default async function DashboardPage() {
                 </div>
               ))}
             </div>
-          </Card>
+          )}
+        </Card>
 
-          <Card title="Carga do time">
-            <div style={{ display: "flex", flexDirection: "column", gap: 13 }}>
-              {data.team.slice(0, 4).map((u) => (
-                <div key={u.id} className="row gap12">
-                  <Avatar user={u} size={34} />
-                  <div style={{ flex: 1 }}>
-                    <div className="row between" style={{ marginBottom: 5 }}>
-                      <span style={{ fontWeight: 700, fontSize: 13 }}>{u.name}</span>
-                      <span style={{ fontSize: 12, fontWeight: 700, color: u.loadPct > 85 ? "var(--st-risk)" : "var(--muted)" }}>{u.loadPct}%</span>
-                    </div>
-                    <ProgressBar value={u.loadPct} color={u.loadPct > 85 ? "var(--st-risk)" : "var(--primary)"} />
+        <Card title="Carga do time">
+          <div style={{ display: "flex", flexDirection: "column", gap: 13 }}>
+            {data.team.slice(0, 4).map((u) => (
+              <div key={u.id} className="row gap12">
+                <Avatar user={u} size={34} />
+                <div style={{ flex: 1 }}>
+                  <div className="row between" style={{ marginBottom: 5 }}>
+                    <span style={{ fontWeight: 700, fontSize: 13 }}>{u.name}</span>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: u.loadPct > 85 ? "var(--st-risk)" : "var(--muted)" }}>{u.loadPct}%</span>
                   </div>
+                  <ProgressBar value={u.loadPct} color={u.loadPct > 85 ? "var(--st-risk)" : "var(--primary)"} />
                 </div>
-              ))}
-            </div>
-          </Card>
-        </div>
+              </div>
+            ))}
+          </div>
+        </Card>
       </div>
     </div>
   );
