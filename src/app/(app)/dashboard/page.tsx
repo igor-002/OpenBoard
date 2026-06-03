@@ -7,23 +7,11 @@ import { StatCard } from "@/components/ui/Stat";
 import { Icon } from "@/components/ui/Icon";
 import { Avatar } from "@/components/ui/Avatar";
 import { ProgressBar } from "@/components/ui/Progress";
-import { HoursBarChart, Donut } from "@/components/charts/Charts";
+import { Donut } from "@/components/charts/Charts";
 import { ProjectRow } from "@/components/project/ProjectRow";
 import { NewProjectButton } from "@/components/project/NewProjectButton";
 import { STATUS_META } from "@/lib/meta";
 import { dayLabel } from "@/lib/format";
-
-// Foco vs. extra por dia: ainda não há tracking diário (chega no M4).
-// Série ilustrativa até lá.
-const HOURS_WEEK = [
-  { d: "Seg", focus: 6.2, over: 1.8 },
-  { d: "Ter", focus: 5.4, over: 2.1 },
-  { d: "Qua", focus: 7.1, over: 1.2 },
-  { d: "Qui", focus: 6.6, over: 1.6 },
-  { d: "Sex", focus: 4.8, over: 2.4 },
-  { d: "Sáb", focus: 2.1, over: 0.6 },
-  { d: "Dom", focus: 0.4, over: 0.1 },
-];
 
 export default async function DashboardPage() {
   const user = await requireUser();
@@ -60,27 +48,8 @@ export default async function DashboardPage() {
         <StatCard icon="clock" label="Horas apontadas" value={data.hoursWeek} suffix="h" foot={`em ${data.hoursProjects} projetos`} accent="var(--st-review)" />
       </div>
 
-      <div className="grid" style={{ gridTemplateColumns: "1.7fr 1fr", marginTop: "var(--gap)" }}>
-        <Card
-          title="Horas de trabalho"
-          sub="Foco vs. tempo extra — esta semana"
-          action={<span className="est-badge">dados de exemplo</span>}
-        >
-          <div className="row between" style={{ alignItems: "baseline", marginBottom: 4 }}>
-            <div className="row gap16">
-              <div className="row gap8">
-                <span style={{ width: 10, height: 10, borderRadius: 3, background: "var(--primary)" }} />
-                <span style={{ fontSize: 13, fontWeight: 600 }}>Foco</span>
-              </div>
-              <div className="row gap8">
-                <span style={{ width: 10, height: 10, borderRadius: 3, background: "var(--primary-tint-2)" }} />
-                <span style={{ fontSize: 13, fontWeight: 600 }}>Extra</span>
-              </div>
-            </div>
-          </div>
-          <HoursBarChart data={HOURS_WEEK} />
-        </Card>
-
+      {/* card "Horas de trabalho" oculto por enquanto */}
+      <div className="grid" style={{ gridTemplateColumns: "1fr", marginTop: "var(--gap)" }}>
         <Card title="Status dos projetos" sub="Distribuição atual">
           <div className="row gap16" style={{ alignItems: "center" }}>
             <div style={{ position: "relative" }}>
