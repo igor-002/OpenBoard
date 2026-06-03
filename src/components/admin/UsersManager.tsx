@@ -1,0 +1,222 @@
+"use client";
+
+import { useEffect, useState, useTransition, useActionState } from "react";
+import { useRouter } from "next/navigation";
+import { Icon } from "@/components/ui/Icon";
+import { Avatar } from "@/components/ui/Avatar";
+import { Card } from "@/components/ui/Card";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
+import { createUser, updateUserRole, deleteUser, resetUserPassword } from "@/app/(app)/settings/users/actions";
+import type { UserRow } from "@/server/users";
+import type { Role } from "@/lib/types";
+
+export function UsersManager({ users, currentUserId }: { users: UserRow[]; currentUserId: string }) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [pendingDel, start] = useTransition();
+  const [confirmUser, setConfirmUser] = useState<{ id: string; name: string } | null>(null);
+  const [resetUser, setResetUser] = useState<{ id: string; name: string } | null>(null);
+
+  function changeRole(id: string, role: Role) {
+    setErr(null);
+    start(async () => {
+      const r = await updateUserRole(id, role);
+      if (r.error) setErr(r.error);
+      router.refresh();
+    });
+  }
+  function confirmRemove() {
+    const target = confirmUser;
+    if (!target) return;
+    setErr(null);
+    start(async () => {
+      const r = await deleteUser(target.id);
+      if (r.error) setErr(r.error);
+      setConfirmUser(null);
+      router.refresh();
+    });
+  }
+
+  return (
+    <>
+      <div className="page-head">
+        <div>
+          <h1 className="page-title">Usuários</h1>
+          <p className="page-sub">{users.length} pessoas · gerencie acessos e papéis</p>
+        </div>
+        <button className="btn btn-primary" onClick={() => setOpen(true)}>
+          <Icon name="plus" size={16} />
+          Convidar usuário
+        </button>
+      </div>
+
+      {err && <div className="form-error" style={{ marginBottom: 16 }}>{err}</div>}
+
+      <Card pad={false}>
+        <table className="tbl" style={{ marginTop: 6 }}>
+          <thead>
+            <tr><th>Pessoa</th><th>E-mail</th><th>Cargo</th><th>Papel</th><th></th></tr>
+          </thead>
+          <tbody>
+            {users.map((u) => {
+              const isSelf = u.id === currentUserId;
+              return (
+                <tr key={u.id}>
+                  <td>
+                    <div className="row gap12">
+                      <Avatar user={u} size={34} />
+                      <div className="nm">{u.name}{isSelf && <span className="muted" style={{ fontWeight: 500 }}> · você</span>}</div>
+                    </div>
+                  </td>
+                  <td>{u.email}</td>
+                  <td>{u.jobTitle}</td>
+                  <td>
+                    <select
+                      className="input"
+                      style={{ width: 130, padding: "7px 10px" }}
+                      value={u.role}
+                      disabled={isSelf}
+                      onChange={(e) => changeRole(u.id, e.target.value as Role)}
+                    >
+                      <option value="admin">Admin</option>
+                      <option value="membro">Membro</option>
+                    </select>
+                  </td>
+                  <td style={{ textAlign: "right" }}>
+                    <div className="row gap8" style={{ justifyContent: "flex-end" }}>
+                      <button
+                        className="icon-btn"
+                        style={{ width: 34, height: 34, border: "none", background: "none", color: "var(--ink-2)" }}
+                        title="Redefinir senha"
+                        onClick={() => setResetUser({ id: u.id, name: u.name })}
+                      >
+                        <Icon name="settings" size={16} />
+                      </button>
+                      <button
+                        className="icon-btn"
+                        style={{ width: 34, height: 34, border: "none", background: "none", color: isSelf ? "var(--muted-2)" : "var(--st-risk)" }}
+                        disabled={isSelf}
+                        title={isSelf ? "Você não pode se remover" : "Remover"}
+                        onClick={() => setConfirmUser({ id: u.id, name: u.name })}
+                      >
+                        <Icon name="alert" size={16} />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </Card>
+
+      {open && <InviteModal onClose={() => { setOpen(false); router.refresh(); }} />}
+      {confirmUser && (
+        <ConfirmModal
+          danger
+          title="Remover usuário?"
+          confirmLabel="Remover"
+          pending={pendingDel}
+          onConfirm={confirmRemove}
+          onClose={() => setConfirmUser(null)}
+          message={<><b style={{ color: "var(--ink)" }}>{confirmUser.name}</b> perderá o acesso ao workspace. Esta ação não pode ser desfeita.</>}
+        />
+      )}
+      {resetUser && <ResetModal user={resetUser} onClose={() => { setResetUser(null); router.refresh(); }} />}
+    </>
+  );
+}
+
+function ResetModal({ user, onClose }: { user: { id: string; name: string }; onClose: () => void }) {
+  const [pwd, setPwd] = useState("");
+  const [err, setErr] = useState<string | null>(null);
+  const [pending, start] = useTransition();
+
+  function submit() {
+    setErr(null);
+    if (pwd.length < 8) { setErr("Senha precisa de ao menos 8 caracteres."); return; }
+    start(async () => {
+      const r = await resetUserPassword(user.id, pwd);
+      if (r.error) { setErr(r.error); return; }
+      onClose();
+    });
+  }
+
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(16,24,40,.45)", zIndex: 60, display: "grid", placeItems: "center", padding: 24 }}>
+      <div onClick={(e) => e.stopPropagation()} className="card" style={{ width: "100%", maxWidth: 400, padding: 24, boxShadow: "var(--sh-lg)" }}>
+        <h3 className="card-title" style={{ fontSize: 18, marginBottom: 8 }}>Redefinir senha</h3>
+        <p className="page-sub" style={{ margin: "0 0 16px" }}>
+          Defina uma nova senha para <b style={{ color: "var(--ink)" }}>{user.name}</b>. No próximo acesso será sugerido que troque por uma própria.
+        </p>
+        <div className="field">
+          <label htmlFor="np">Nova senha</label>
+          <input className="input" id="np" type="text" value={pwd} onChange={(e) => setPwd(e.target.value)} placeholder="mín. 8 caracteres" autoFocus />
+        </div>
+        {err && <div className="form-error" style={{ marginTop: 12 }}>{err}</div>}
+        <div className="row gap12" style={{ justifyContent: "flex-end", marginTop: 18 }}>
+          <button className="btn" onClick={onClose} disabled={pending}>Cancelar</button>
+          <button className="btn btn-primary" onClick={submit} disabled={pending}>{pending ? "Salvando…" : "Redefinir"}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function InviteModal({ onClose }: { onClose: () => void }) {
+  const [state, formAction, pending] = useActionState(createUser, {});
+  useEffect(() => {
+    if (state.ok) onClose();
+  }, [state.ok, onClose]);
+
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(16,24,40,.45)", zIndex: 60, display: "grid", placeItems: "center", padding: 24 }}>
+      <div onClick={(e) => e.stopPropagation()} className="card" style={{ width: "100%", maxWidth: 440, padding: 24, boxShadow: "var(--sh-lg)" }}>
+        <div className="row between" style={{ marginBottom: 18 }}>
+          <h3 className="card-title" style={{ fontSize: 18 }}>Convidar usuário</h3>
+          <button className="icon-btn" style={{ border: "none", background: "none" }} onClick={onClose}>
+            <Icon name="plus" size={18} style={{ transform: "rotate(45deg)" }} />
+          </button>
+        </div>
+        <form action={formAction} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <div className="field">
+            <label htmlFor="name">Nome</label>
+            <input className="input" id="name" name="name" required autoFocus />
+          </div>
+          <div className="field">
+            <label htmlFor="email">E-mail</label>
+            <input className="input" id="email" name="email" type="email" required />
+          </div>
+          <div className="row gap12">
+            <div className="field" style={{ flex: 1 }}>
+              <label htmlFor="jobTitle">Cargo</label>
+              <input className="input" id="jobTitle" name="jobTitle" placeholder="Dev, Designer…" required />
+            </div>
+            <div className="field" style={{ width: 130 }}>
+              <label htmlFor="role">Papel</label>
+              <select className="input" id="role" name="role" defaultValue="membro">
+                <option value="membro">Membro</option>
+                <option value="admin">Admin</option>
+              </select>
+            </div>
+          </div>
+          <div className="field">
+            <label htmlFor="password">Senha inicial</label>
+            <input className="input" id="password" name="password" type="text" minLength={8} placeholder="mín. 8 caracteres" required />
+            <span className="muted" style={{ fontSize: 12 }}>O usuário entra com essa senha e pode trocá-la depois.</span>
+          </div>
+
+          {state.error && <div className="form-error">{state.error}</div>}
+
+          <div className="row gap12" style={{ justifyContent: "flex-end", marginTop: 4 }}>
+            <button type="button" className="btn" onClick={onClose}>Cancelar</button>
+            <button type="submit" className="btn btn-primary" disabled={pending}>
+              {pending ? "Criando…" : "Criar usuário"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}

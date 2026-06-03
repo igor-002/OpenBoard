@@ -39,3 +39,11 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# prisma generated client
+/src/generated
+
+# screenshots / playwright artefatos de teste
+/.playwright-mcp
+/*.png
+/backups

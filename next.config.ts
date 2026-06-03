@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  output: "standalone", // imagem Docker enxuta para a VPS (M5)
 };
 
 export default nextConfig;

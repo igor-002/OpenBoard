@@ -1,0 +1,23 @@
+# Postgres local para desenvolvimento (M1). App roda em `next dev`.
+# Em produção (M5) adicionamos o serviço da app aqui.
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: openboard-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: openboard
+      POSTGRES_PASSWORD: openboard
+      POSTGRES_DB: openboard
+    ports:
+      - "5432:5432"
+    volumes:
+      - openboard_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U openboard -d openboard"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  openboard_pgdata:
