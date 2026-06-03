@@ -14,7 +14,10 @@ export async function setSession(userId: string) {
   store.set(SESSION_COOKIE, token, {
     httpOnly: true,
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    // Só marca Secure se explicitamente ligado (COOKIE_SECURE=true). O deploy é HTTP
+    // (IP, sem TLS) — com Secure o navegador descarta o cookie e a sessão "some".
+    // Ligue COOKIE_SECURE=true quando servir por HTTPS.
+    secure: process.env.COOKIE_SECURE === "true",
     path: "/",
     maxAge: MAX_AGE,
   });

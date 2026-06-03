@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import { getDashboardData } from "@/server/dashboard";
 import { getUsers } from "@/server/users";
@@ -110,7 +111,7 @@ export default async function DashboardPage() {
         <Card
           title="Projetos em andamento"
           sub="Acompanhe o progresso de cada frente"
-          action={<a className="btn btn-ghost" href="/projects">Ver todos <Icon name="chevRight" size={15} /></a>}
+          action={<Link className="btn btn-ghost" href="/projects">Ver todos <Icon name="chevRight" size={15} /></Link>}
           pad={false}
         >
           <div style={{ padding: "4px 0 8px" }}>
