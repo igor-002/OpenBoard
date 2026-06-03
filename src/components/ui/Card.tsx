@@ -24,7 +24,8 @@ export function Card({
         <div
           className="card-head"
           style={{
-            padding: pad ? "var(--card-pad) var(--card-pad) 0" : 0,
+            // header sempre com respiro lateral/topo (mesmo com pad=false, p/ não colar na borda)
+            padding: "var(--card-pad) var(--card-pad) 0",
             marginBottom: pad ? 0 : 18,
           }}
         >
