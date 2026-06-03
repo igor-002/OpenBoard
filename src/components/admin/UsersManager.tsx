@@ -17,12 +17,22 @@ export function UsersManager({ users, currentUserId }: { users: UserRow[]; curre
   const [pendingDel, start] = useTransition();
   const [confirmUser, setConfirmUser] = useState<{ id: string; name: string } | null>(null);
   const [resetUser, setResetUser] = useState<{ id: string; name: string } | null>(null);
+  // papéis em estado local (otimista) — o select reflete na hora; servidor confirma.
+  const [roles, setRoles] = useState<Record<string, Role>>(() => Object.fromEntries(users.map((u) => [u.id, u.role])));
+  useEffect(() => {
+    setRoles(Object.fromEntries(users.map((u) => [u.id, u.role])));
+  }, [users]);
 
   function changeRole(id: string, role: Role) {
     setErr(null);
+    const prev = roles[id];
+    setRoles((p) => ({ ...p, [id]: role })); // muda já
     start(async () => {
       const r = await updateUserRole(id, role);
-      if (r.error) setErr(r.error);
+      if (r.error) {
+        setErr(r.error);
+        setRoles((p) => ({ ...p, [id]: prev })); // reverte se falhou
+      }
       router.refresh();
     });
   }
@@ -75,7 +85,7 @@ export function UsersManager({ users, currentUserId }: { users: UserRow[]; curre
                     <select
                       className="input"
                       style={{ width: 130, padding: "7px 10px" }}
-                      value={u.role}
+                      value={roles[u.id] ?? u.role}
                       disabled={isSelf}
                       onChange={(e) => changeRole(u.id, e.target.value as Role)}
                     >
