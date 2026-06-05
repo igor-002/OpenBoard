@@ -44,6 +44,9 @@ services:
       NODE_ENV: production
       # Cookie Secure só com HTTPS. Em HTTP (IP) deixe false, senão a sessão não persiste.
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      # Painel de TV (/tv?key=TV_TOKEN). Sem TV_TOKEN o /tv fica inacessível.
+      TV_TOKEN: ${TV_TOKEN:-}
+      TV_WORKSPACE_ID: ${TV_WORKSPACE_ID:-}
     depends_on:
       db:
         condition: service_healthy
