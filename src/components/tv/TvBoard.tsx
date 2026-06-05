@@ -554,8 +554,11 @@ export function TvBoard({ initial, tvKey }: { initial: TvData; tvKey: string }) 
     const fit = () => {
       const el = canvasRef.current;
       if (!el) return;
-      const s = Math.min(window.innerWidth / 1920, window.innerHeight / 1080);
-      el.style.transform = `translate(-50%, -50%) scale(${s})`;
+      // preenche 100% da tela (sem barra preta). Em TV 16:9 sx==sy (sem distorção);
+      // fora de 16:9 estica de leve, mas não sobra preto.
+      const sx = window.innerWidth / 1920;
+      const sy = window.innerHeight / 1080;
+      el.style.transform = `translate(-50%, -50%) scale(${sx}, ${sy})`;
     };
     fit();
     window.addEventListener("resize", fit);
