@@ -6,6 +6,7 @@ import { Icon } from "@/components/ui/Icon";
 import { Avatar } from "@/components/ui/Avatar";
 import { Card } from "@/components/ui/Card";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
+import { useOverlayClose } from "@/components/ui/useOverlayClose";
 import { createUser, updateUserRole, deleteUser, resetUserPassword } from "@/app/(app)/settings/users/actions";
 import type { UserRow } from "@/server/users";
 import type { Role } from "@/lib/types";
@@ -154,8 +155,8 @@ function ResetModal({ user, onClose }: { user: { id: string; name: string }; onC
   }
 
   return (
-    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(16,24,40,.45)", zIndex: 60, display: "grid", placeItems: "center", padding: 24 }}>
-      <div onClick={(e) => e.stopPropagation()} className="card" style={{ width: "100%", maxWidth: 400, padding: 24, boxShadow: "var(--sh-lg)" }}>
+    <div {...useOverlayClose(onClose)} style={{ position: "fixed", inset: 0, background: "rgba(16,24,40,.45)", zIndex: 60, display: "grid", placeItems: "center", padding: 24 }}>
+      <div className="card" style={{ width: "100%", maxWidth: 400, padding: 24, boxShadow: "var(--sh-lg)" }}>
         <h3 className="card-title" style={{ fontSize: 18, marginBottom: 8 }}>Redefinir senha</h3>
         <p className="page-sub" style={{ margin: "0 0 16px" }}>
           Defina uma nova senha para <b style={{ color: "var(--ink)" }}>{user.name}</b>. No próximo acesso será sugerido que troque por uma própria.
@@ -181,11 +182,11 @@ function InviteModal({ onClose }: { onClose: () => void }) {
   }, [state.ok, onClose]);
 
   return (
-    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(16,24,40,.45)", zIndex: 60, display: "grid", placeItems: "center", padding: 24 }}>
-      <div onClick={(e) => e.stopPropagation()} className="card" style={{ width: "100%", maxWidth: 440, padding: 24, boxShadow: "var(--sh-lg)" }}>
+    <div {...useOverlayClose(onClose)} style={{ position: "fixed", inset: 0, background: "rgba(16,24,40,.45)", zIndex: 60, display: "grid", placeItems: "center", padding: 24 }}>
+      <div className="card" style={{ width: "100%", maxWidth: 440, padding: 24, boxShadow: "var(--sh-lg)" }}>
         <div className="row between" style={{ marginBottom: 18 }}>
           <h3 className="card-title" style={{ fontSize: 18 }}>Convidar usuário</h3>
-          <button className="icon-btn" style={{ border: "none", background: "none" }} onClick={onClose}>
+          <button className="icon-btn" style={{ border: "none", background: "none" }} onClick={onClose} aria-label="Fechar">
             <Icon name="plus" size={18} style={{ transform: "rotate(45deg)" }} />
           </button>
         </div>

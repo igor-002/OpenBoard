@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { Icon } from "./Icon";
+import { useOverlayClose } from "./useOverlayClose";
 
 export function ConfirmModal({
   title,
@@ -26,10 +27,10 @@ export function ConfirmModal({
   const accentBg = danger ? "var(--st-risk-bg)" : "var(--primary-tint)";
   return (
     <div
-      onClick={onClose}
+      {...useOverlayClose(onClose)}
       style={{ position: "fixed", inset: 0, background: "rgba(16,24,40,.45)", zIndex: 70, display: "grid", placeItems: "center", padding: 24 }}
     >
-      <div onClick={(e) => e.stopPropagation()} className="card" style={{ width: "100%", maxWidth: 420, padding: 26, boxShadow: "var(--sh-lg)", textAlign: "center" }}>
+      <div className="card" style={{ width: "100%", maxWidth: 420, padding: 26, boxShadow: "var(--sh-lg)", textAlign: "center" }}>
         <div style={{ width: 52, height: 52, borderRadius: 16, background: accentBg, color: accent, display: "grid", placeItems: "center", margin: "0 auto 16px" }}>
           <Icon name={danger ? "alert" : "help"} size={26} />
         </div>

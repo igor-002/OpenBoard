@@ -16,6 +16,7 @@ import {
 import { Icon } from "@/components/ui/Icon";
 import { Modal } from "@/components/ui/Modal";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
+import { useOverlayClose } from "@/components/ui/useOverlayClose";
 import { Avatar } from "@/components/ui/Avatar";
 import { TaskCard } from "./TaskCard";
 import { KANBAN_COLS } from "@/lib/meta";
@@ -171,17 +172,16 @@ function NewTaskModal({ data, onClose }: { data: KanbanData; onClose: () => void
 
   return (
     <div
-      onClick={onClose}
+      {...useOverlayClose(onClose)}
       style={{ position: "fixed", inset: 0, background: "rgba(16,24,40,.45)", zIndex: 60, display: "grid", placeItems: "center", padding: 24 }}
     >
       <div
-        onClick={(e) => e.stopPropagation()}
         className="card"
         style={{ width: "100%", maxWidth: 460, padding: 24, boxShadow: "var(--sh-lg)" }}
       >
         <div className="row between" style={{ marginBottom: 18 }}>
           <h3 className="card-title" style={{ fontSize: 18 }}>Nova tarefa</h3>
-          <button className="icon-btn" style={{ border: "none", background: "none" }} onClick={onClose}>
+          <button className="icon-btn" style={{ border: "none", background: "none" }} onClick={onClose} aria-label="Fechar">
             <Icon name="plus" size={18} style={{ transform: "rotate(45deg)" }} />
           </button>
         </div>
