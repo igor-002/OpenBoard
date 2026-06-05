@@ -1,6 +1,7 @@
 import "server-only";
 import { db } from "@/lib/db";
 import { STATUS_META } from "@/lib/meta";
+import { effectiveProgress } from "@/server/projects";
 import type { AvatarUser, ProjectStatus } from "@/lib/types";
 
 export type GanttBar = {
@@ -36,8 +37,17 @@ export async function getTimelineData(
         orderBy: { order: "asc" },
         include: { user: { select: { initials: true, color: true, name: true } } },
       },
+      _count: { select: { tasks: true } },
     },
   });
+
+  // Tarefas concluídas por projeto (progresso automático).
+  const doneGroups = await db.task.groupBy({
+    by: ["projectId"],
+    where: { projectId: { in: projects.map((p) => p.id) }, column: "done" },
+    _count: { _all: true },
+  });
+  const doneMap = new Map(doneGroups.map((g) => [g.projectId, g._count._all]));
 
   const yStart = new Date(year, 0, 1);
   const yEnd = new Date(year, 11, 31, 23, 59, 59);
@@ -56,7 +66,7 @@ export async function getTimelineData(
         name: p.name,
         color: STATUS_META[p.status].c,
         status: p.status,
-        progress: p.progress,
+        progress: effectiveProgress(p.manualProgress, doneMap.get(p.id) ?? 0, p._count.tasks),
         startDate: p.startDate,
         dueDate: p.dueDate,
         startCol,

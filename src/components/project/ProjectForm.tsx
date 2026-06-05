@@ -29,6 +29,9 @@ export function ProjectForm({
   const [state, formAction, pending] = useActionState(action, {});
   // Sem prazo = projeto sem dueDate (mostra contador de dias em aberto).
   const [noDue, setNoDue] = useState(initial ? !initial.dueDate : false);
+  // Progresso manual ligado = usa o número digitado; desligado = automático (% tarefas).
+  const [manualProgress, setManualProgress] = useState(initial?.manualProgress != null);
+  const autoProgress = initial?.autoProgress ?? 0;
 
   useEffect(() => {
     if (state.ok) onDone(state.id);
@@ -50,17 +53,41 @@ export function ProjectForm({
           <input className="input" id="tag" name="tag" defaultValue={initial?.tag} placeholder="Web, Infra…" required />
         </div>
       </div>
-      <div className="row gap12">
-        <div className="field" style={{ flex: 1 }}>
-          <label htmlFor="status">Status</label>
-          <select className="input" id="status" name="status" defaultValue={initial?.status ?? "planned"}>
-            {STATUS_OPTS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
-          </select>
-        </div>
-        <div className="field" style={{ width: 110 }}>
-          <label htmlFor="progress">Progresso %</label>
-          <input className="input" id="progress" name="progress" type="number" min={0} max={100} defaultValue={initial?.progress ?? 0} />
-        </div>
+      <div className="field">
+        <label htmlFor="status">Status</label>
+        <select className="input" id="status" name="status" defaultValue={initial?.status ?? "planned"}>
+          {STATUS_OPTS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+        </select>
+      </div>
+
+      <div className="field">
+        <label className="row gap8" style={{ fontSize: 13, fontWeight: 600 }}>
+          <input
+            type="checkbox"
+            name="progressManual"
+            checked={manualProgress}
+            onChange={(e) => setManualProgress(e.target.checked)}
+          />
+          Definir progresso manualmente
+        </label>
+        {manualProgress ? (
+          <div className="row gap8" style={{ marginTop: 8 }}>
+            <input
+              className="input"
+              name="progress"
+              type="number"
+              min={0}
+              max={100}
+              defaultValue={initial?.manualProgress ?? autoProgress}
+              style={{ width: 110 }}
+            />
+            <span className="muted" style={{ fontSize: 12 }}>%</span>
+          </div>
+        ) : (
+          <span className="muted" style={{ fontSize: 12.5, display: "block", marginTop: 4 }}>
+            Automático: <b>{autoProgress}%</b> — calculado pela proporção de tarefas concluídas.
+          </span>
+        )}
       </div>
       <div className="row gap12">
         <div className="field" style={{ flex: 1 }}>

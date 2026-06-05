@@ -133,7 +133,7 @@ async function main() {
         client: p.client,
         tag: p.tag,
         status: p.status,
-        progress: p.progress,
+        manualProgress: p.progress, // seed mantém % manual; projetos novos usam progresso automático
         startDate: d(p.start),
         dueDate: d(p.dueLabel),
         budgetCents: p.budget,

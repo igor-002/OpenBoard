@@ -62,6 +62,12 @@ export default async function ProjectDetailPage({
           </div>
         ))}
       </div>
+      {p.creator && (
+        <div className="row gap8" style={{ marginTop: 16, fontSize: 13, color: "var(--muted)" }}>
+          <Avatar user={p.creator} size={22} />
+          <span>Criado por <b style={{ color: "var(--ink-2)" }}>{p.creator.name}</b> · {fullLabel(p.createdAt)}</span>
+        </div>
+      )}
       <div style={{ height: 1, background: "var(--line)", margin: "20px 0" }} />
       <ProjectTeam projectId={p.id} members={p.members} allUsers={memberOpts} />
     </>

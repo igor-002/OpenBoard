@@ -1,5 +1,6 @@
 import "server-only";
 import { db } from "@/lib/db";
+import { effectiveProgress } from "@/server/projects";
 import type { ProjectStatus, AvatarUser } from "@/lib/types";
 
 export type DashProject = {
@@ -44,12 +45,20 @@ export async function getDashboardData(workspaceId: string): Promise<DashboardDa
     },
   });
 
+  // Tarefas concluídas por projeto (pra calcular o progresso automático).
+  const doneGroups = await db.task.groupBy({
+    by: ["projectId"],
+    where: { projectId: { in: projectsRaw.map((p) => p.id) }, column: "done" },
+    _count: { _all: true },
+  });
+  const doneMap = new Map(doneGroups.map((g) => [g.projectId, g._count._all]));
+
   const projects: DashProject[] = projectsRaw.map((p) => ({
     id: p.id,
     name: p.name,
     client: p.client,
     status: p.status,
-    progress: p.progress,
+    progress: effectiveProgress(p.manualProgress, doneMap.get(p.id) ?? 0, p._count.tasks),
     risk: p.risk,
     dueDate: p.dueDate,
     members: p.members.map((m) => m.user),

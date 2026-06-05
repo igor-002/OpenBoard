@@ -78,6 +78,7 @@ model User {
   notes          ProjectNote[]
   notifications  Notification[]
   taskComments   TaskComment[]
+  createdProjects Project[]      @relation("ProjectCreator")
 
   @@index([workspaceId])
 }
@@ -90,13 +91,15 @@ model Project {
   client      String
   tag         String
   status      ProjectStatus @default(planned)
-  progress    Int           @default(0)
+  manualProgress Int?       // override manual; null = progresso automático (% tarefas concluídas)
   startDate   DateTime
   dueDate     DateTime?
   budgetCents Int           @default(0)
   spentPct    Int           @default(0)
   risk        Boolean       @default(false)
   createdAt   DateTime      @default(now())
+  creator     User?         @relation("ProjectCreator", fields: [creatorId], references: [id], onDelete: SetNull)
+  creatorId   String?
 
   members    ProjectMember[]
   tasks      Task[]
@@ -105,6 +108,7 @@ model Project {
   notes      ProjectNote[]
 
   @@index([workspaceId])
+  @@index([creatorId])
 }
 
 model Notification {

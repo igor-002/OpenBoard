@@ -7,6 +7,14 @@ import type {
   AvatarUser,
 } from "@/lib/types";
 
+// Progresso efetivo do projeto: override manual quando definido,
+// senão % de tarefas concluídas (0 tarefas = 0%).
+export function effectiveProgress(manual: number | null | undefined, done: number, total: number): number {
+  if (manual !== null && manual !== undefined) return manual;
+  if (total <= 0) return 0;
+  return Math.round((done / total) * 100);
+}
+
 export type ProjectListItem = {
   id: string;
   name: string;
@@ -42,20 +50,23 @@ export async function getProjectsList(workspaceId: string): Promise<ProjectListI
   });
   const doneMap = new Map(doneGroups.map((g) => [g.projectId, g._count._all]));
 
-  return projects.map((p) => ({
-    id: p.id,
-    name: p.name,
-    client: p.client,
-    tag: p.tag,
-    status: p.status,
-    progress: p.progress,
-    risk: p.risk,
-    dueDate: p.dueDate,
-    members: p.members.map((m) => m.user),
-    tasksTotal: p._count.tasks,
-    tasksDone: doneMap.get(p.id) ?? 0,
-    spentPct: p.spentPct,
-  }));
+  return projects.map((p) => {
+    const tasksDone = doneMap.get(p.id) ?? 0;
+    return {
+      id: p.id,
+      name: p.name,
+      client: p.client,
+      tag: p.tag,
+      status: p.status,
+      progress: effectiveProgress(p.manualProgress, tasksDone, p._count.tasks),
+      risk: p.risk,
+      dueDate: p.dueDate,
+      members: p.members.map((m) => m.user),
+      tasksTotal: p._count.tasks,
+      tasksDone,
+      spentPct: p.spentPct,
+    };
+  });
 }
 
 export type ProjectMemberDetail = AvatarUser & {
@@ -87,6 +98,8 @@ export type ProjectDetail = {
   dueDate: Date | null;
   budgetCents: number;
   spentPct: number;
+  createdAt: Date;
+  creator: AvatarUser | null;
   tasksTotal: number;
   tasksDone: number;
   members: ProjectMemberDetail[];
@@ -109,7 +122,8 @@ export type ProjectEdit = {
   client: string;
   tag: string;
   status: ProjectStatus;
-  progress: number;
+  manualProgress: number | null; // null = automático
+  autoProgress: number; // % calculado das tarefas (referência no form)
   startDate: string; // YYYY-MM-DD (para <input type=date>)
   dueDate: string; // "" = sem prazo
   risk: boolean;
@@ -125,16 +139,21 @@ export async function getProjectForEdit(
 ): Promise<ProjectEdit | null> {
   const p = await db.project.findFirst({
     where: { id: projectId, workspaceId },
-    include: { members: { orderBy: { order: "asc" } } },
+    include: {
+      members: { orderBy: { order: "asc" } },
+      tasks: { select: { column: true } },
+    },
   });
   if (!p) return null;
+  const done = p.tasks.filter((t) => t.column === "done").length;
   return {
     id: p.id,
     name: p.name,
     client: p.client,
     tag: p.tag,
     status: p.status,
-    progress: p.progress,
+    manualProgress: p.manualProgress,
+    autoProgress: effectiveProgress(null, done, p.tasks.length),
     startDate: iso(p.startDate),
     dueDate: p.dueDate ? iso(p.dueDate) : "",
     risk: p.risk,
@@ -150,6 +169,7 @@ export async function getProjectDetail(
   const p = await db.project.findFirst({
     where: { id: projectId, workspaceId },
     include: {
+      creator: { select: { initials: true, color: true, name: true } },
       members: {
         orderBy: { order: "asc" },
         include: {
@@ -177,11 +197,17 @@ export async function getProjectDetail(
     client: p.client,
     tag: p.tag,
     status: p.status,
-    progress: p.progress,
+    progress: effectiveProgress(
+      p.manualProgress,
+      p.tasks.filter((t) => t.column === "done").length,
+      p.tasks.length,
+    ),
     startDate: p.startDate,
     dueDate: p.dueDate,
     budgetCents: p.budgetCents,
     spentPct: p.spentPct,
+    createdAt: p.createdAt,
+    creator: p.creator,
     tasksTotal: p.tasks.length,
     tasksDone: p.tasks.filter((t) => t.column === "done").length,
     members: p.members.map((m) => ({
