@@ -554,7 +554,8 @@ export function TvBoard({ initial, tvKey }: { initial: TvData; tvKey: string }) 
     const fit = () => {
       const el = canvasRef.current;
       if (!el) return;
-      el.style.transform = `scale(${Math.min(window.innerWidth / 1920, window.innerHeight / 1080)})`;
+      const s = Math.min(window.innerWidth / 1920, window.innerHeight / 1080);
+      el.style.transform = `translate(-50%, -50%) scale(${s})`;
     };
     fit();
     window.addEventListener("resize", fit);

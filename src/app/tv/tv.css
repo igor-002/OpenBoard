@@ -34,14 +34,15 @@
   position: fixed;
   inset: 0;
   background: #000;
-  display: grid;
-  place-items: center;
   overflow: hidden;
 }
 .tv-canvas {
   width: 1920px;
   height: 1080px;
-  position: relative;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
   transform-origin: center center;
   background:
     radial-gradient(1200px 700px at 82% -10%, rgba(242, 105, 31, 0.1), transparent 60%),
