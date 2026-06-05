@@ -9,8 +9,10 @@ import type { NotificationItem } from "@/server/notifications";
 
 const TYPE_ICON: Record<string, Parameters<typeof Icon>[0]["name"]> = {
   task_assigned: "kanban",
+  task_created: "kanban",
   note_added: "msg",
   project_member: "folder",
+  project_created: "folder",
 };
 
 function when(d: Date) {

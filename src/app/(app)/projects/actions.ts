@@ -6,6 +6,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { notify } from "@/server/notifications";
+import { emitAppEvent } from "@/server/events";
 
 export type ProjectActionState = { ok?: boolean; error?: string; id?: string };
 
@@ -16,12 +17,17 @@ const schema = z.object({
   status: z.enum(["progress", "done", "review", "planned"]),
   startDate: z.string().min(1, "Informe a data de início"),
   dueDate: z.string().optional(), // vazio = sem prazo
-  progress: z.coerce.number().min(0).max(100),
+  manualProgress: z.number().min(0).max(100).nullable(), // null = progresso automático
   risk: z.boolean(),
   memberIds: z.array(z.string()),
 });
 
 function parse(formData: FormData) {
+  // "progressManual" ligado => usa o número digitado; senão progresso automático (null).
+  const manual = formData.get("progressManual") === "on";
+  const raw = Number(formData.get("progress"));
+  const manualProgress = manual && Number.isFinite(raw) ? Math.min(100, Math.max(0, Math.round(raw))) : null;
+
   return schema.safeParse({
     name: formData.get("name"),
     client: formData.get("client"),
@@ -29,7 +35,7 @@ function parse(formData: FormData) {
     status: formData.get("status"),
     startDate: formData.get("startDate"),
     dueDate: formData.get("dueDate")?.toString() || undefined,
-    progress: formData.get("progress") || 0,
+    manualProgress,
     risk: formData.get("risk") === "on",
     memberIds: formData.getAll("memberIds").map(String),
   });
@@ -61,19 +67,43 @@ export async function createProject(_prev: ProjectActionState, formData: FormDat
       client: d.client,
       tag: d.tag,
       status: d.status,
-      progress: d.progress,
+      manualProgress: d.manualProgress,
       startDate: new Date(d.startDate + "T12:00:00"),
       dueDate: dueDateValue(d.dueDate),
       risk: d.risk,
+      creatorId: user.id,
       members: members.length ? { create: members } : undefined,
     },
   });
 
   // Notifica quem foi adicionado à equipe (menos você).
+  const memberIds = members.map((m) => m.userId);
   await notify(
-    members.map((m) => m.userId).filter((id) => id !== user.id),
+    memberIds.filter((id) => id !== user.id),
     { type: "project_member", title: "Você foi adicionado a um projeto", body: d.name, link: `/projects/${created.id}` },
   );
+
+  // Anúncio para o resto do workspace (menos o autor e quem já foi avisado).
+  const others = await db.user.findMany({
+    where: { workspaceId: user.workspaceId, id: { notIn: [user.id, ...memberIds] } },
+    select: { id: true },
+  });
+  await notify(others.map((u) => u.id), {
+    type: "project_created",
+    title: "Novo projeto criado",
+    body: `${d.name} · por ${user.name}`,
+    link: `/projects/${created.id}`,
+  });
+
+  // Toast em tempo real para quem estiver online.
+  emitAppEvent({
+    kind: "project_created",
+    workspaceId: user.workspaceId,
+    actorId: user.id,
+    actorName: user.name,
+    entity: d.name,
+    link: `/projects/${created.id}`,
+  });
 
   revalidatePath("/projects");
   revalidatePath("/dashboard");
@@ -101,7 +131,7 @@ export async function updateProject(projectId: string, _prev: ProjectActionState
         client: d.client,
         tag: d.tag,
         status: d.status,
-        progress: d.progress,
+        manualProgress: d.manualProgress,
         startDate: new Date(d.startDate + "T12:00:00"),
         dueDate: dueDateValue(d.dueDate),
         risk: d.risk,

@@ -5,6 +5,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { notify } from "@/server/notifications";
+import { emitAppEvent } from "@/server/events";
 import type { TaskColumn } from "@/lib/types";
 
 const COLUMNS = ["todo", "doing", "review", "done"] as const;
@@ -20,12 +21,6 @@ const createSchema = z.object({
   tags: z.string().optional(),
 });
 
-// Garante que o projeto pertence ao workspace do usuário.
-async function assertProjectInWorkspace(projectId: string, workspaceId: string) {
-  const p = await db.project.findFirst({ where: { id: projectId, workspaceId }, select: { id: true } });
-  return !!p;
-}
-
 export async function createTask(_prev: TaskActionState, formData: FormData): Promise<TaskActionState> {
   const user = await requireUser();
   const parsed = createSchema.safeParse({
@@ -38,9 +33,11 @@ export async function createTask(_prev: TaskActionState, formData: FormData): Pr
   });
   if (!parsed.success) return { error: parsed.error.issues[0].message };
 
-  if (!(await assertProjectInWorkspace(parsed.data.projectId, user.workspaceId))) {
-    return { error: "Projeto inválido." };
-  }
+  const project = await db.project.findFirst({
+    where: { id: parsed.data.projectId, workspaceId: user.workspaceId },
+    select: { id: true, name: true },
+  });
+  if (!project) return { error: "Projeto inválido." };
 
   const tags = (parsed.data.tags ?? "")
     .split(",")
@@ -71,6 +68,30 @@ export async function createTask(_prev: TaskActionState, formData: FormData): Pr
       link: "/kanban",
     });
   }
+
+  // Anúncio para o resto do workspace (menos o autor e o responsável já avisado).
+  const exclude = [user.id];
+  if (parsed.data.assigneeId) exclude.push(parsed.data.assigneeId);
+  const others = await db.user.findMany({
+    where: { workspaceId: user.workspaceId, id: { notIn: exclude } },
+    select: { id: true },
+  });
+  await notify(others.map((u) => u.id), {
+    type: "task_created",
+    title: "Nova tarefa criada",
+    body: `${parsed.data.title} · em ${project.name} · por ${user.name}`,
+    link: "/kanban",
+  });
+
+  // Toast em tempo real para quem estiver online.
+  emitAppEvent({
+    kind: "task_created",
+    workspaceId: user.workspaceId,
+    actorId: user.id,
+    actorName: user.name,
+    entity: parsed.data.title,
+    link: "/kanban",
+  });
 
   revalidatePath("/kanban");
   revalidatePath("/dashboard");
