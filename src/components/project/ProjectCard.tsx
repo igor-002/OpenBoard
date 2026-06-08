@@ -4,10 +4,12 @@ import { Icon } from "@/components/ui/Icon";
 import { StatusBadge } from "@/components/ui/Badge";
 import { ProgressBar } from "@/components/ui/Progress";
 import { AvatarStack } from "@/components/ui/Avatar";
-import { dayLabel } from "@/lib/format";
+import { dayLabel, deadlineInfo, deadlineColor } from "@/lib/format";
 import type { ProjectListItem } from "@/server/projects";
 
 export function ProjectCard({ p }: { p: ProjectListItem }) {
+  // Projeto concluído não tem urgência de prazo (não marca "atrasado").
+  const dl = p.dueDate && p.status !== "done" ? deadlineInfo(p.dueDate) : null;
   return (
     <Link href={`/projects/${p.id}`} className="card card-pad proj-card">
       <div className="row between" style={{ marginBottom: 14 }}>
@@ -43,7 +45,11 @@ export function ProjectCard({ p }: { p: ProjectListItem }) {
           </div>
           <div>
             <div style={{ fontSize: 11, color: "var(--muted)", fontWeight: 600 }}>Prazo</div>
-            <b style={{ fontSize: 14 }}>{p.dueDate ? dayLabel(p.dueDate) : "Sem prazo"}</b>
+            {dl ? (
+              <b style={{ fontSize: 14, color: deadlineColor(dl.tone) }} title={dayLabel(p.dueDate!)}>{dl.label}</b>
+            ) : (
+              <b style={{ fontSize: 14 }}>{p.dueDate ? dayLabel(p.dueDate) : "Sem prazo"}</b>
+            )}
           </div>
         </div>
         <AvatarStack users={p.members} size={28} />

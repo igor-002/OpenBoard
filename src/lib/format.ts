@@ -20,6 +20,34 @@ export function fullLabel(d: Date): string {
   return cap(fmtFull.format(d).replace(/\./g, ""));
 }
 
+export type DeadlineTone = "overdue" | "soon" | "ok";
+
+// Dias de calendário até o prazo (negativo = atrasado) + tom + rótulo PT-BR.
+// soonDays = janela do "chegando no prazo" (amarelo).
+export function deadlineInfo(due: Date, soonDays = 7): { days: number; tone: DeadlineTone; label: string } {
+  const day = 86400000;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const d = new Date(due);
+  d.setHours(0, 0, 0, 0);
+  const days = Math.round((+d - +today) / day);
+  const tone: DeadlineTone = days < 0 ? "overdue" : days <= soonDays ? "soon" : "ok";
+  const abs = Math.abs(days);
+  const label =
+    days < 0
+      ? `Atrasado há ${abs} ${abs === 1 ? "dia" : "dias"}`
+      : days === 0
+        ? "Vence hoje"
+        : days === 1
+          ? "Vence amanhã"
+          : `Faltam ${days} dias`;
+  return { days, tone, label };
+}
+
+export function deadlineColor(tone: DeadlineTone): string {
+  return tone === "overdue" ? "var(--st-risk)" : tone === "soon" ? "var(--pr-med)" : "var(--ink-2)";
+}
+
 // segundos -> "H:MM:SS"
 export function hms(totalSec: number): string {
   const h = Math.floor(totalSec / 3600);

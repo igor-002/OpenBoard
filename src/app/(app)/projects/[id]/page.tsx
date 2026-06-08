@@ -12,7 +12,7 @@ import { Tabs } from "@/components/ui/Tabs";
 import { Icon, type IconName } from "@/components/ui/Icon";
 import { Avatar } from "@/components/ui/Avatar";
 import { PriorityBadge } from "@/components/ui/Badge";
-import { fullLabel, dayLabel } from "@/lib/format";
+import { fullLabel, dayLabel, deadlineInfo, deadlineColor } from "@/lib/format";
 
 export default async function ProjectDetailPage({
   params,
@@ -30,7 +30,8 @@ export default async function ProjectDetailPage({
   const memberOpts = users.map((u) => ({ id: u.id, name: u.name }));
 
   const daysOpen = Math.max(0, Math.floor((Date.now() - +p.startDate) / 86400000));
-  const daysLeft = p.dueDate ? Math.max(0, Math.ceil((+p.dueDate - Date.now()) / 86400000)) : null;
+  // Projeto concluído não tem urgência de prazo (não marca "atrasado").
+  const dl = p.dueDate && p.status !== "done" ? deadlineInfo(p.dueDate) : null;
 
   const facts: [IconName, string][] = [
     ["layers", `${p.tasksTotal} tarefas`],
@@ -44,9 +45,15 @@ export default async function ProjectDetailPage({
   const summary: [string, string, string][] = [
     ["Progresso", p.progress + "%", "var(--primary)"],
     ["Tarefas", p.tasksDone + "/" + p.tasksTotal, "var(--st-progress)"],
-    daysLeft !== null
-      ? ["Dias restantes", String(daysLeft), "var(--st-done)"]
-      : ["Dias em aberto", String(daysOpen), "var(--pr-med)"],
+    dl
+      ? [
+          dl.days < 0 ? "Atrasado (dias)" : "Dias restantes",
+          String(Math.abs(dl.days)),
+          deadlineColor(dl.tone),
+        ]
+      : p.dueDate
+        ? ["Prazo", dayLabel(p.dueDate), "var(--st-done)"]
+        : ["Dias em aberto", String(daysOpen), "var(--pr-med)"],
   ];
 
   const detalhes = (
@@ -119,7 +126,7 @@ export default async function ProjectDetailPage({
               </h1>
               <div className="row gap16" style={{ position: "relative", fontSize: 13, fontWeight: 600, opacity: 0.95, flexWrap: "wrap" }}>
                 <span className="row gap8"><Icon name="briefcase" size={15} />{p.client}</span>
-                <span className="row gap8"><Icon name="calendar" size={15} />{p.dueDate ? `${dayLabel(p.startDate)} → ${fullLabel(p.dueDate)}` : `Início ${dayLabel(p.startDate)} · ${daysOpen}d em aberto`}</span>
+                <span className="row gap8"><Icon name="calendar" size={15} />{p.dueDate ? `${dayLabel(p.startDate)} → ${fullLabel(p.dueDate)}${dl ? " · " + dl.label : ""}` : `Início ${dayLabel(p.startDate)} · ${daysOpen}d em aberto`}</span>
               </div>
             </div>
           </div>

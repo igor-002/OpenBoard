@@ -11,7 +11,7 @@ import { Donut } from "@/components/charts/Charts";
 import { ProjectRow } from "@/components/project/ProjectRow";
 import { NewProjectButton } from "@/components/project/NewProjectButton";
 import { STATUS_META } from "@/lib/meta";
-import { dayLabel } from "@/lib/format";
+import { dayLabel, deadlineInfo, deadlineColor } from "@/lib/format";
 
 export default async function DashboardPage() {
   const user = await requireUser();
@@ -94,20 +94,26 @@ export default async function DashboardPage() {
             <div className="muted" style={{ fontSize: 13.5 }}>Nenhum prazo definido.</div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-              {deadlines.map((p) => (
-                <div key={p.id} className="row between">
-                  <div className="row gap12">
-                    <div style={{ width: 42, height: 42, borderRadius: 11, background: "var(--surface-3)", display: "grid", placeItems: "center", color: "var(--ink-2)", flex: "none" }}>
-                      <Icon name="calendar" size={18} />
+              {deadlines.map((p) => {
+                const dl = deadlineInfo(p.dueDate);
+                return (
+                  <div key={p.id} className="row between">
+                    <div className="row gap12">
+                      <div style={{ width: 42, height: 42, borderRadius: 11, background: "var(--surface-3)", display: "grid", placeItems: "center", color: "var(--ink-2)", flex: "none" }}>
+                        <Icon name="calendar" size={18} />
+                      </div>
+                      <div>
+                        <div style={{ fontWeight: 700, fontSize: 13.5, lineHeight: 1.2 }}>{p.name.split("—")[0].trim()}</div>
+                        <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 2 }}>{p.client}</div>
+                      </div>
                     </div>
-                    <div>
-                      <div style={{ fontWeight: 700, fontSize: 13.5, lineHeight: 1.2 }}>{p.name.split("—")[0].trim()}</div>
-                      <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 2 }}>{p.client}</div>
+                    <div style={{ textAlign: "right" }}>
+                      <div style={{ fontSize: 12.5, fontWeight: 700, color: deadlineColor(dl.tone) }}>{dl.label}</div>
+                      <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>{dayLabel(p.dueDate)}</div>
                     </div>
                   </div>
-                  <span style={{ fontSize: 12.5, fontWeight: 700, color: p.risk ? "var(--st-risk)" : "var(--ink-2)" }}>{dayLabel(p.dueDate)}</span>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </Card>
