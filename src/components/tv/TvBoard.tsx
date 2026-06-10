@@ -529,7 +529,7 @@ const SLIDES = [
 const INTERVAL = 15000;
 const REFRESH_MS = 30000;
 
-export function TvBoard({ initial, tvKey }: { initial: TvData; tvKey: string }) {
+export function TvBoard({ initial }: { initial: TvData }) {
   const [data, setData] = useState<TvData>(initial);
   const [idx, setIdx] = useState(0);
   const [paused, setPaused] = useState(false);
@@ -574,10 +574,10 @@ export function TvBoard({ initial, tvKey }: { initial: TvData; tvKey: string }) 
   // refetch periódico
   const refetch = useCallback(async () => {
     try {
-      const r = await fetch(`/api/tv/data?key=${encodeURIComponent(tvKey)}`, { cache: "no-store" });
+      const r = await fetch(`/api/tv/data`, { cache: "no-store" });
       if (r.ok) setData(await r.json());
     } catch { /* mantém dados atuais */ }
-  }, [tvKey]);
+  }, []);
   useEffect(() => {
     const t = setInterval(refetch, REFRESH_MS);
     return () => clearInterval(t);

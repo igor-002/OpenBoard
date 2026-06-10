@@ -10,12 +10,9 @@ import type { ProjectStatus, AvatarUser, Priority, TaskColumn } from "@/lib/type
 
 export type TvWorkspace = { id: string; name: string };
 
-// Valida o token e resolve o workspace exibido na TV.
-// Token vem de TV_TOKEN. Workspace: TV_WORKSPACE_ID se setado, senão o único/primeiro.
-export async function resolveTvWorkspace(key: string | undefined | null): Promise<TvWorkspace | null> {
-  const expected = process.env.TV_TOKEN;
-  if (!expected || !key || key !== expected) return null;
-
+// Resolve o workspace exibido na TV (acesso livre, sem token).
+// Workspace: TV_WORKSPACE_ID se setado, senão o único/primeiro.
+export async function resolveTvWorkspace(): Promise<TvWorkspace | null> {
   const fixedId = process.env.TV_WORKSPACE_ID;
   const ws = fixedId
     ? await db.workspace.findUnique({ where: { id: fixedId }, select: { id: true, name: true } })

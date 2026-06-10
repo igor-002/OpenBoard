@@ -3,14 +3,9 @@ import { TvBoard } from "@/components/tv/TvBoard";
 
 export const dynamic = "force-dynamic";
 
-// Painel de TV (kiosk). Acesso por token: /tv?key=SEGREDO. Sem login, só leitura.
-export default async function TvPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ key?: string }>;
-}) {
-  const { key } = await searchParams;
-  const ws = await resolveTvWorkspace(key);
+// Painel de TV (kiosk). Acesso livre em /tv, sem login e sem token — só leitura.
+export default async function TvPage() {
+  const ws = await resolveTvWorkspace();
 
   if (!ws) {
     return (
@@ -25,11 +20,11 @@ export default async function TvPage({
           fontSize: 18,
         }}
       >
-        Acesso negado · token inválido ou ausente.
+        Nenhum workspace disponível.
       </div>
     );
   }
 
   const data = await getTvData(ws);
-  return <TvBoard initial={data} tvKey={key!} />;
+  return <TvBoard initial={data} />;
 }
