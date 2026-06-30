@@ -32,7 +32,7 @@ function KPI({ icon, color = "var(--tv-accent)", label, value, foot }: { icon: I
   return (
     <div className="tv-kpi" style={{ color }}>
       <div className="top"><span className="lab">{label}</span><span className="ico" style={{ background: `color-mix(in srgb, ${color} 16%, transparent)`, color }}><Icon name={icon} size={23} /></span></div>
-      <div className="val">{value}</div>
+      <div className="val" style={{ fontWeight: 900 }}>{value}</div>
       <div className="foot">{foot}</div>
     </div>
   );
@@ -84,8 +84,8 @@ function SlidePanorama({ d }: { d: ComercialTvData }) {
                 <Bar value={(r.mrrCents / maxMrr) * 100} color={i === 0 ? "var(--tv-accent)" : "var(--ok)"} h={13} />
               </div>
               <div style={{ width: 190, textAlign: "right", flex: "none" }}>
-                <b className="tnum" style={{ fontSize: 24 }}>{brl(r.mrrCents)}</b>
-                <div style={{ fontSize: 14, color: "var(--tv-muted)", fontWeight: 700 }}>{r.ativos} ativos · {r.conversao}% conv.</div>
+                <b className="tnum" style={{ fontSize: 26, fontWeight: 900 }}>{brl(r.mrrCents)}</b>
+                <div style={{ fontSize: 14, color: "var(--tv-muted)", fontWeight: 800 }}>{r.ativos} ativos · {r.conversao}% conv.</div>
               </div>
             </div>
           ))}
@@ -197,6 +197,7 @@ function SlidePipeline({ d }: { d: ComercialTvData }) {
 /* ============ SLIDE 4 — EVOLUÇÃO & CARTEIRA ============ */
 function SlideEvolucao({ d }: { d: ComercialTvData }) {
   const maxEvo = Math.max(1, ...d.evolucao.map((m) => Math.max(m.ativos, m.aguardando)));
+  const totalAtivados = d.evolucao.reduce((a, m) => a + m.ativos, 0);
   const cart = d.carteira;
   const maxCart = Math.max(1, cart.ativos, cart.pipeline, cart.bloqueados, cart.cancelados, cart.inativosD);
   const cartRows: [string, number, string][] = [
@@ -204,17 +205,27 @@ function SlideEvolucao({ d }: { d: ComercialTvData }) {
     ["Bloqueados", cart.bloqueados, "var(--warn)"], ["Cancelados", cart.cancelados, "var(--crit)"],
     ["Inativos (D)", cart.inativosD, "var(--tv-muted)"],
   ];
+  const legenda = (
+    <div className="row gap16" style={{ alignItems: "center" }}>
+      <span className="row gap8" style={{ alignItems: "center" }}><span style={{ width: 13, height: 13, borderRadius: 4, background: "var(--ok)" }} /><span style={{ fontSize: 15, fontWeight: 800, color: "var(--tv-ink-2)" }}>Ativados</span></span>
+      <span className="row gap8" style={{ alignItems: "center" }}><span style={{ width: 13, height: 13, borderRadius: 4, background: "var(--info)" }} /><span style={{ fontSize: 15, fontWeight: 800, color: "var(--tv-ink-2)" }}>Aguardando</span></span>
+    </div>
+  );
   return (
-    <div className="tv-grid" style={{ gridTemplateColumns: "1.3fr 1fr", gridTemplateRows: "none" }}>
-      <Panel icon="chart" title="Evolução" sub="Ativados × Aguardando — últimos 6 meses">
-        <div style={{ display: "flex", alignItems: "flex-end", gap: 18, flex: 1, padding: "10px 4px 0" }}>
+    <div className="tv-grid" style={{ gridTemplateColumns: "1.45fr 1fr", gridTemplateRows: "none" }}>
+      <Panel icon="chart" title="Evolução de vendas" sub={`Últimos 6 meses · ${totalAtivados} ativados no período`} right={legenda}>
+        <div style={{ display: "flex", alignItems: "flex-end", gap: 22, flex: 1, padding: "18px 6px 0" }}>
           {d.evolucao.map((m) => (
-            <div key={m.label} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 8, height: "100%" }}>
-              <div style={{ flex: 1, width: "100%", display: "flex", alignItems: "flex-end", justifyContent: "center", gap: 6 }}>
-                <div title={`${m.ativos} ativados`} style={{ width: 22, height: `${(m.ativos / maxEvo) * 100}%`, background: "var(--ok)", borderRadius: "5px 5px 0 0", minHeight: m.ativos ? 4 : 0 }} />
-                <div title={`${m.aguardando} aguardando`} style={{ width: 22, height: `${(m.aguardando / maxEvo) * 100}%`, background: "var(--info)", borderRadius: "5px 5px 0 0", minHeight: m.aguardando ? 4 : 0 }} />
+            <div key={m.label} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 12, height: "100%" }}>
+              <div style={{ flex: 1, width: "100%", display: "flex", alignItems: "flex-end", justifyContent: "center", gap: 10 }}>
+                {[["ativados", m.ativos, "var(--ok)"], ["aguardando", m.aguardando, "var(--info)"]].map(([key, val, c]) => (
+                  <div key={key as string} style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end", height: "100%", flex: 1, maxWidth: 56 }}>
+                    <span className="tnum" style={{ fontSize: 24, fontWeight: 900, color: c as string, marginBottom: 6 }}>{val as number}</span>
+                    <div style={{ width: "100%", height: `${((val as number) / maxEvo) * 100}%`, background: c as string, borderRadius: "7px 7px 0 0", minHeight: (val as number) ? 5 : 0 }} />
+                  </div>
+                ))}
               </div>
-              <span style={{ fontSize: 13, color: "var(--tv-muted)", fontWeight: 700 }}>{m.label}</span>
+              <span style={{ fontSize: 17, color: "var(--tv-ink-2)", fontWeight: 800 }}>{m.label}</span>
             </div>
           ))}
         </div>
@@ -222,10 +233,10 @@ function SlideEvolucao({ d }: { d: ComercialTvData }) {
       <Panel icon="briefcase" color="var(--info)" title="Carteira (base total)" sub="Desativados ficam fora das vendas">
         <div style={{ display: "flex", flexDirection: "column", flex: 1, justifyContent: "space-evenly", minHeight: 0 }}>
           {cartRows.map(([lab, val, c]) => (
-            <div key={lab} style={{ display: "flex", alignItems: "center", gap: 14 }}>
-              <span style={{ width: 140, fontSize: 15, fontWeight: 700, color: "var(--tv-ink-2)", flex: "none" }}>{lab}</span>
-              <div style={{ flex: 1 }}><Bar value={(val / maxCart) * 100} color={c} h={11} /></div>
-              <b className="tnum" style={{ fontSize: 20, width: 90, textAlign: "right", flex: "none", color: c }}>{val.toLocaleString("pt-BR")}</b>
+            <div key={lab} style={{ display: "flex", alignItems: "center", gap: 16 }}>
+              <span style={{ width: 150, fontSize: 17, fontWeight: 800, color: "var(--tv-ink-2)", flex: "none" }}>{lab}</span>
+              <div style={{ flex: 1 }}><Bar value={(val / maxCart) * 100} color={c} h={14} /></div>
+              <b className="tnum" style={{ fontSize: 30, fontWeight: 900, width: 110, textAlign: "right", flex: "none", color: c }}>{val.toLocaleString("pt-BR")}</b>
             </div>
           ))}
         </div>
