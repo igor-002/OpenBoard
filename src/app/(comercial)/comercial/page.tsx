@@ -42,6 +42,9 @@ export default async function ComercialOverviewPage({
           </p>
         </div>
         <div className="row gap12">
+          <Link className="btn btn-ghost" href="/tv/comercial" target="_blank" rel="noopener noreferrer" title="Painel de TV (kiosk)">
+            <Icon name="sidebar" size={15} /> TV
+          </Link>
           <Link className="btn btn-primary" href="/comercial/sync">
             <Icon name="zap" size={15} /> Sincronização
           </Link>
