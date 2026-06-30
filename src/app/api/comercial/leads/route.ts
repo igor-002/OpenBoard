@@ -52,6 +52,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "json inválido" }, { status: 400 });
   }
 
+  // TEMP: loga payload cru do AtendAI p/ mapear os campos. Remover depois.
+  console.log("[leads-ingest] payload:", JSON.stringify(body));
+
   const parsed = schema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json({ ok: false, error: parsed.error.issues[0]?.message ?? "payload inválido" }, { status: 422 });
