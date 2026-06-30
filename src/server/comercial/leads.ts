@@ -75,8 +75,12 @@ async function resolveAssignedUserId(input: Pick<LeadInput, "assignedUserId" | "
   }
   const name = input.assignedUserName?.trim();
   if (name) {
-    const u = await db.user.findFirst({ where: { name: { equals: name, mode: "insensitive" } }, select: { id: true } });
-    if (u) return u.id;
+    // nome exato
+    const exact = await db.user.findFirst({ where: { name: { equals: name, mode: "insensitive" } }, select: { id: true } });
+    if (exact) return exact.id;
+    // AtendAI manda só o 1º nome (ex. "Cesar") → casa com User cujo nome começa com isso ("Cesar Marinho").
+    const starts = await db.user.findFirst({ where: { name: { startsWith: name, mode: "insensitive" } }, select: { id: true } });
+    if (starts) return starts.id;
   }
   return null;
 }

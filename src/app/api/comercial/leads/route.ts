@@ -44,6 +44,7 @@ function fromAtendAI(body: unknown): LeadInput | null {
   const fila = (d.filaPersonalizada as Record<string, unknown> | null)?.nome_fila;
   const setor = (d.setor as Record<string, unknown> | null)?.nome_setor;
   // Responsável: atendente que assumiu/moveu a conversa (vem preenchido nas filas personalizadas).
+  // AtendAI manda só o 1º nome (ex. "Cesar") e SEM e-mail; casa por nome no server.
   const usuario = d.usuario as Record<string, unknown> | null;
   const assignedUserName = usuario && typeof usuario.nome === "string" ? usuario.nome : (usuario && typeof usuario.name === "string" ? usuario.name : null);
   const assignedUserEmail = usuario && typeof usuario.email === "string" ? usuario.email : null;
@@ -55,6 +56,14 @@ function fromAtendAI(body: unknown): LeadInput | null {
     hist || null,
   ].filter(Boolean).join("\n") || null;
 
+  // Não persistir o hash de senha do atendente que o AtendAI manda no usuario.
+  let safePayload: unknown = body;
+  if (usuario && typeof usuario === "object") {
+    const { senha: _senha, senha_ramal_vital: _srv, ...usuarioSemSenha } = usuario;
+    void _senha; void _srv;
+    safePayload = { ...env, data: { ...d, usuario: usuarioSemSenha } };
+  }
+
   return {
     nome,
     contato,
@@ -63,7 +72,7 @@ function fromAtendAI(body: unknown): LeadInput | null {
     observacoes,
     assignedUserName,
     assignedUserEmail,
-    payload: body,
+    payload: safePayload,
   };
 }
 
@@ -88,12 +97,6 @@ export async function POST(request: Request) {
   } catch {
     return NextResponse.json({ ok: false, error: "json inválido" }, { status: 400 });
   }
-
-  // TEMP: loga usuario/responsável cru p/ confirmar shape do AtendAI. Remover depois.
-  try {
-    const dd = (body as Record<string, unknown>)?.data as Record<string, unknown> | undefined;
-    console.log("[leads-ingest] usuario:", JSON.stringify(dd?.usuario), "id_usuario:", JSON.stringify(dd?.id_usuario));
-  } catch {}
 
   // Caminho AtendAI (envelope { evento, data }). Se não casar, tenta o formato flat.
   let input: LeadInput | null = fromAtendAI(body);
