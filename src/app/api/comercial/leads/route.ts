@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { ingestLead } from "@/server/comercial/leads";
+import { ingestLead, type LeadInput } from "@/server/comercial/leads";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -30,6 +30,37 @@ const schema = z.object({
   payload: z.unknown().optional(),
 });
 
+// AtendAI manda um envelope `{ evento, data:{...} }` (ex.: ENTRADA_NOVA_CONVERSA_FILA).
+// Normaliza pro nosso LeadInput. Retorna null se não for esse formato.
+function fromAtendAI(body: unknown): LeadInput | null {
+  if (!body || typeof body !== "object") return null;
+  const env = body as Record<string, unknown>;
+  if (!("evento" in env) || typeof env.data !== "object" || env.data == null) return null;
+  const d = env.data as Record<string, unknown>;
+  const nome = typeof d.nome === "string" ? d.nome.trim() : "";
+  if (!nome) return null;
+
+  const contato = d.whatsappid != null ? String(d.whatsappid) : null;
+  const fila = (d.filaPersonalizada as Record<string, unknown> | null)?.nome_fila;
+  const setor = (d.setor as Record<string, unknown> | null)?.nome_setor;
+  const msgs = Array.isArray(d.mensagensAtendimento) ? (d.mensagensAtendimento as Record<string, unknown>[]) : [];
+  const hist = msgs.map((m) => `[${m.remetente ?? "?"}] ${m.mensagem ?? ""}`).join("\n");
+  const observacoes = [
+    typeof fila === "string" && fila.trim() ? `Fila: ${fila.trim()}` : null,
+    typeof setor === "string" && setor.trim() ? `Setor: ${setor.trim()}` : null,
+    hist || null,
+  ].filter(Boolean).join("\n") || null;
+
+  return {
+    nome,
+    contato,
+    origem: "atendai",
+    externalId: d.id != null ? `atendai-${d.id}` : null,
+    observacoes,
+    payload: body,
+  };
+}
+
 function authorized(request: Request, url: URL): boolean {
   const expected = process.env.LEADS_INGEST_TOKEN;
   if (!expected) return false; // sem token configurado, rejeita
@@ -52,17 +83,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "json inválido" }, { status: 400 });
   }
 
-  // TEMP: loga payload cru do AtendAI p/ mapear os campos. Remover depois.
-  console.log("[leads-ingest] payload:", JSON.stringify(body));
+  // Caminho AtendAI (envelope { evento, data }). Se não casar, tenta o formato flat.
+  let input: LeadInput | null = fromAtendAI(body);
 
-  const parsed = schema.safeParse(body);
-  if (!parsed.success) {
-    return NextResponse.json({ ok: false, error: parsed.error.issues[0]?.message ?? "payload inválido" }, { status: 422 });
-  }
-  const d = parsed.data;
-
-  try {
-    const r = await ingestLead({
+  if (!input) {
+    const parsed = schema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json({ ok: false, error: parsed.error.issues[0]?.message ?? "payload inválido" }, { status: 422 });
+    }
+    const d = parsed.data;
+    input = {
       nome: d.nome,
       empresa: d.empresa ?? null,
       cnpjCpf: d.cnpjCpf ?? null,
@@ -73,7 +103,11 @@ export async function POST(request: Request) {
       observacoes: d.observacoes ?? null,
       externalId: d.externalId ?? null,
       payload: d.payload ?? body,
-    });
+    };
+  }
+
+  try {
+    const r = await ingestLead(input);
     return NextResponse.json({ ok: true, created: r.created, id: r.id, matchedBy: r.matchedBy }, { status: r.created ? 201 : 200 });
   } catch (e) {
     return NextResponse.json({ ok: false, error: (e as Error).message }, { status: 500 });
