@@ -41,34 +41,55 @@ function Bar({ value, color, h = 9 }: { value: number; color?: string; h?: numbe
   return <div className="tv-bar" style={{ height: h }}><i style={{ width: `${Math.max(0, Math.min(100, value))}%`, background: color || "var(--tv-accent)" }} /></div>;
 }
 
-/* ============ SLIDE 1 — PANORAMA ============ */
+// Anel de progresso (gauge) em SVG — preenche o painel com um número grande no centro.
+function Gauge({ pct, color, size = 300, stroke = 30, center, foot }: { pct: number; color: string; size?: number; stroke?: number; center: React.ReactNode; foot?: React.ReactNode }) {
+  const r = (size - stroke) / 2;
+  const circ = 2 * Math.PI * r;
+  const filled = (Math.min(100, Math.max(0, pct)) / 100) * circ;
+  return (
+    <div style={{ position: "relative", width: size, height: size }}>
+      <svg width={size} height={size} style={{ transform: "rotate(-90deg)" }}>
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--tv-panel-2)" strokeWidth={stroke} />
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeWidth={stroke} strokeLinecap="round" strokeDasharray={`${filled} ${circ - filled}`} />
+      </svg>
+      <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", textAlign: "center" }}>
+        <div>{center}{foot && <div style={{ fontSize: 16, color: "var(--tv-muted)", fontWeight: 700, marginTop: 6 }}>{foot}</div>}</div>
+      </div>
+    </div>
+  );
+}
+
+/* ============ SLIDE 1 — PANORAMA DO MÊS ============ */
 function SlidePanorama({ d }: { d: ComercialTvData }) {
   const k = d.kpis;
+  const totalPipe = k.ativadosMes + k.pipeline;
+  const conversao = totalPipe > 0 ? Math.round((k.ativadosMes / totalPipe) * 100) : 0;
+  const ticketCents = k.ativadosMes > 0 ? Math.round(k.mrrAtivadosMesCents / k.ativadosMes) : 0;
   const maxMrr = Math.max(1, ...d.ranking.map((r) => r.mrrCents));
   return (
-    <div className="tv-grid" style={{ gridTemplateRows: "188px 1fr" }}>
+    <div className="tv-grid" style={{ gridTemplateRows: "210px 1fr" }}>
       <div className="tv-grid" style={{ gridTemplateColumns: "repeat(4,1fr)", gridTemplateRows: "none" }}>
-        <KPI icon="wallet" color="var(--ok)" label="MRR ativo (carteira)" value={brl(k.mrrCarteiraCents)} foot={`${k.contratosAtivosCarteira} contratos ativos`} />
-        <KPI icon="checkCircle" color="var(--tv-accent)" label="Ativados no mês" value={k.ativadosMes} foot={`${brl(k.mrrAtivadosMesCents)} em MRR`} />
+        <KPI icon="checkCircle" color="var(--ok)" label="Ativados no mês" value={k.ativadosMes} foot={`${brl(k.mrrAtivadosMesCents)} em MRR novo`} />
         <KPI icon="target" color="var(--info)" label="Pipeline (aguardando)" value={k.pipeline} foot={`${brl(k.mrrPipelineCents)} em potencial`} />
-        <KPI icon="alert" color="var(--crit)" label="Cancelados no mês" value={k.canceladosMes} foot="no período" />
+        <KPI icon="trendUp" color="var(--tv-accent)" label="Taxa de conversão" value={`${conversao}%`} foot="ativados / pipeline do mês" />
+        <KPI icon="wallet" color="var(--viol)" label="Ticket médio" value={brl(ticketCents)} foot="MRR por contrato ativado" />
       </div>
-      <Panel icon="trendUp" title="Ranking de vendedores" sub="Ativados e MRR no mês" right={`${d.ranking.length}`}>
+      <Panel icon="trendUp" title="Ranking de vendedores" sub="MRR novo e contratos ativados no mês" right={`${d.ranking.length} no mês`}>
         <div style={{ display: "flex", flexDirection: "column", flex: 1, justifyContent: "space-evenly", minHeight: 0 }}>
           {d.ranking.map((r, i) => (
-            <div key={r.nome} style={{ display: "flex", alignItems: "center", gap: 16 }}>
-              <span className="tnum" style={{ width: 40, fontSize: 22, fontWeight: 800, color: i === 0 ? "var(--tv-accent)" : "var(--tv-muted)", flex: "none" }}>{i + 1}º</span>
+            <div key={r.nome} style={{ display: "flex", alignItems: "center", gap: 18 }}>
+              <span className="tnum" style={{ width: 44, fontSize: 26, fontWeight: 800, color: i === 0 ? "var(--tv-accent)" : i === 1 ? "var(--tv-ink-2)" : "var(--tv-muted)", flex: "none" }}>{i + 1}º</span>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 17, fontWeight: 800, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.nome}</div>
-                <div style={{ width: "100%", marginTop: 6 }}><Bar value={(r.mrrCents / maxMrr) * 100} color="var(--ok)" h={9} /></div>
+                <div style={{ fontSize: 20, fontWeight: 800, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", marginBottom: 7 }}>{r.nome}</div>
+                <Bar value={(r.mrrCents / maxMrr) * 100} color={i === 0 ? "var(--tv-accent)" : "var(--ok)"} h={13} />
               </div>
-              <div style={{ width: 150, textAlign: "right", flex: "none" }}>
-                <b className="tnum" style={{ fontSize: 19 }}>{brl(r.mrrCents)}</b>
-                <div style={{ fontSize: 12.5, color: "var(--tv-muted)", fontWeight: 600 }}>{r.ativos} ativos · {r.conversao}% conv.</div>
+              <div style={{ width: 190, textAlign: "right", flex: "none" }}>
+                <b className="tnum" style={{ fontSize: 24 }}>{brl(r.mrrCents)}</b>
+                <div style={{ fontSize: 14, color: "var(--tv-muted)", fontWeight: 700 }}>{r.ativos} ativos · {r.conversao}% conv.</div>
               </div>
             </div>
           ))}
-          {d.ranking.length === 0 && <div style={{ color: "var(--tv-muted)", fontSize: 16 }}>Sem contratos no mês.</div>}
+          {d.ranking.length === 0 && <div style={{ color: "var(--tv-muted)", fontSize: 18 }}>Sem contratos no mês.</div>}
         </div>
       </Panel>
     </div>
@@ -79,40 +100,53 @@ function SlidePanorama({ d }: { d: ComercialTvData }) {
 function SlideMeta({ d }: { d: ComercialTvData }) {
   const meta = d.meta;
   const t = d.tempoAtivacao;
+  const pct = meta?.pct ?? 0;
+  const cor = pct >= 100 ? "var(--ok)" : pct >= 50 ? "var(--warn)" : "var(--tv-accent)";
+  const du = d.diasUteis;
   return (
-    <div className="tv-grid" style={{ gridTemplateColumns: "1.15fr 1fr", gridTemplateRows: "none" }}>
-      <Panel icon="target" title="Meta do time" sub={meta ? `${meta.ativos} de ${meta.metaContratos} contratos ativos` : "Sem meta cadastrada"}>
-        {meta ? (
-          <div style={{ display: "flex", flexDirection: "column", flex: 1, justifyContent: "center" }}>
-            <div style={{ display: "flex", alignItems: "baseline", gap: 16, marginBottom: 16 }}>
-              <span className="tnum" style={{ fontSize: 80, fontWeight: 800, letterSpacing: "-3px", color: (meta.pct ?? 0) >= 100 ? "var(--ok)" : "var(--tv-accent)", lineHeight: 0.9 }}>{meta.pct}%</span>
-              <span style={{ fontSize: 18, color: "var(--tv-muted)", fontWeight: 700 }}>de atingimento</span>
-            </div>
-            <Bar value={meta.pct ?? 0} color={(meta.pct ?? 0) >= 100 ? "var(--ok)" : (meta.pct ?? 0) >= 50 ? "var(--warn)" : "var(--tv-accent)"} h={16} />
-            <div style={{ marginTop: 14, fontSize: 15, color: "var(--tv-ink-2)", fontWeight: 600 }}>{meta.ativos} / {meta.metaContratos} contratos</div>
-          </div>
-        ) : <div style={{ color: "var(--tv-muted)", fontSize: 17 }}>Cadastre a meta em MRR &amp; Metas.</div>}
+    <div className="tv-grid" style={{ gridTemplateColumns: "1fr 1fr", gridTemplateRows: "none" }}>
+      <Panel icon="target" title="Meta do time" sub={meta ? "Contratos ativados no mês" : "Sem meta cadastrada"}>
+        <div style={{ display: "flex", flex: 1, alignItems: "center", justifyContent: "center" }}>
+          {meta ? (
+            <Gauge
+              pct={pct} color={cor} size={400} stroke={38}
+              center={<>
+                <div className="tnum" style={{ fontSize: 110, fontWeight: 800, letterSpacing: "-5px", color: cor, lineHeight: 0.9 }}>{pct}%</div>
+                <div style={{ fontSize: 22, fontWeight: 800, color: "var(--tv-ink-2)", marginTop: 8 }}>{meta.ativos} / {meta.metaContratos}</div>
+              </>}
+              foot="contratos da meta"
+            />
+          ) : <div style={{ color: "var(--tv-muted)", fontSize: 20 }}>Cadastre a meta em MRR &amp; Metas.</div>}
+        </div>
       </Panel>
       <div className="tv-grid" style={{ gridTemplateRows: "1fr 1fr", gap: 22 }}>
-        <Panel icon="trendUp" color="var(--info)" title="Forecast de MRR" sub={d.forecastCents != null ? `Projeção fim do mês · ${d.diasUteis.passados}/${d.diasUteis.total} dias úteis` : "Disponível só no mês atual"}>
+        <Panel icon="trendUp" color="var(--info)" title="Forecast de MRR" sub={d.forecastCents != null ? "Projeção pro fim do mês (ritmo atual)" : "Disponível só no mês atual"}>
           {d.forecastCents != null ? (
-            <div style={{ display: "flex", alignItems: "baseline", gap: 14, flex: 1 }}>
-              <span className="tnum" style={{ fontSize: 56, fontWeight: 800, letterSpacing: "-2px", color: "var(--info)" }}>{brl(d.forecastCents)}</span>
-              <span style={{ fontSize: 15, color: "var(--tv-muted)", fontWeight: 700 }}>projetado</span>
+            <div style={{ display: "flex", flexDirection: "column", flex: 1, justifyContent: "center", gap: 18 }}>
+              <div className="tnum" style={{ fontSize: 76, fontWeight: 800, letterSpacing: "-3px", color: "var(--info)", lineHeight: 0.9 }}>{brl(d.forecastCents)}</div>
+              <div>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+                  <span style={{ fontSize: 16, color: "var(--tv-muted)", fontWeight: 700 }}>Dias úteis do mês</span>
+                  <b className="tnum" style={{ fontSize: 18 }}>{du.passados}/{du.total}</b>
+                </div>
+                <Bar value={du.total > 0 ? (du.passados / du.total) * 100 : 0} color="var(--info)" h={13} />
+              </div>
+              <div style={{ fontSize: 17, color: "var(--tv-ink-2)", fontWeight: 600 }}>Hoje: <b>{brl(d.kpis.mrrAtivadosMesCents)}</b> em MRR ativado</div>
             </div>
-          ) : <div style={{ color: "var(--tv-muted)", fontSize: 16 }}>—</div>}
+          ) : <div style={{ color: "var(--tv-muted)", fontSize: 18, display: "grid", placeItems: "center", flex: 1 }}>—</div>}
         </Panel>
-        <Panel icon="clock" color="var(--warn)" title="Tempo de ativação" sub={t ? `${t.n} contratos no mês` : "Do cadastro à ativação"}>
+        <Panel icon="clock" color="var(--warn)" title="Tempo de ativação" sub={t ? `Do cadastro à ativação · ${t.n} contratos` : "Do cadastro à ativação"}>
           {t ? (
             <div style={{ display: "flex", justifyContent: "space-around", flex: 1, alignItems: "center" }}>
               {[["Média", t.mediaDias, "var(--tv-ink)"], ["Mais rápido", t.melhorDias, "var(--ok)"], ["Mais lento", t.piorDias, "var(--crit)"]].map(([lab, val, c]) => (
                 <div key={lab as string} style={{ textAlign: "center" }}>
-                  <div className="tnum" style={{ fontSize: 38, fontWeight: 800, color: c as string }}>{val as number}</div>
-                  <div style={{ fontSize: 13, color: "var(--tv-muted)", fontWeight: 700 }}>{lab as string} · dias</div>
+                  <div className="tnum" style={{ fontSize: 60, fontWeight: 800, color: c as string, lineHeight: 1 }}>{val as number}</div>
+                  <div style={{ fontSize: 15, color: "var(--tv-muted)", fontWeight: 700, marginTop: 4 }}>{lab as string}</div>
+                  <div style={{ fontSize: 12.5, color: "var(--tv-muted-2)", fontWeight: 600 }}>dias</div>
                 </div>
               ))}
             </div>
-          ) : <div style={{ color: "var(--tv-muted)", fontSize: 16 }}>Sem ativações no período.</div>}
+          ) : <div style={{ color: "var(--tv-muted)", fontSize: 18, display: "grid", placeItems: "center", flex: 1 }}>Sem ativações no período.</div>}
         </Panel>
       </div>
     </div>
