@@ -8,7 +8,7 @@ export default async function LeadsPage() {
   const user = await requireUser();
   const [board, users] = await Promise.all([getLeadsBoard(), getUsers(user.workspaceId)]);
   return (
-    <div className="page">
+    <div className="page" style={{ maxWidth: "none" }}>
       {/* Leads chegam do chat por fora — atualiza sozinho pra novos cards aparecerem. */}
       <AutoRefresh seconds={30} />
       <LeadsBoard board={board} userOpts={users.map((u) => ({ id: u.id, name: u.name }))} isAdmin={user.role === "admin"} />

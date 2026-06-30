@@ -16,6 +16,29 @@ import { createLeadManual, moveLeadStage, assignLead, deleteLead } from "@/app/(
 
 type UserOpt = { id: string; name: string };
 
+function initials(name: string) {
+  const p = name.trim().split(/\s+/);
+  return ((p[0]?.[0] ?? "") + (p.length > 1 ? p[p.length - 1][0] : "")).toUpperCase() || "?";
+}
+// cor estável por nome (hue) pro avatar do responsável
+function avatarColor(name: string) {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) % 360;
+  return `hsl(${h} 55% 45%)`;
+}
+function timeAgo(d: Date) {
+  const s = Math.floor((Date.now() - new Date(d).getTime()) / 1000);
+  if (s < 60) return "agora";
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}min`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h`;
+  const dd = Math.floor(h / 24);
+  return dd < 30 ? `${dd}d` : `${Math.floor(dd / 30)}mês`;
+}
+
+type View = "kanban" | "lista";
+
 export function LeadsBoard({ board, userOpts, isAdmin }: { board: LeadsBoardData; userOpts: UserOpt[]; isAdmin: boolean }) {
   const router = useRouter();
   // estado local otimista por estágio
@@ -25,6 +48,10 @@ export function LeadsBoard({ board, userOpts, isAdmin }: { board: LeadsBoardData
   const [activeId, setActiveId] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [detail, setDetail] = useState<LeadCard | null>(null);
+  const [view, setView] = useState<View>("kanban");
+  const [dense, setDense] = useState(false);
+  const [q, setQ] = useState("");
+  const [fUser, setFUser] = useState("");
   const [, startMove] = useTransition();
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
@@ -34,6 +61,20 @@ export function LeadsBoard({ board, userOpts, isAdmin }: { board: LeadsBoardData
 
   const allCards = Object.values(cardsByStage).flat();
   const activeCard = allCards.find((c) => c.id === activeId) ?? null;
+
+  // filtro (busca + responsável) aplicado em ambas as views
+  const term = q.trim().toLowerCase();
+  const matches = (c: LeadCard) => {
+    if (fUser && c.assignedUserId !== fUser) return false;
+    if (!term) return true;
+    return [c.nome, c.empresa, c.contato, c.email, c.cnpjCpf, c.origem].some((v) => (v ?? "").toLowerCase().includes(term));
+  };
+  const filteredByStage: Record<string, LeadCard[]> = Object.fromEntries(
+    Object.entries(cardsByStage).map(([k, list]) => [k, list.filter(matches)]),
+  );
+  const filteredFlat = allCards.filter(matches);
+  const shownTotal = filteredFlat.length;
+  const filtering = !!term || !!fUser;
 
   function onDragEnd(e: DragEndEvent) {
     setActiveId(null);
@@ -57,25 +98,55 @@ export function LeadsBoard({ board, userOpts, isAdmin }: { board: LeadsBoardData
       <div className="page-head">
         <div>
           <h1 className="page-title">Leads</h1>
-          <p className="page-sub">{board.total} leads no funil · arraste entre os estágios (clique p/ abrir)</p>
+          <p className="page-sub">
+            {filtering ? `${shownTotal} de ${board.total} leads` : `${board.total} leads no funil`}
+            {view === "kanban" ? " · arraste entre os estágios (clique p/ abrir)" : " · clique numa linha p/ abrir"}
+          </p>
         </div>
         <button className="btn btn-primary" onClick={() => setOpen(true)}><Icon name="plus" size={16} /> Novo lead</button>
       </div>
 
-      <DndContext sensors={sensors} onDragStart={(e: DragStartEvent) => setActiveId(String(e.active.id))} onDragEnd={onDragEnd} onDragCancel={() => setActiveId(null)}>
-        <div style={{ display: "grid", gridTemplateColumns: `repeat(${LEAD_STAGES.length},minmax(220px,1fr))`, gap: 14, alignItems: "start", overflowX: "auto", paddingBottom: 8 }}>
-          {LEAD_STAGES.map((s) => {
-            const items = cardsByStage[s.id] ?? [];
-            const valor = items.reduce((a, c) => a + c.valorEstimadoCents, 0);
-            return (
-              <Column key={s.id} id={s.id} label={s.label} color={s.c} count={items.length} valorCents={valor}>
-                {items.map((c) => <DraggableCard key={c.id} c={c} dimmed={activeId === c.id} onOpen={() => setDetail(c)} />)}
-              </Column>
-            );
-          })}
+      {/* Toolbar: busca + filtro responsável + toggle de visão */}
+      <div className="row" style={{ gap: 12, marginBottom: 18, flexWrap: "wrap", alignItems: "center" }}>
+        <div style={{ position: "relative", flex: "1 1 280px", maxWidth: 380 }}>
+          <Icon name="search" size={16} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--muted-2)", pointerEvents: "none" }} />
+          <input className="input" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar nome, empresa, contato…" style={{ paddingLeft: 36 }} />
         </div>
-        <DragOverlay>{activeCard ? <div style={{ cursor: "grabbing" }}><CardBody c={activeCard} /></div> : null}</DragOverlay>
-      </DndContext>
+        <select className="input" value={fUser} onChange={(e) => setFUser(e.target.value)} style={{ width: "auto", minWidth: 170 }}>
+          <option value="">Todos responsáveis</option>
+          {userOpts.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+        </select>
+        <div className="row" style={{ marginLeft: "auto", gap: 12, alignItems: "center" }}>
+          {view === "kanban" && (
+            <button className="btn" onClick={() => setDense((d) => !d)} title={dense ? "Cards confortáveis" : "Cards compactos"}>
+              <Icon name={dense ? "grid" : "kanban"} size={15} /> {dense ? "Confortável" : "Compacto"}
+            </button>
+          )}
+          <div style={{ display: "inline-flex", background: "var(--surface-3)", borderRadius: "var(--r-sm)", padding: 3, gap: 2 }}>
+            <ViewBtn active={view === "kanban"} onClick={() => setView("kanban")} icon="kanban" label="Kanban" />
+            <ViewBtn active={view === "lista"} onClick={() => setView("lista")} icon="grid" label="Lista" />
+          </div>
+        </div>
+      </div>
+
+      {view === "kanban" ? (
+        <DndContext id="leads-board" sensors={sensors} onDragStart={(e: DragStartEvent) => setActiveId(String(e.active.id))} onDragEnd={onDragEnd} onDragCancel={() => setActiveId(null)}>
+          <div style={{ display: "grid", gridTemplateColumns: `repeat(${LEAD_STAGES.length},minmax(280px,1fr))`, gap: 16, alignItems: "start", overflowX: "auto", paddingBottom: 12 }}>
+            {LEAD_STAGES.map((s) => {
+              const items = filteredByStage[s.id] ?? [];
+              const valor = items.reduce((a, c) => a + c.valorEstimadoCents, 0);
+              return (
+                <Column key={s.id} id={s.id} label={s.label} color={s.c} count={items.length} valorCents={valor} dense={dense}>
+                  {items.map((c) => <DraggableCard key={c.id} c={c} color={s.c} dense={dense} dimmed={activeId === c.id} onOpen={() => setDetail(c)} />)}
+                </Column>
+              );
+            })}
+          </div>
+          <DragOverlay>{activeCard ? <div style={{ cursor: "grabbing", width: 280 }}><CardBody c={activeCard} color={LEAD_STAGES.find((s) => s.id === activeCard.stage)?.c ?? "var(--muted)"} dense={dense} /></div> : null}</DragOverlay>
+        </DndContext>
+      ) : (
+        <LeadsTable cards={filteredFlat} onOpen={(c) => setDetail(c)} />
+      )}
 
       {open && <NewLeadModal onClose={() => { setOpen(false); router.refresh(); }} />}
       {detail && <LeadDetailModal lead={detail} userOpts={userOpts} isAdmin={isAdmin} onClose={() => { setDetail(null); router.refresh(); }} />}
@@ -83,48 +154,156 @@ export function LeadsBoard({ board, userOpts, isAdmin }: { board: LeadsBoardData
   );
 }
 
-function Column({ id, label, color, count, valorCents, children }: { id: string; label: string; color: string; count: number; valorCents: number; children: React.ReactNode }) {
-  const { setNodeRef, isOver } = useDroppable({ id });
+function ViewBtn({ active, onClick, icon, label }: { active: boolean; onClick: () => void; icon: "kanban" | "grid"; label: string }) {
   return (
-    <div ref={setNodeRef} style={{ background: "var(--surface-3)", borderRadius: "var(--r-lg)", padding: 12, outline: isOver ? "2px dashed var(--primary)" : "2px dashed transparent", transition: "outline-color .12s" }}>
-      <div className="row between" style={{ padding: "4px 6px 12px" }}>
-        <div className="row gap8" style={{ alignItems: "center" }}>
-          <span style={{ width: 9, height: 9, borderRadius: "50%", background: color }} />
-          <b style={{ fontSize: 13.5 }}>{label}</b>
-          <span style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)", background: "var(--surface)", padding: "1px 8px", borderRadius: "var(--r-pill)" }}>{count}</span>
-        </div>
-        {valorCents > 0 && <span className="muted" style={{ fontSize: 11.5, fontWeight: 700 }}>{brl(valorCents)}</span>}
+    <button onClick={onClick} className="row gap8" style={{
+      alignItems: "center", border: "none", cursor: "pointer", fontSize: 13, fontWeight: 700,
+      padding: "6px 14px", borderRadius: "var(--r-xs)",
+      background: active ? "var(--surface)" : "transparent",
+      color: active ? "var(--ink)" : "var(--muted)",
+      boxShadow: active ? "var(--sh-sm)" : "none",
+    }}>
+      <Icon name={icon} size={15} /> {label}
+    </button>
+  );
+}
+
+// ── Visão Lista (tabela densa — boa pra alto volume) ─────────────────────────
+function LeadsTable({ cards, onOpen }: { cards: LeadCard[]; onOpen: (c: LeadCard) => void }) {
+  const rows = [...cards].sort((a, b) => new Date(b.lastContactAt).getTime() - new Date(a.lastContactAt).getTime());
+  const th: React.CSSProperties = { textAlign: "left", padding: "11px 14px", fontSize: 11.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.4, color: "var(--muted)", whiteSpace: "nowrap" };
+  const td: React.CSSProperties = { padding: "12px 14px", fontSize: 13.5, borderTop: "1px solid var(--line)", verticalAlign: "middle" };
+  if (!rows.length) return <div className="card" style={{ padding: 40, textAlign: "center", color: "var(--muted)" }}>Nenhum lead encontrado.</div>;
+  return (
+    <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+      <div style={{ overflowX: "auto" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <thead>
+            <tr style={{ background: "var(--surface-3)" }}>
+              <th style={th}>Lead</th>
+              <th style={th}>Estágio</th>
+              <th style={{ ...th, textAlign: "right" }}>Valor est.</th>
+              <th style={th}>Origem</th>
+              <th style={th}>Responsável</th>
+              <th style={th}>Contato</th>
+              <th style={{ ...th, textAlign: "right" }}>Últ. contato</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((c) => {
+              const st = LEAD_STAGES.find((s) => s.id === c.stage);
+              return (
+                <tr key={c.id} onClick={() => onOpen(c)} style={{ cursor: "pointer" }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = "var(--surface-2)")}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
+                  <td style={td}>
+                    <div style={{ fontWeight: 700 }}>{c.nome}</div>
+                    {c.empresa && <div className="muted" style={{ fontSize: 12 }}>{c.empresa}</div>}
+                  </td>
+                  <td style={td}>
+                    <span className="row gap8" style={{ alignItems: "center", fontSize: 12.5, fontWeight: 700, color: st?.c ?? "var(--muted)" }}>
+                      <span style={{ width: 8, height: 8, borderRadius: "50%", background: st?.c ?? "var(--muted)" }} />{st?.label ?? c.stage}
+                    </span>
+                  </td>
+                  <td style={{ ...td, textAlign: "right", fontWeight: 700 }}>{c.valorEstimadoCents > 0 ? brl(c.valorEstimadoCents) : <span className="muted">—</span>}</td>
+                  <td style={td}>{c.origem ? <span className="badge" style={{ color: "var(--muted)", background: "var(--surface-3)", fontSize: 11 }}>{c.origem}</span> : <span className="muted">—</span>}</td>
+                  <td style={td}>
+                    {c.assignedUserName ? (
+                      <span className="row gap8" style={{ alignItems: "center" }}>
+                        <span style={{ width: 26, height: 26, borderRadius: "50%", background: avatarColor(c.assignedUserName), color: "#fff", fontSize: 10.5, fontWeight: 800, display: "grid", placeItems: "center" }}>{initials(c.assignedUserName)}</span>
+                        <span style={{ fontSize: 13 }}>{c.assignedUserName}</span>
+                      </span>
+                    ) : <span className="muted">—</span>}
+                  </td>
+                  <td style={{ ...td, color: "var(--ink-2)" }}>{c.contato ?? <span className="muted">—</span>}</td>
+                  <td style={{ ...td, textAlign: "right", color: "var(--muted)", whiteSpace: "nowrap" }}>{timeAgo(c.lastContactAt)}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 10, minHeight: 40 }}>{children}</div>
     </div>
   );
 }
 
-function DraggableCard({ c, dimmed, onOpen }: { c: LeadCard; dimmed: boolean; onOpen: () => void }) {
+function Column({ id, label, color, count, valorCents, dense, children }: { id: string; label: string; color: string; count: number; valorCents: number; dense?: boolean; children: React.ReactNode }) {
+  const { setNodeRef, isOver } = useDroppable({ id });
+  return (
+    <div ref={setNodeRef} style={{ background: "var(--surface-3)", borderRadius: "var(--r-lg)", padding: 14, outline: isOver ? `2px dashed ${color}` : "2px dashed transparent", transition: "outline-color .12s" }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 6, padding: "2px 4px 14px", borderBottom: `2px solid ${color}`, marginBottom: 14 }}>
+        <div className="row between" style={{ alignItems: "center" }}>
+          <div className="row gap8" style={{ alignItems: "center" }}>
+            <span style={{ width: 11, height: 11, borderRadius: "50%", background: color }} />
+            <b style={{ fontSize: 15 }}>{label}</b>
+          </div>
+          <span style={{ fontSize: 13, fontWeight: 800, color, background: `color-mix(in srgb, ${color} 14%, var(--surface))`, padding: "2px 11px", borderRadius: "var(--r-pill)", minWidth: 26, textAlign: "center" }}>{count}</span>
+        </div>
+        {valorCents > 0 && <span style={{ fontSize: 13, fontWeight: 800, color: "var(--ink-2)" }}>{brl(valorCents)}</span>}
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: dense ? 6 : 12, minHeight: 48, maxHeight: "calc(100vh - 300px)", overflowY: "auto", margin: "0 -4px", padding: "0 4px 4px" }}>{children}</div>
+    </div>
+  );
+}
+
+function DraggableCard({ c, color, dense, dimmed, onOpen }: { c: LeadCard; color: string; dense?: boolean; dimmed: boolean; onOpen: () => void }) {
   const { attributes, listeners, setNodeRef } = useDraggable({ id: c.id });
   return (
     <div ref={setNodeRef} {...listeners} {...attributes} onClick={onOpen} style={{ cursor: "grab", opacity: dimmed ? 0.4 : 1, touchAction: "none", outline: "none" }}>
-      <CardBody c={c} />
+      <CardBody c={c} color={color} dense={dense} />
     </div>
   );
 }
 
-function CardBody({ c }: { c: LeadCard }) {
-  return (
-    <div className="card" style={{ padding: 12, boxShadow: "none", border: "1px solid var(--line)" }}>
-      <div style={{ fontWeight: 700, fontSize: 13.5, lineHeight: 1.25 }}>{c.nome}</div>
-      {c.empresa && <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>{c.empresa}</div>}
-      <div className="row gap8" style={{ marginTop: 8, flexWrap: "wrap", alignItems: "center" }}>
-        {c.valorEstimadoCents > 0 && <span style={{ fontWeight: 800, fontSize: 13 }}>{brl(c.valorEstimadoCents)}</span>}
-        {c.origem && <span className="badge" style={{ color: "var(--muted)", background: "var(--surface-3)", fontSize: 10.5 }}>{c.origem}</span>}
-        {c.ixcClienteId && <span className="badge" style={{ color: "var(--st-done)", background: "var(--st-done-bg)", fontSize: 10.5 }}>cliente</span>}
+function CardBody({ c, color, dense }: { c: LeadCard; color: string; dense?: boolean }) {
+  if (dense) {
+    return (
+      <div className="card row between" style={{ padding: "9px 12px", paddingLeft: 13, boxShadow: "var(--sh-sm)", border: "1px solid var(--line)", borderLeft: `4px solid ${color}`, borderRadius: "var(--r-sm)", alignItems: "center", gap: 10 }}>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div style={{ fontWeight: 700, fontSize: 13.5, lineHeight: 1.2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.nome}</div>
+          {c.empresa && <div className="muted" style={{ fontSize: 11.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.empresa}</div>}
+        </div>
+        {c.valorEstimadoCents > 0 && <span style={{ fontWeight: 800, fontSize: 13, flexShrink: 0 }}>{brl(c.valorEstimadoCents)}</span>}
+        {c.assignedUserName && (
+          <span title={c.assignedUserName} style={{ flexShrink: 0, width: 24, height: 24, borderRadius: "50%", background: avatarColor(c.assignedUserName), color: "#fff", fontSize: 10, fontWeight: 800, display: "grid", placeItems: "center" }}>{initials(c.assignedUserName)}</span>
+        )}
       </div>
-      {(c.contato || c.assignedUserName) && (
-        <div className="muted" style={{ fontSize: 11.5, marginTop: 8, display: "flex", justifyContent: "space-between", gap: 8 }}>
-          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.contato ?? ""}</span>
-          {c.assignedUserName && <span style={{ flexShrink: 0 }}>{c.assignedUserName}</span>}
+    );
+  }
+  return (
+    <div className="card" style={{ padding: 16, paddingLeft: 18, boxShadow: "var(--sh-sm)", border: "1px solid var(--line)", borderLeft: `4px solid ${color}`, borderRadius: "var(--r-md)" }}>
+      <div className="row between" style={{ alignItems: "flex-start", gap: 10 }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontWeight: 800, fontSize: 15.5, lineHeight: 1.25, color: "var(--ink)" }}>{c.nome}</div>
+          {c.empresa && (
+            <div className="row gap8" style={{ alignItems: "center", marginTop: 4 }}>
+              <Icon name="briefcase" size={13} style={{ color: "var(--muted-2)" }} />
+              <span className="muted" style={{ fontSize: 12.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.empresa}</span>
+            </div>
+          )}
+        </div>
+        {c.assignedUserName && (
+          <span title={c.assignedUserName} style={{ flexShrink: 0, width: 32, height: 32, borderRadius: "50%", background: avatarColor(c.assignedUserName), color: "#fff", fontSize: 12, fontWeight: 800, display: "grid", placeItems: "center", letterSpacing: 0.3 }}>{initials(c.assignedUserName)}</span>
+        )}
+      </div>
+
+      {c.valorEstimadoCents > 0 && (
+        <div style={{ marginTop: 12, fontWeight: 800, fontSize: 19, color: "var(--ink)", letterSpacing: -0.4 }}>{brl(c.valorEstimadoCents)}</div>
+      )}
+
+      {(c.origem || c.ixcClienteId) && (
+        <div className="row gap8" style={{ marginTop: 10, flexWrap: "wrap", alignItems: "center" }}>
+          {c.origem && <span className="badge" style={{ color: "var(--muted)", background: "var(--surface-3)", fontSize: 11 }}>{c.origem}</span>}
+          {c.ixcClienteId && <span className="badge" style={{ color: "var(--st-done)", background: "var(--st-done-bg)", fontSize: 11, fontWeight: 700 }}>cliente</span>}
         </div>
       )}
+
+      <div className="row between" style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--line)", alignItems: "center", gap: 8 }}>
+        <span className="muted" style={{ fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.contato ?? "—"}</span>
+        <span className="row gap8 muted" style={{ flexShrink: 0, alignItems: "center", fontSize: 11.5 }}>
+          <Icon name="clock" size={12} /> {timeAgo(c.lastContactAt)}
+        </span>
+      </div>
     </div>
   );
 }
