@@ -69,6 +69,7 @@ model User {
   jobTitle     String
   initials     String
   color        String
+  hourlyCostCents Int   @default(0) // custo/hora p/ margem real (D1)
   mustChangePassword Boolean @default(false)
   createdAt    DateTime @default(now())
 
@@ -97,6 +98,7 @@ model Project {
   budgetCents Int           @default(0)
   spentPct    Int           @default(0)
   risk        Boolean       @default(false)
+  ixcClienteId String?      // vínculo frouxo ao IxcCliente (A2 — Cliente 360), sem FK
   createdAt   DateTime      @default(now())
   creator     User?         @relation("ProjectCreator", fields: [creatorId], references: [id], onDelete: SetNull)
   creatorId   String?
@@ -109,6 +111,7 @@ model Project {
 
   @@index([workspaceId])
   @@index([creatorId])
+  @@index([ixcClienteId])
 }
 
 model Notification {
@@ -229,4 +232,155 @@ model TimeLog {
 
   @@index([userId])
   @@index([projectId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// COMERCIAL — espelho local da integração IXCSoft (segundo "sistema").
+// Dados puxados do IXC via sync (ver src/server/comercial/sync.ts). São globais
+// da empresa (single-tenant), por isso NÃO vinculam a Workspace. Vínculos com o
+// OpenBoard (ex.: Vendedor ↔ User) ficam frouxos por id, sem FK, pra não acoplar
+// a ordem de sync. Status do contrato é String (códigos IXC: A/AA/P/B/C/FA/N…),
+// configurável por versão — não vira enum.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Vendedor do IXC. Pode mapear pra um User local (campo userId) pra cruzar com o
+// OpenBoard depois.
+model Vendedor {
+  id        String   @id @default(cuid())
+  ixcId     String   @unique // id_vendedor no IXC
+  nome      String
+  status    String   @default("A") // 'A' = ativo (status no IXC)
+  // Governança local (toggles na tela Vendedores — preservados entre syncs):
+  ativo            Boolean @default(false) // "Ativo no CRM": aparece nas listas/telas
+  incluirHistorico Boolean @default(false) // gate do sync: só estes têm contratos puxados do IXC
+  userId    String? // User local vinculado (opcional, sem FK)
+  syncedAt  DateTime @default(now())
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+// Cliente do IXC (tabela `cliente`).
+model IxcCliente {
+  id       String   @id @default(cuid())
+  ixcId    String   @unique // cliente.id
+  razao    String
+  cnpjCpf  String?
+  uf       String?
+  syncedAt DateTime @default(now())
+}
+
+// Contrato do IXC (`cliente_contrato`) com MRR já calculado no sync (ver handoff).
+model Contrato {
+  id                  String   @id @default(cuid())
+  ixcId               String   @unique // cliente_contrato.id
+  status              String   @default("A") // código IXC
+  filial              String? // id_filial
+  mrrCents            Int      @default(0) // MRR limpo calculado no sync
+  taxaInstalacaoCents Int      @default(0)
+  idVdContrato        String? // id do plano (vínculo "Plano")
+  dataAtivacao        DateTime?
+  dataCadastro        DateTime?
+  syncedAt            DateTime @default(now())
+
+  // Vínculos frouxos por ixcId (SEM FK) — IXC manda contratos de vendedores
+  // inativos/fora do escopo; FK quebraria o upsert. Join feito nas queries.
+  clienteIxcId  String
+  vendedorIxcId String?
+
+  @@index([status])
+  @@index([vendedorIxcId])
+  @@index([clienteIxcId])
+}
+
+// Lead do funil comercial (Kanban). Global. Criado manualmente OU via ingest do
+// sistema de chat de atendimento (POST /api/comercial/leads). Dedup por
+// externalId / cnpjCpfNorm / contatoNorm / emailNorm (ver src/lib/leads.ts).
+model Lead {
+  id                 String   @id @default(cuid())
+  nome               String
+  empresa            String?
+  cnpjCpf            String?  // como recebido (formatado)
+  cnpjCpfNorm        String?  // só dígitos (11/14) — chave de dedup
+  contato            String?  // telefone/whatsapp como recebido
+  contatoNorm        String?  // últimos 11 dígitos — chave de dedup
+  email              String?
+  emailNorm          String?  // minúsculo — chave de dedup
+  origem             String?  // ex.: "chat-atendimento"
+  externalId         String?  @unique // id do lead no sistema externo — dedup forte
+  valorEstimadoCents Int      @default(0)
+  observacoes        String?
+  stage              String   @default("novo") // ver LEAD_STAGES
+  order              Int      @default(0)
+  ixcClienteId       String?  // casado a um cliente IXC (por doc), se houver
+  assignedUserId     String?  // responsável OpenBoard
+  payload            Json?    // payload bruto do ingest (auditoria)
+  lastContactAt      DateTime @default(now()) // último toque (ingest re-bate aqui)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([stage])
+  @@index([cnpjCpfNorm])
+  @@index([contatoNorm])
+  @@index([emailNorm])
+}
+
+// Log de cada execução de sync (observabilidade — ver handoff §9).
+model SyncRun {
+  id         String    @id @default(cuid())
+  kind       String // "full" | "vendedores" | "contratos" | "reconcile"
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+  durationMs Int?
+  processed  Int       @default(0)
+  errors     Int       @default(0)
+  fatalError String?
+
+  @@index([kind, startedAt])
+}
+
+// Meta do time por mês (replica SalesTracker §4). Global.
+model Meta {
+  id            String   @id @default(cuid())
+  mes           Int
+  ano           Int
+  metaContratos Int      @default(0) // meta de contratos ativos no mês
+  metaMrrCents  Int      @default(0) // meta de MRR no mês (opcional)
+  metaSemanal   Int      @default(0) // meta semanal de contratos (opcional)
+  createdAt     DateTime @default(now())
+
+  @@unique([mes, ano])
+}
+
+// Meta por vendedor por mês (vínculo frouxo por vendedorIxcId, sem FK).
+model MetaVendedor {
+  id            String   @id @default(cuid())
+  vendedorIxcId String
+  mes           Int
+  ano           Int
+  metaContratos Int      @default(0)
+  createdAt     DateTime @default(now())
+
+  @@unique([vendedorIxcId, mes, ano])
+  @@index([mes, ano])
+}
+
+// Apontamento diário manual de esforço comercial (replica SalesTracker §6).
+// 1 linha por vendedor+dia. NÃO vem do IXC — preenchido na tela.
+model RelatorioDiario {
+  id            String   @id @default(cuid())
+  vendedorIxcId String
+  data          DateTime // dia (00:00 UTC)
+  leads         Int      @default(0)
+  contatos      Int      @default(0)
+  callsReunioes Int      @default(0)
+  vendas        Int      @default(0)
+  valorCents    Int      @default(0)
+  produtos      Json?    // [{ nome: string, valorCents: number }] — vendas do dia
+  observacoes   String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([vendedorIxcId, data])
+  @@index([data])
 }
