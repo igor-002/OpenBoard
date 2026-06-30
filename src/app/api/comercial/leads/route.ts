@@ -43,6 +43,10 @@ function fromAtendAI(body: unknown): LeadInput | null {
   const contato = d.whatsappid != null ? String(d.whatsappid) : null;
   const fila = (d.filaPersonalizada as Record<string, unknown> | null)?.nome_fila;
   const setor = (d.setor as Record<string, unknown> | null)?.nome_setor;
+  // Responsável: atendente que assumiu/moveu a conversa (vem preenchido nas filas personalizadas).
+  const usuario = d.usuario as Record<string, unknown> | null;
+  const assignedUserName = usuario && typeof usuario.nome === "string" ? usuario.nome : (usuario && typeof usuario.name === "string" ? usuario.name : null);
+  const assignedUserEmail = usuario && typeof usuario.email === "string" ? usuario.email : null;
   const msgs = Array.isArray(d.mensagensAtendimento) ? (d.mensagensAtendimento as Record<string, unknown>[]) : [];
   const hist = msgs.map((m) => `[${m.remetente ?? "?"}] ${m.mensagem ?? ""}`).join("\n");
   const observacoes = [
@@ -57,6 +61,8 @@ function fromAtendAI(body: unknown): LeadInput | null {
     origem: "atendai",
     externalId: d.id != null ? `atendai-${d.id}` : null,
     observacoes,
+    assignedUserName,
+    assignedUserEmail,
     payload: body,
   };
 }
@@ -82,6 +88,12 @@ export async function POST(request: Request) {
   } catch {
     return NextResponse.json({ ok: false, error: "json inválido" }, { status: 400 });
   }
+
+  // TEMP: loga usuario/responsável cru p/ confirmar shape do AtendAI. Remover depois.
+  try {
+    const dd = (body as Record<string, unknown>)?.data as Record<string, unknown> | undefined;
+    console.log("[leads-ingest] usuario:", JSON.stringify(dd?.usuario), "id_usuario:", JSON.stringify(dd?.id_usuario));
+  } catch {}
 
   // Caminho AtendAI (envelope { evento, data }). Se não casar, tenta o formato flat.
   let input: LeadInput | null = fromAtendAI(body);

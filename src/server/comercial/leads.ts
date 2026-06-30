@@ -60,8 +60,26 @@ export type LeadInput = {
   observacoes?: string | null;
   externalId?: string | null;
   assignedUserId?: string | null;
+  assignedUserName?: string | null;  // hint p/ casar atendente AtendAI → User (por nome)
+  assignedUserEmail?: string | null; // hint p/ casar por e-mail (prioritário)
   payload?: unknown;
 };
+
+// Resolve o responsável: id direto > e-mail > nome (case-insensitive). null se não achar.
+async function resolveAssignedUserId(input: Pick<LeadInput, "assignedUserId" | "assignedUserName" | "assignedUserEmail">): Promise<string | null> {
+  if (input.assignedUserId) return input.assignedUserId;
+  const email = input.assignedUserEmail?.trim().toLowerCase();
+  if (email) {
+    const u = await db.user.findFirst({ where: { email }, select: { id: true } });
+    if (u) return u.id;
+  }
+  const name = input.assignedUserName?.trim();
+  if (name) {
+    const u = await db.user.findFirst({ where: { name: { equals: name, mode: "insensitive" } }, select: { id: true } });
+    if (u) return u.id;
+  }
+  return null;
+}
 export type IngestResult = { created: boolean; id: string; matchedBy: string | null };
 
 // Procura um lead já existente pelas chaves de dedup (ordem de força).
@@ -103,12 +121,15 @@ export async function ingestLead(input: LeadInput): Promise<IngestResult> {
   const nome = input.nome.trim();
   if (!nome) throw new Error("nome é obrigatório");
 
+  const assignedUserId = await resolveAssignedUserId(input);
+
   const dup = await findDuplicateLead(input);
   if (dup) {
     const atual = await db.lead.findUnique({ where: { id: dup.id }, select: { observacoes: true } });
     const carimbo = `[${new Date().toISOString().slice(0, 16).replace("T", " ")}] novo contato via ${input.origem ?? "ingest"}${input.observacoes ? `: ${input.observacoes}` : ""}`;
     const observacoes = [atual?.observacoes, carimbo].filter(Boolean).join("\n");
-    await db.lead.update({ where: { id: dup.id }, data: { lastContactAt: new Date(), observacoes } });
+    // re-toque: atualiza o responsável se veio um atendente (reflete quem assumiu agora).
+    await db.lead.update({ where: { id: dup.id }, data: { lastContactAt: new Date(), observacoes, ...(assignedUserId ? { assignedUserId } : {}) } });
     return { created: false, id: dup.id, matchedBy: dup.by };
   }
 
@@ -133,7 +154,7 @@ export async function ingestLead(input: LeadInput): Promise<IngestResult> {
       stage: "novo",
       order: (max._max.order ?? 0) + 1,
       ixcClienteId,
-      assignedUserId: input.assignedUserId || null,
+      assignedUserId: assignedUserId || null,
       payload: (input.payload ?? undefined) as Prisma.InputJsonValue | undefined,
     },
   });
