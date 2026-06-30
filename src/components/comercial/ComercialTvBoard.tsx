@@ -155,41 +155,50 @@ function SlideMeta({ d }: { d: ComercialTvData }) {
 
 /* ============ SLIDE 3 — PIPELINE & ALERTAS ============ */
 function SlidePipeline({ d }: { d: ComercialTvData }) {
+  const cards = d.pipeline.slice(0, 7); // menos linhas, cada uma maior
+  const alertas = d.alertas.slice(0, 6);
   return (
-    <div className="tv-grid" style={{ gridTemplateColumns: "1.4fr 1fr", gridTemplateRows: "none" }}>
-      <Panel icon="layers" title="Pipeline — aguardando assinatura" sub="Mais parados no topo" right={`${d.kpis.pipeline}`}>
-        <div className="tv-list">
-          {d.pipeline.map((c) => (
-            <div className="tv-row" key={c.ixcId} style={{ gap: 16 }}>
-              <div style={{ width: 70, textAlign: "center", flex: "none" }}>
-                <div className="tnum" style={{ fontSize: 26, fontWeight: 800, color: c.dias > 15 ? "var(--crit)" : "var(--warn)", lineHeight: 1 }}>{c.dias}</div>
-                <div style={{ fontSize: 11, color: "var(--tv-muted)", fontWeight: 700, textTransform: "uppercase" }}>dias</div>
+    <div className="tv-grid" style={{ gridTemplateRows: "168px 1fr" }}>
+      <div className="tv-grid" style={{ gridTemplateColumns: "repeat(3,1fr)", gridTemplateRows: "none" }}>
+        <KPI icon="layers" color="var(--info)" label="Em negociação" value={d.kpis.pipeline} foot="contratos aguardando" />
+        <KPI icon="wallet" color="var(--tv-accent)" label="MRR potencial" value={brl(d.kpis.mrrPipelineCents)} foot="se tudo fechar" />
+        <KPI icon="alert" color="var(--crit)" label="Parados +7 dias" value={d.alertas.length} foot="precisam de cobrança" />
+      </div>
+      <div className="tv-grid" style={{ gridTemplateColumns: "1.4fr 1fr", gridTemplateRows: "none" }}>
+        <Panel icon="layers" title="Pipeline — aguardando assinatura" sub="Mais parados no topo">
+          <div style={{ display: "flex", flexDirection: "column", flex: 1, justifyContent: "space-evenly", minHeight: 0 }}>
+            {cards.map((c) => (
+              <div key={c.ixcId} style={{ display: "flex", alignItems: "center", gap: 20 }}>
+                <div style={{ width: 90, textAlign: "center", flex: "none" }}>
+                  <div className="tnum" style={{ fontSize: 40, fontWeight: 900, color: c.dias > 15 ? "var(--crit)" : "var(--warn)", lineHeight: 1 }}>{c.dias}</div>
+                  <div style={{ fontSize: 12, color: "var(--tv-muted)", fontWeight: 800, textTransform: "uppercase", letterSpacing: ".5px" }}>dias</div>
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 21, fontWeight: 800, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.clienteNome}</div>
+                  <div style={{ fontSize: 15, color: "var(--tv-muted)", fontWeight: 700 }}>{c.vendedorNome ?? "—"}</div>
+                </div>
+                <b className="tnum" style={{ fontSize: 26, fontWeight: 900, flex: "none" }}>{c.mrrCents ? brl(c.mrrCents) : "—"}</b>
               </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 17, fontWeight: 800, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.clienteNome}</div>
-                <div style={{ fontSize: 13, color: "var(--tv-muted)", fontWeight: 600 }}>{c.vendedorNome ?? "—"}</div>
+            ))}
+            {cards.length === 0 && <div style={{ color: "var(--tv-muted)", fontSize: 18, padding: "14px 4px" }}>Pipeline vazio.</div>}
+          </div>
+        </Panel>
+        <Panel icon="alert" color="var(--crit)" title="Cobrar fechamento" sub="Aguardando há +7 dias">
+          <div style={{ display: "flex", flexDirection: "column", flex: 1, justifyContent: "space-evenly", minHeight: 0 }}>
+            {alertas.map((a, i) => (
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: 16 }}>
+                <span className="dotpulse" style={{ width: 12, height: 12, borderRadius: "50%", background: a.dias > 15 ? "var(--crit)" : "var(--warn)", flex: "none" }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 19, fontWeight: 800, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{a.clienteNome}</div>
+                  <div style={{ fontSize: 14, color: "var(--tv-muted)", fontWeight: 700 }}>{a.vendedorNome ?? "—"}</div>
+                </div>
+                <span className="tnum" style={{ fontSize: 28, fontWeight: 900, color: a.dias > 15 ? "var(--crit)" : "var(--warn)", flex: "none" }}>{a.dias}<small style={{ fontSize: 15, fontWeight: 800 }}>d</small></span>
               </div>
-              <b className="tnum" style={{ fontSize: 18, flex: "none" }}>{c.mrrCents ? brl(c.mrrCents) : "—"}</b>
-            </div>
-          ))}
-          {d.pipeline.length === 0 && <div style={{ color: "var(--tv-muted)", fontSize: 16, padding: "14px 4px" }}>Pipeline vazio.</div>}
-        </div>
-      </Panel>
-      <Panel icon="alert" color="var(--crit)" title="Cobrar fechamento" sub="Aguardando há +7 dias" right={`${d.alertas.length}`}>
-        <div className="tv-list">
-          {d.alertas.map((a, i) => (
-            <div className="tv-row" key={i} style={{ gap: 14 }}>
-              <span className="dotpulse" style={{ width: 10, height: 10, borderRadius: "50%", background: a.dias > 15 ? "var(--crit)" : "var(--warn)", flex: "none" }} />
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 16, fontWeight: 800, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{a.clienteNome}</div>
-                <div style={{ fontSize: 12.5, color: "var(--tv-muted)", fontWeight: 600 }}>{a.vendedorNome ?? "—"}</div>
-              </div>
-              <span className="tv-badge tnum" style={{ color: a.dias > 15 ? "var(--crit)" : "var(--warn)", background: a.dias > 15 ? "var(--crit-bg)" : "var(--warn-bg)" }}>{a.dias}d</span>
-            </div>
-          ))}
-          {d.alertas.length === 0 && <div style={{ color: "var(--ok)", fontSize: 16, fontWeight: 700, padding: "14px 4px" }}>✓ Nada parado.</div>}
-        </div>
-      </Panel>
+            ))}
+            {alertas.length === 0 && <div style={{ color: "var(--ok)", fontSize: 18, fontWeight: 800, padding: "14px 4px" }}>✓ Nada parado.</div>}
+          </div>
+        </Panel>
+      </div>
     </div>
   );
 }
@@ -274,23 +283,32 @@ function SlideRanking({ d }: { d: ComercialTvData }) {
 /* ============ SLIDE 6 — FUNIL DE LEADS ============ */
 function SlideLeads({ d }: { d: ComercialTvData }) {
   const maxLead = Math.max(1, ...d.leads.map((s) => s.total));
+  const valorTotal = d.leads.reduce((a, s) => a + s.valorCents, 0);
+  const ganhos = d.leads.find((s) => s.id === "ganho")?.total ?? 0;
   return (
-    <Panel icon="target" title="Funil de Leads" sub="Cards no Kanban comercial (vêm do chat de atendimento)" right={`${d.leadsTotal} leads`} style={{ height: "100%" }}>
-      <div style={{ display: "flex", flexDirection: "column", flex: 1, justifyContent: "space-evenly", minHeight: 0 }}>
-        {d.leads.map((s) => {
-          const cor = LEAD_COR[s.id] ?? "var(--tv-accent)";
-          return (
-            <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 16 }}>
-              <span style={{ width: 200, fontSize: 19, fontWeight: 800, color: "var(--tv-ink)", flex: "none" }}>{s.label}</span>
-              <div style={{ flex: 1 }}><Bar value={(s.total / maxLead) * 100} color={cor} h={18} /></div>
-              <b className="tnum" style={{ fontSize: 28, width: 70, textAlign: "right", flex: "none", color: cor }}>{s.total}</b>
-              <span className="tnum" style={{ fontSize: 15, width: 130, textAlign: "right", color: "var(--tv-muted)", fontWeight: 700, flex: "none" }}>{s.valorCents ? brl(s.valorCents) : "—"}</span>
-            </div>
-          );
-        })}
-        {d.leadsTotal === 0 && <div style={{ color: "var(--tv-muted)", fontSize: 17 }}>Nenhum lead ainda. O chat de atendimento alimenta este funil.</div>}
+    <div className="tv-grid" style={{ gridTemplateRows: "168px 1fr" }}>
+      <div className="tv-grid" style={{ gridTemplateColumns: "repeat(3,1fr)", gridTemplateRows: "none" }}>
+        <KPI icon="target" color="var(--info)" label="Leads no funil" value={d.leadsTotal} foot="vindos do chat de atendimento" />
+        <KPI icon="wallet" color="var(--tv-accent)" label="Valor estimado" value={brl(valorTotal)} foot="potencial em negociação" />
+        <KPI icon="checkCircle" color="var(--ok)" label="Ganhos" value={ganhos} foot="convertidos" />
       </div>
-    </Panel>
+      <Panel icon="target" title="Funil de Leads" sub="Cards no Kanban comercial (vêm do chat de atendimento)" right={`${d.leadsTotal} leads`}>
+        <div style={{ display: "flex", flexDirection: "column", flex: 1, justifyContent: "space-evenly", minHeight: 0 }}>
+          {d.leads.map((s) => {
+            const cor = LEAD_COR[s.id] ?? "var(--tv-accent)";
+            return (
+              <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 18 }}>
+                <span style={{ width: 220, fontSize: 24, fontWeight: 800, color: "var(--tv-ink)", flex: "none" }}>{s.label}</span>
+                <div style={{ flex: 1 }}><Bar value={(s.total / maxLead) * 100} color={cor} h={26} /></div>
+                <b className="tnum" style={{ fontSize: 44, fontWeight: 900, width: 90, textAlign: "right", flex: "none", color: cor, lineHeight: 1 }}>{s.total}</b>
+                <span className="tnum" style={{ fontSize: 18, width: 150, textAlign: "right", color: "var(--tv-muted)", fontWeight: 800, flex: "none" }}>{s.valorCents ? brl(s.valorCents) : "—"}</span>
+              </div>
+            );
+          })}
+          {d.leadsTotal === 0 && <div style={{ color: "var(--tv-muted)", fontSize: 19, display: "grid", placeItems: "center", flex: 1 }}>Nenhum lead ainda. O chat de atendimento alimenta este funil.</div>}
+        </div>
+      </Panel>
+    </div>
   );
 }
 
