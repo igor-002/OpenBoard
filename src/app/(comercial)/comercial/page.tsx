@@ -4,6 +4,7 @@ import { StatCard } from "@/components/ui/Stat";
 import { Card } from "@/components/ui/Card";
 import { Icon } from "@/components/ui/Icon";
 import { DashboardFilterBar } from "@/components/comercial/DashboardFilterBar";
+import { AutoRefresh } from "@/components/common/AutoRefresh";
 import { brl, fullLabel } from "@/lib/format";
 
 const MESES = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
@@ -32,6 +33,7 @@ export default async function ComercialOverviewPage({
 
   return (
     <div className="page">
+      <AutoRefresh seconds={60} />
       <div className="page-head">
         <div>
           <h1 className="page-title">Comercial</h1>

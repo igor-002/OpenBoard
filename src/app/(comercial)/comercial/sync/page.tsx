@@ -3,6 +3,7 @@ import { getRecentSyncRuns, ixcConfigured } from "@/server/comercial/queries";
 import { Card } from "@/components/ui/Card";
 import { Icon } from "@/components/ui/Icon";
 import { SyncButton } from "@/components/comercial/SyncButton";
+import { AutoRefresh } from "@/components/common/AutoRefresh";
 import { fullLabel, hourLabel } from "@/lib/format";
 
 export default async function SyncPage() {
@@ -15,6 +16,7 @@ export default async function SyncPage() {
 
   return (
     <div className="page">
+      <AutoRefresh seconds={30} />
       <div className="page-head">
         <div>
           <h1 className="page-title">Sincronização</h1>

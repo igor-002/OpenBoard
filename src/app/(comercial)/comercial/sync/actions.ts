@@ -10,8 +10,10 @@ export type SyncState = { ok?: boolean; error?: string; processed?: number };
 export async function runSyncAction(): Promise<SyncState> {
   await requireAdmin();
   const r = await runFullSync();
-  revalidatePath("/comercial");
-  revalidatePath("/comercial/sync");
+  // "layout" revalida toda a subtree /comercial/* (contratos, clientes, relatórios,
+  // pipeline, etc.), não só a página exata. /dashboard tem o card comercial.
+  revalidatePath("/comercial", "layout");
+  revalidatePath("/dashboard");
   if (!r.ok) return { ok: false, error: r.error };
   return { ok: true };
 }

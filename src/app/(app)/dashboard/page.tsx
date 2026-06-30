@@ -11,6 +11,7 @@ import { ProgressBar } from "@/components/ui/Progress";
 import { Donut } from "@/components/charts/Charts";
 import { ProjectRow } from "@/components/project/ProjectRow";
 import { NewProjectButton } from "@/components/project/NewProjectButton";
+import { AutoRefresh } from "@/components/common/AutoRefresh";
 import { STATUS_META } from "@/lib/meta";
 import { dayLabel, deadlineInfo, deadlineColor, brl } from "@/lib/format";
 
@@ -36,6 +37,7 @@ export default async function DashboardPage() {
 
   return (
     <div className="page">
+      <AutoRefresh seconds={60} />
       <div className="page-head">
         <div>
           <h1 className="page-title">Visão geral</h1>
