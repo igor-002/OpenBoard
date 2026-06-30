@@ -7,7 +7,7 @@ import { Avatar } from "@/components/ui/Avatar";
 import { Card } from "@/components/ui/Card";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { useOverlayClose } from "@/components/ui/useOverlayClose";
-import { createUser, updateUserRole, deleteUser, resetUserPassword } from "@/app/(app)/settings/users/actions";
+import { createUser, updateUserRole, deleteUser, resetUserPassword, updateUserHourlyCost } from "@/app/(app)/settings/users/actions";
 import type { UserRow } from "@/server/users";
 import type { Role } from "@/lib/types";
 
@@ -67,7 +67,7 @@ export function UsersManager({ users, currentUserId }: { users: UserRow[]; curre
       <Card pad={false}>
         <table className="tbl" style={{ marginTop: 6 }}>
           <thead>
-            <tr><th>Pessoa</th><th>E-mail</th><th>Cargo</th><th>Papel</th><th></th></tr>
+            <tr><th>Pessoa</th><th>E-mail</th><th>Cargo</th><th>Custo/h</th><th>Papel</th><th></th></tr>
           </thead>
           <tbody>
             {users.map((u) => {
@@ -82,6 +82,7 @@ export function UsersManager({ users, currentUserId }: { users: UserRow[]; curre
                   </td>
                   <td>{u.email}</td>
                   <td>{u.jobTitle}</td>
+                  <td><HourlyCost userId={u.id} initial={u.hourlyCostCents} /></td>
                   <td>
                     <select
                       className="input"
@@ -136,6 +137,37 @@ export function UsersManager({ users, currentUserId }: { users: UserRow[]; curre
       )}
       {resetUser && <ResetModal user={resetUser} onClose={() => { setResetUser(null); router.refresh(); }} />}
     </>
+  );
+}
+
+// D1 — input de custo/hora (reais), salva no blur. Margem usa em /comercial/margem.
+function HourlyCost({ userId, initial }: { userId: string; initial: number }) {
+  const [val, setVal] = useState(initial ? String(initial / 100) : "");
+  const [pending, start] = useTransition();
+  const [saved, setSaved] = useState(false);
+  function save() {
+    const cents = Math.round((parseFloat((val || "0").replace(",", ".")) || 0) * 100);
+    if (cents === initial) return;
+    start(async () => {
+      await updateUserHourlyCost(userId, cents);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 1500);
+    });
+  }
+  return (
+    <span className="row gap8" style={{ alignItems: "center" }}>
+      <span className="muted" style={{ fontSize: 12 }}>R$</span>
+      <input
+        className="input"
+        style={{ width: 84, padding: "7px 10px" }}
+        type="number" min="0" step="0.01" inputMode="decimal"
+        value={val}
+        onChange={(e) => setVal(e.target.value)}
+        onBlur={save}
+        placeholder="0,00"
+      />
+      {pending ? <span className="muted" style={{ fontSize: 11 }}>…</span> : saved ? <Icon name="checkCircle" size={14} style={{ color: "var(--st-done)" }} /> : null}
+    </span>
   );
 }
 

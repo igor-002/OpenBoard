@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { getProjectsList, effectiveProgress } from "@/server/projects";
 import { getDashboardData } from "@/server/dashboard";
 import { getTimelineData } from "@/server/timeline";
+import { ixcConfigured, getComercialOverview, getDashboard as getComercialDashboard, getRelatorioRanking } from "@/server/comercial/queries";
 import { KANBAN_COLS } from "@/lib/meta";
 import type { ProjectStatus, AvatarUser, Priority, TaskColumn } from "@/lib/types";
 
@@ -96,6 +97,33 @@ export type TvFeatured = {
 
 export type TvNote = { id: string; kind: "note" | "comment"; author: AvatarUser; body: string; context: string; at: string };
 
+// C4 — painel comercial (IXC). Global, não escopado a workspace.
+export type TvComercial = {
+  mrrAtivoCents: number;        // carteira ativa total
+  ativadosMes: number;
+  mrrAtivadosMesCents: number;
+  pipeline: number;             // aguardando no mês
+  mrrPipelineCents: number;
+  ranking: { nome: string; ativos: number; mrrCents: number }[];
+};
+
+async function buildComercial(): Promise<TvComercial | null> {
+  if (!ixcConfigured()) return null;
+  const [overview, mes, ranking] = await Promise.all([
+    getComercialOverview(),
+    getComercialDashboard(0),
+    getRelatorioRanking(0),
+  ]);
+  return {
+    mrrAtivoCents: overview.mrrAtivoCents,
+    ativadosMes: mes.ativos,
+    mrrAtivadosMesCents: mes.valorAtivosCents,
+    pipeline: mes.aguardando,
+    mrrPipelineCents: mes.valorAguardandoCents,
+    ranking: ranking.slice(0, 7).map((r) => ({ nome: r.nome, ativos: r.ativos, mrrCents: r.mrrCents })),
+  };
+}
+
 export type TvData = {
   workspaceName: string;
   generatedAt: string;
@@ -112,6 +140,7 @@ export type TvData = {
   assignees: TvAssignee[]; // tarefas abertas por pessoa
   featured: TvFeatured[]; // projetos em destaque (rotativo)
   notesFeed: TvNote[]; // notas + comentários recentes
+  comercial: TvComercial | null; // painel comercial IXC (C4)
 };
 
 const dayMs = 86400000;
@@ -274,6 +303,8 @@ export async function getTvData(ws: TvWorkspace): Promise<TvData> {
     ...commentsRaw.map((c) => ({ id: "c" + c.id, kind: "comment" as const, author: av(c.author), body: c.body, context: c.task.title, at: c.createdAt.toISOString() })),
   ].sort((a, b) => +new Date(b.at) - +new Date(a.at)).slice(0, 8);
 
+  const comercial = await buildComercial();
+
   return {
     workspaceName: ws.name,
     generatedAt: new Date().toISOString(),
@@ -290,5 +321,6 @@ export async function getTvData(ws: TvWorkspace): Promise<TvData> {
     assignees,
     featured,
     notesFeed,
+    comercial,
   };
 }

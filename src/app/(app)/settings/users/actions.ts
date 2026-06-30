@@ -24,6 +24,16 @@ const createSchema = z.object({
   password: z.string().min(8, "Senha precisa de ao menos 8 caracteres"),
 });
 
+// D1 — define o custo/hora do usuário (centavos) p/ cálculo de margem real.
+export async function updateUserHourlyCost(id: string, hourlyCostCents: number): Promise<UserActionState> {
+  const admin = await requireAdmin();
+  const u = await db.user.findFirst({ where: { id, workspaceId: admin.workspaceId }, select: { id: true } });
+  if (!u) return { error: "Usuário não encontrado." };
+  await db.user.update({ where: { id }, data: { hourlyCostCents: Math.max(0, Math.round(hourlyCostCents)) } });
+  revalidatePath("/settings/users");
+  return { ok: true };
+}
+
 // Cria (convida) um novo usuário no workspace do admin.
 export async function createUser(_prev: UserActionState, formData: FormData): Promise<UserActionState> {
   const admin = await requireAdmin();

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import { getDashboardData } from "@/server/dashboard";
 import { getUsers } from "@/server/users";
+import { getComercialOverview, getDashboard as getComercialDashboard } from "@/server/comercial/queries";
 import { Card } from "@/components/ui/Card";
 import { StatCard } from "@/components/ui/Stat";
 import { Icon } from "@/components/ui/Icon";
@@ -11,15 +12,19 @@ import { Donut } from "@/components/charts/Charts";
 import { ProjectRow } from "@/components/project/ProjectRow";
 import { NewProjectButton } from "@/components/project/NewProjectButton";
 import { STATUS_META } from "@/lib/meta";
-import { dayLabel, deadlineInfo, deadlineColor } from "@/lib/format";
+import { dayLabel, deadlineInfo, deadlineColor, brl } from "@/lib/format";
 
 export default async function DashboardPage() {
   const user = await requireUser();
-  const [data, users] = await Promise.all([
+  const [data, users, comercial] = await Promise.all([
     getDashboardData(user.workspaceId),
     getUsers(user.workspaceId),
+    getComercialOverview(),
   ]);
   const memberOpts = users.map((u) => ({ id: u.id, name: u.name }));
+
+  // KPIs comerciais (IXC) no dashboard do OpenBoard — só se a integração estiver configurada.
+  const comercialMes = comercial.configured ? await getComercialDashboard(0) : null;
 
   const firstName = user.name.split(" ")[0];
   const donedPct = data.tasksTotal ? Math.round((data.tasksDone / data.tasksTotal) * 100) : 0;
@@ -47,6 +52,23 @@ export default async function DashboardPage() {
         <StatCard icon="users" label="Utilização do time" value={data.utilization} suffix="%" foot="carga média" accent="var(--st-progress)" />
         <StatCard icon="clock" label="Horas apontadas" value={data.hoursWeek} suffix="h" foot={`em ${data.hoursProjects} projetos`} accent="var(--st-review)" />
       </div>
+
+      {comercial.configured && comercialMes && (
+        <div style={{ marginTop: "var(--gap)" }}>
+          <Card
+            title="Comercial (IXC)"
+            sub="Carteira e resultado do mês — espelho local"
+            action={<Link className="btn btn-ghost" href="/comercial">Abrir Comercial <Icon name="chevRight" size={15} /></Link>}
+          >
+            <div className="grid" style={{ gridTemplateColumns: "repeat(4,1fr)" }}>
+              <StatCard icon="wallet" label="MRR ativo (carteira)" value={brl(comercial.mrrAtivoCents)} foot={`${comercial.ativos} contratos ativos`} accent="var(--st-done)" />
+              <StatCard icon="checkCircle" label="Ativados no mês" value={comercialMes.ativos} foot={`${brl(comercialMes.valorAtivosCents)} em MRR`} accent="var(--primary)" />
+              <StatCard icon="target" label="Pipeline (aguardando)" value={comercialMes.aguardando} foot={`${brl(comercialMes.valorAguardandoCents)}${comercialMes.parados30d ? ` · ${comercialMes.parados30d} parados +30d` : ""}`} accent="var(--st-progress)" />
+              <StatCard icon="alert" label="Cancelados no mês" value={comercialMes.cancelados} foot="contratos cancelados" accent="var(--st-risk)" />
+            </div>
+          </Card>
+        </div>
+      )}
 
       <div className="grid" style={{ gridTemplateColumns: "1.7fr 1fr", marginTop: "var(--gap)" }}>
         <Card

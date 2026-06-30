@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { Icon, type IconName } from "@/components/ui/Icon";
 import type { TvData, TvProject, TvTaskDue, TvMilestone, TvActivity, TvRisk, TvAssignee, TvFeatured, TvNote, TvGanttBar } from "@/server/tv";
 import type { ProjectStatus, Priority, AvatarUser } from "@/lib/types";
+import { brl } from "@/lib/format";
 
 /* ---------- mapas de cor (tokens --tv-*) ---------- */
 const STATUS: Record<ProjectStatus, { label: string; c: string; bg: string }> = {
@@ -517,8 +518,44 @@ function SlideDestaque({ d, now }: { d: TvData; now: Date }) {
   );
 }
 
+/* ============ SLIDE — COMERCIAL (IXC) ============ */
+function SlideComercial({ d }: { d: TvData; now: Date }) {
+  const c = d.comercial;
+  if (!c) return <Panel icon="briefcase" title="Comercial" style={{ height: "100%" }}><div style={{ color: "var(--tv-muted)", fontSize: 18 }}>Integração IXC não configurada.</div></Panel>;
+  const maxMrr = Math.max(1, ...c.ranking.map((r) => r.mrrCents));
+  return (
+    <div className="tv-grid" style={{ gridTemplateRows: "188px 1fr" }}>
+      <div className="tv-grid" style={{ gridTemplateColumns: "repeat(4,1fr)", gridTemplateRows: "none" }}>
+        <KPI icon="wallet" color="var(--ok)" label="MRR ativo (carteira)" value={brl(c.mrrAtivoCents)} foot="receita recorrente" />
+        <KPI icon="checkCircle" color="var(--tv-accent)" label="Ativados no mês" value={c.ativadosMes} foot={`${brl(c.mrrAtivadosMesCents)} em MRR`} />
+        <KPI icon="target" color="var(--info)" label="Pipeline (aguardando)" value={c.pipeline} foot={`${brl(c.mrrPipelineCents)} em potencial`} />
+        <KPI icon="users" color="var(--viol)" label="Vendedores no ranking" value={c.ranking.length} foot="com contratos no mês" />
+      </div>
+
+      <Panel icon="trendUp" title="Ranking de vendedores" sub="Ativados e MRR no mês" right={`${c.ranking.length}`}>
+        <div style={{ display: "flex", flexDirection: "column", flex: 1, justifyContent: "space-evenly", minHeight: 0 }}>
+          {c.ranking.map((r, i) => (
+            <div key={r.nome} style={{ display: "flex", alignItems: "center", gap: 16 }}>
+              <span className="tnum" style={{ width: 38, fontSize: 22, fontWeight: 800, color: i === 0 ? "var(--tv-accent)" : "var(--tv-muted)", flex: "none" }}>{i + 1}º</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 17, fontWeight: 800, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.nome}</div>
+                <div style={{ width: "100%", marginTop: 6 }}><Bar value={(r.mrrCents / maxMrr) * 100} color="var(--ok)" h={9} /></div>
+              </div>
+              <div style={{ width: 110, textAlign: "right", flex: "none" }}>
+                <b className="tnum" style={{ fontSize: 19 }}>{brl(r.mrrCents)}</b>
+                <div style={{ fontSize: 12.5, color: "var(--tv-muted)", fontWeight: 600 }}>{r.ativos} ativos</div>
+              </div>
+            </div>
+          ))}
+          {c.ranking.length === 0 && <div style={{ color: "var(--tv-muted)", fontSize: 16 }}>Sem contratos no mês.</div>}
+        </div>
+      </Panel>
+    </div>
+  );
+}
+
 /* ---------- carrossel + shell ---------- */
-const SLIDES = [
+const BASE_SLIDES = [
   { key: "panorama", kicker: "PAINEL 01", name: "Panorama geral", Comp: SlidePanorama },
   { key: "prazos", kicker: "PAINEL 02", name: "Prazos & tarefas", Comp: SlidePrazos },
   { key: "cronograma", kicker: "PAINEL 03", name: "Cronograma", Comp: SlideCronograma },
@@ -526,6 +563,8 @@ const SLIDES = [
   { key: "atividade", kicker: "PAINEL 05", name: "Quadro & atividade", Comp: SlideAtividade },
   { key: "equipe", kicker: "PAINEL 06", name: "Responsáveis & notas", Comp: SlideEquipeNotas },
 ] as const;
+type Slide = { key: string; kicker: string; name: string; Comp: (p: { d: TvData; now: Date }) => React.ReactNode };
+const COMERCIAL_SLIDE: Slide = { key: "comercial", kicker: "PAINEL 07", name: "Comercial (IXC)", Comp: SlideComercial };
 const INTERVAL = 15000;
 const REFRESH_MS = 30000;
 
@@ -540,13 +579,19 @@ export function TvBoard({ initial }: { initial: TvData }) {
   const footFillRef = useRef<HTMLElement>(null);
   const countRef = useRef<HTMLSpanElement>(null);
 
+  // Inclui o painel comercial só quando há dados de IXC.
+  const slides = useMemo<Slide[]>(() => (data.comercial ? [...BASE_SLIDES, COMERCIAL_SLIDE] : [...BASE_SLIDES]), [data.comercial]);
+  const slidesLenRef = useRef(slides.length);
+  useEffect(() => { slidesLenRef.current = slides.length; }, [slides.length]);
+
   // opções via URL (?screen= fixa inicial, ?rotate=0 congela)
   useEffect(() => {
     const p = new URLSearchParams(window.location.search);
     const s = p.get("screen");
-    const i = s ? SLIDES.findIndex((x) => x.key === s) : -1;
+    const i = s ? slides.findIndex((x) => x.key === s) : -1;
     if (i >= 0) setIdx(i);
     if (p.get("rotate") === "0" || p.get("rotate") === "false") setPaused(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // escala o canvas 1920x1080 pra caber na viewport (letterbox)
@@ -599,7 +644,7 @@ export function TvBoard({ initial }: { initial: TvData }) {
         const p = Math.min(1, (t - startRef.current) / INTERVAL);
         setBars(p);
         if (countRef.current) countRef.current.textContent = `próximo em ${Math.max(0, Math.ceil((1 - p) * (INTERVAL / 1000)))}s`;
-        if (p >= 1) { startRef.current = t; setBars(0); setIdx((i) => (i + 1) % SLIDES.length); }
+        if (p >= 1) { startRef.current = t; setBars(0); setIdx((i) => (i + 1) % slidesLenRef.current); }
       } else {
         // congela: empurra o início junto com o tempo → (t - start) constante
         startRef.current += t - last;
@@ -612,7 +657,8 @@ export function TvBoard({ initial }: { initial: TvData }) {
   }, []);
 
   const goto = useCallback((i: number) => {
-    setIdx(((i % SLIDES.length) + SLIDES.length) % SLIDES.length);
+    const n = slidesLenRef.current;
+    setIdx(((i % n) + n) % n);
     startRef.current = performance.now();
     if (footFillRef.current) footFillRef.current.style.width = "0%";
   }, []);
@@ -628,7 +674,8 @@ export function TvBoard({ initial }: { initial: TvData }) {
     return () => window.removeEventListener("keydown", onKey);
   }, [idx, goto]);
 
-  const cur = SLIDES[idx];
+  const safeIdx = idx < slides.length ? idx : 0; // mantém índice válido se a lista mudar
+  const cur = slides[safeIdx];
 
   return (
     <div className="tv-root">
@@ -653,11 +700,11 @@ export function TvBoard({ initial }: { initial: TvData }) {
 
           {/* Slides */}
           <div className="tv-body">
-            {SLIDES.map((s, i) => {
+            {slides.map((s, i) => {
               const S = s.Comp;
               return (
-                <div key={s.key} className={`tv-slide ${i === idx ? "on" : ""}`} aria-hidden={i !== idx}>
-                  {i === idx && <S d={data} now={now} />}
+                <div key={s.key} className={`tv-slide ${i === safeIdx ? "on" : ""}`} aria-hidden={i !== safeIdx}>
+                  {i === safeIdx && <S d={data} now={now} />}
                 </div>
               );
             })}
@@ -665,14 +712,14 @@ export function TvBoard({ initial }: { initial: TvData }) {
 
           {/* Footer */}
           <div className="tv-foot">
-            <span className="lbl">{String(idx + 1).padStart(2, "0")} / {String(SLIDES.length).padStart(2, "0")}</span>
+            <span className="lbl">{String(safeIdx + 1).padStart(2, "0")} / {String(slides.length).padStart(2, "0")}</span>
             <div className="tv-prog"><i ref={footFillRef} style={{ width: "0%" }} /></div>
             <span className="lbl" ref={countRef} style={{ minWidth: 110, textAlign: "right" }}>próximo em 15s</span>
             <button className="tv-pause" onClick={() => setPaused((p) => !p)} title="Pausar (espaço)">
               <Icon name={paused ? "play" : "pause"} size={20} />
             </button>
             <div className="tv-dots">
-              {SLIDES.map((s, i) => <button key={s.key} className={i === idx ? "on" : ""} onClick={() => goto(i)} title={s.name} />)}
+              {slides.map((s, i) => <button key={s.key} className={i === safeIdx ? "on" : ""} onClick={() => goto(i)} title={s.name} />)}
             </div>
           </div>
         </div>

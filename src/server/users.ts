@@ -10,12 +10,13 @@ export type UserRow = {
   jobTitle: string;
   initials: string;
   color: string;
+  hourlyCostCents: number;
 };
 
 export async function getUsers(workspaceId: string): Promise<UserRow[]> {
   return db.user.findMany({
     where: { workspaceId },
     orderBy: { createdAt: "asc" },
-    select: { id: true, name: true, email: true, role: true, jobTitle: true, initials: true, color: true },
+    select: { id: true, name: true, email: true, role: true, jobTitle: true, initials: true, color: true, hourlyCostCents: true },
   });
 }
