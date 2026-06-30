@@ -47,6 +47,14 @@ services:
       # Painel de TV (/tv?key=TV_TOKEN). Sem TV_TOKEN o /tv fica inacessível.
       TV_TOKEN: ${TV_TOKEN:-}
       TV_WORKSPACE_ID: ${TV_WORKSPACE_ID:-}
+      # Comercial / IXCSoft (server-only). Sem IXC_TOKEN o módulo fica "não configurado".
+      IXC_BASE_URL: ${IXC_BASE_URL:-}
+      IXC_PROXY_URL: ${IXC_PROXY_URL:-}
+      IXC_TOKEN: ${IXC_TOKEN:-}
+      IXC_FILIAIS: ${IXC_FILIAIS:-}
+      IXC_CAMPO_STATUS_CONTRATO: ${IXC_CAMPO_STATUS_CONTRATO:-}
+      # Webhook de ingest de leads do chat de atendimento (POST /api/comercial/leads).
+      LEADS_INGEST_TOKEN: ${LEADS_INGEST_TOKEN:-}
     depends_on:
       db:
         condition: service_healthy
