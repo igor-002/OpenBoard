@@ -60,17 +60,24 @@ export type LeadInput = {
   observacoes?: string | null;
   externalId?: string | null;
   assignedUserId?: string | null;
-  assignedUserName?: string | null;  // hint p/ casar atendente AtendAI → User (por nome)
-  assignedUserEmail?: string | null; // hint p/ casar por e-mail (prioritário)
+  assignedUserName?: string | null;     // hint p/ casar atendente AtendAI → User (por nome)
+  assignedUserEmail?: string | null;    // hint p/ casar por e-mail (prioritário)
+  assignedUserUsername?: string | null; // hint AtendAI: username == prefixo do e-mail no OpenBoard
   payload?: unknown;
 };
 
-// Resolve o responsável: id direto > e-mail > nome (case-insensitive). null se não achar.
-async function resolveAssignedUserId(input: Pick<LeadInput, "assignedUserId" | "assignedUserName" | "assignedUserEmail">): Promise<string | null> {
+// Resolve o responsável: id > e-mail > username(==prefixo e-mail) > nome exato > nome começa-com. null se não achar.
+async function resolveAssignedUserId(input: Pick<LeadInput, "assignedUserId" | "assignedUserName" | "assignedUserEmail" | "assignedUserUsername">): Promise<string | null> {
   if (input.assignedUserId) return input.assignedUserId;
   const email = input.assignedUserEmail?.trim().toLowerCase();
   if (email) {
     const u = await db.user.findFirst({ where: { email }, select: { id: true } });
+    if (u) return u.id;
+  }
+  // username do AtendAI ("cesar.augusto") == prefixo do e-mail no OpenBoard ("cesar.augusto@...").
+  const username = input.assignedUserUsername?.trim().toLowerCase();
+  if (username) {
+    const u = await db.user.findFirst({ where: { email: { startsWith: `${username}@`, mode: "insensitive" } }, select: { id: true } });
     if (u) return u.id;
   }
   const name = input.assignedUserName?.trim();

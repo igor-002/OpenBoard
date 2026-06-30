@@ -48,6 +48,8 @@ function fromAtendAI(body: unknown): LeadInput | null {
   const usuario = d.usuario as Record<string, unknown> | null;
   const assignedUserName = usuario && typeof usuario.nome === "string" ? usuario.nome : (usuario && typeof usuario.name === "string" ? usuario.name : null);
   const assignedUserEmail = usuario && typeof usuario.email === "string" ? usuario.email : null;
+  // username do AtendAI == prefixo do e-mail no OpenBoard (ex. "cesar.augusto"@openit.group) — match mais forte.
+  const assignedUserUsername = usuario && typeof usuario.username === "string" ? usuario.username : null;
   const msgs = Array.isArray(d.mensagensAtendimento) ? (d.mensagensAtendimento as Record<string, unknown>[]) : [];
   const hist = msgs.map((m) => `[${m.remetente ?? "?"}] ${m.mensagem ?? ""}`).join("\n");
   const observacoes = [
@@ -72,6 +74,7 @@ function fromAtendAI(body: unknown): LeadInput | null {
     observacoes,
     assignedUserName,
     assignedUserEmail,
+    assignedUserUsername,
     payload: safePayload,
   };
 }
