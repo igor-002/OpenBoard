@@ -865,3 +865,44 @@ a {
 @media (prefers-reduced-motion: reduce) {
   .toast-pop { animation: none; }
 }
+
+/* ---------- Comercial: selects de filtro ---------- */
+.select-comercial {
+  background: var(--surface-3);
+  border: 1px solid var(--line-2);
+  color: var(--ink-2);
+  border-radius: var(--r-md);
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  outline: none;
+  cursor: pointer;
+}
+.select-comercial:focus {
+  border-color: var(--primary);
+}
+
+/* ── Impressão do Relatório Diário (Gerar PDF) ───────────────────────────── */
+.diario-print { display: none; }
+.diario-print-tbl { width: 100%; border-collapse: collapse; font-size: 12px; }
+.diario-print-tbl th,
+.diario-print-tbl td { border: 1px solid #ccc; padding: 6px 8px; text-align: left; }
+.diario-print-tbl th { background: #f2f2f2; }
+.diario-print-tbl td:not(:first-child),
+.diario-print-tbl th:not(:first-child) { text-align: right; }
+.diario-print-tbl tr.tot td { font-weight: 800; border-top: 2px solid #888; }
+@media print {
+  body.printing * { visibility: hidden !important; }
+  body.printing .diario-print,
+  body.printing .diario-print * { visibility: visible !important; }
+  body.printing .diario-print {
+    display: block !important;
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    padding: 0 8px;
+    color: #000;
+    background: #fff;
+  }
+}

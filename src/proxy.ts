@@ -2,8 +2,9 @@ import { NextResponse, type NextRequest } from "next/server";
 import { verifyToken, SESSION_COOKIE } from "@/lib/jwt";
 
 const AUTH_PAGES = ["/login", "/register"];
-// Rotas públicas com gate próprio por token (painel de TV). Não exigem sessão.
-const PUBLIC_PAGES = ["/tv", "/api/tv"];
+// Rotas públicas com gate próprio por token (painel de TV, webhook de leads).
+// Não exigem sessão — a própria rota valida o token.
+const PUBLIC_PAGES = ["/tv", "/api/tv", "/api/comercial/leads"];
 
 // Convenção "proxy" do Next 16 (substitui o antigo middleware).
 export async function proxy(req: NextRequest) {
