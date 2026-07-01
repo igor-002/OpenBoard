@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 
 const PERIODOS = ["Mês atual", "Mês anterior", "2 meses atrás"];
 
@@ -20,9 +20,14 @@ export function DashboardFilterBar({
   const periodo = Number(sp.get("periodo") ?? "0");
   const vendedor = sp.get("vendedor") ?? "";
   const filial = sp.get("filial") ?? "";
-  const ini = sp.get("ini") ?? "";
-  const fim = sp.get("fim") ?? "";
-  const custom = !!(ini && fim);
+  const urlIni = sp.get("ini") ?? "";
+  const urlFim = sp.get("fim") ?? "";
+  const custom = !!(urlIni && urlFim);
+  // Estado local dos inputs de data — NÃO navega a cada tecla (senão o ano zera
+  // as datas: cada estado intermediário é uma data válida e dispara re-render).
+  const [ini, setIni] = useState(urlIni);
+  const [fim, setFim] = useState(urlFim);
+  useEffect(() => { setIni(urlIni); setFim(urlFim); }, [urlIni, urlFim]);
 
   function apply(next: Record<string, string>) {
     const params = new URLSearchParams(sp.toString());
@@ -31,6 +36,10 @@ export function DashboardFilterBar({
       else params.delete(k);
     }
     start(() => router.push(`/comercial?${params.toString()}`));
+  }
+  // Aplica o range só quando as 2 datas estão completas (no blur/Enter).
+  function aplicarRange(a: string, b: string) {
+    if (a && b && (a !== urlIni || b !== urlFim)) apply({ ini: a, fim: b, periodo: "" });
   }
 
   const temFiltro = periodo !== 0 || vendedor || filial || custom;
@@ -57,9 +66,17 @@ export function DashboardFilterBar({
       {/* Período livre (data início/fim) */}
       <div className="row gap8" style={{ alignItems: "center", background: custom ? "var(--primary-tint)" : "var(--surface-3)", border: "1px solid var(--line-2)", borderRadius: "var(--r-pill)", padding: "4px 10px" }}>
         <span style={{ fontSize: 12, color: "var(--muted)" }}>Período:</span>
-        <input type="date" value={ini} max={fim || undefined} onChange={(e) => apply({ ini: e.target.value, periodo: "" })} className="select-comercial" style={{ padding: "3px 6px" }} />
+        <input type="date" value={ini} max={fim || undefined}
+          onChange={(e) => setIni(e.target.value)}
+          onBlur={() => aplicarRange(ini, fim)}
+          onKeyDown={(e) => { if (e.key === "Enter") aplicarRange(ini, fim); }}
+          className="select-comercial" style={{ padding: "3px 6px" }} />
         <span style={{ color: "var(--muted)" }}>–</span>
-        <input type="date" value={fim} min={ini || undefined} onChange={(e) => apply({ fim: e.target.value, periodo: "" })} className="select-comercial" style={{ padding: "3px 6px" }} />
+        <input type="date" value={fim} min={ini || undefined}
+          onChange={(e) => setFim(e.target.value)}
+          onBlur={() => aplicarRange(ini, fim)}
+          onKeyDown={(e) => { if (e.key === "Enter") aplicarRange(ini, fim); }}
+          className="select-comercial" style={{ padding: "3px 6px" }} />
       </div>
 
       <select value={vendedor} onChange={(e) => apply({ vendedor: e.target.value })} className="select-comercial">
