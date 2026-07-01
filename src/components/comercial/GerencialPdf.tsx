@@ -5,7 +5,7 @@
 // Reusa o mecanismo de impressão do Diário (body.printing + bloco .diario-print).
 import { Icon } from "@/components/ui/Icon";
 import { brl, dayLabel } from "@/lib/format";
-import { STATUS_LABEL } from "@/lib/ixc";
+import { STATUS_LABEL } from "@/lib/status";
 import type { EvolucaoMes, ContratosPeriodo, TempoAtivacao } from "@/server/comercial/queries";
 
 function imprimir() {

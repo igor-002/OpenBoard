@@ -146,23 +146,9 @@ export async function ixcBatch<T, R>(
 }
 
 // ── Status do contrato (handoff §6) ──────────────────────────────────────────
-// Vocabulário do campo `status_internet` (handoff §6 / SalesTracker).
-export const STATUS_LABEL: Record<string, string> = {
-  A: "Ativo",
-  AA: "Aguardando Assinatura",
-  P: "Proposta", // tratado como pipeline junto de AA
-  B: "Bloqueado",
-  CM: "Bloqueado (Manual)",
-  C: "Cancelado",
-  CN: "Cancelado",
-  CA: "Cancelado",
-  FA: "Financeiro em Atraso",
-  N: "Negativado",
-  D: "Desativado", // ⚠️ inferido — confirmar significado no IXC (12k contratos)
-};
-
-export const isRealizado = (status: string) => status === "A"; // meta real do mês
-export const isPipeline = (status: string) => status === "AA" || status === "P"; // promessa
+// Rótulos/predicados vivem em src/lib/status.ts (client-safe). Re-exporta aqui
+// p/ compatibilidade com quem importa de "@/lib/ixc".
+export { STATUS_LABEL, isRealizado, isPipeline } from "./status";
 
 // "0000-00-00" é o nulo do IXC (handoff §7) → null.
 // IXC manda wall-clock sem fuso ("2026-06-01 00:00:00"). Parseamos como UTC (sufixo Z)
