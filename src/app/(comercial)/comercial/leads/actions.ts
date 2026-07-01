@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireUser, requireAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { ingestLead } from "@/server/comercial/leads";
+import { analisarConversaLead } from "@/server/comercial/analise";
 import { isLeadStage } from "@/lib/leads";
 
 export type LeadActionState = { ok?: boolean; error?: string; id?: string; created?: boolean; matchedBy?: string | null };
@@ -50,5 +51,14 @@ export async function deleteLead(id: string): Promise<LeadActionState> {
   await requireAdmin();
   await db.lead.delete({ where: { id } });
   revalidatePath("/comercial/leads");
+  return { ok: true };
+}
+
+// Roda a análise IA da conversa do lead (sob demanda, pela página de detalhe).
+export async function analisarLead(id: string): Promise<LeadActionState> {
+  await requireUser();
+  const r = await analisarConversaLead(id);
+  if (!r.ok) return { error: r.error };
+  revalidatePath(`/comercial/leads/${id}`);
   return { ok: true };
 }

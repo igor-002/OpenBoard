@@ -319,10 +319,36 @@ model Lead {
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
+  // Análise IA da conversa do atendente (sob demanda; re-executável, sobrescreve).
+  analiseNota           Int?      // 0-10
+  analiseResumo         String?
+  analisePontos         Json?     // { fortes:[], aMelhorar:[], proximoPasso:"" }
+  analiseModelo         String?
+  analiseTokensIn       Int?
+  analiseTokensOut      Int?
+  analiseCustoUsdMicros Int?      // custo em USD * 1_000_000 (inteiro)
+  analiseAt             DateTime?
+
   @@index([stage])
   @@index([cnpjCpfNorm])
   @@index([contatoNorm])
   @@index([emailNorm])
+}
+
+// Mensagens da conversa do AtendAI, por lead. Acumulam entre re-entradas de fila;
+// dedup por externalId (id da mensagem no AtendAI). Ver src/server/comercial/leads.ts.
+model LeadMensagem {
+  id          String    @id @default(cuid())
+  leadId      String    // loose FK -> Lead.id (sem constraint, padrão do comercial)
+  externalId  String    @unique // mensagensAtendimento[].id no AtendAI
+  remetente   String?   // "OpenSuite" / nome do atendente / cliente
+  mensagem    String
+  tipo        String?   // tipo_mensagem (text/...)
+  mensagemBot Boolean   @default(false) // mensagem_bot || mensagem_ia
+  sentAt      DateTime? // data_envio
+  createdAt   DateTime  @default(now())
+
+  @@index([leadId])
 }
 
 // Log de cada execução de sync (observabilidade — ver handoff §9).

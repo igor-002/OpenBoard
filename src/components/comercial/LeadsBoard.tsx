@@ -364,6 +364,7 @@ function LeadDetailModal({ lead, userOpts, isAdmin, onClose }: { lead: LeadCard;
           {lead.valorEstimadoCents > 0 && <><span className="muted">Valor est.</span><span style={{ fontWeight: 700 }}>{brl(lead.valorEstimadoCents)}</span></>}
           <span className="muted">Último contato</span><span>{new Date(lead.lastContactAt).toLocaleString("pt-BR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
         </div>
+        <Link href={`/comercial/leads/${lead.id}`} className="btn btn-primary" style={{ marginBottom: 14, width: "100%", justifyContent: "center" }}>Abrir conversa e análise IA <Icon name="chevRight" size={14} /></Link>
         {lead.ixcClienteId && <Link href={`/comercial/clientes/${lead.ixcClienteId}`} className="btn btn-ghost" style={{ marginBottom: 14 }}>Ver cliente 360 <Icon name="chevRight" size={14} /></Link>}
         {lead.observacoes && (
           <div className="field" style={{ marginBottom: 14 }}>

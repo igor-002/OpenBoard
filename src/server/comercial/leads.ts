@@ -63,8 +63,39 @@ export type LeadInput = {
   assignedUserName?: string | null;     // hint p/ casar atendente AtendAI → User (por nome)
   assignedUserEmail?: string | null;    // hint p/ casar por e-mail (prioritário)
   assignedUserUsername?: string | null; // hint AtendAI: username == prefixo do e-mail no OpenBoard
+  mensagens?: LeadMensagemInput[] | null; // conversa do AtendAI (acumula, dedup por externalId)
   payload?: unknown;
 };
+
+export type LeadMensagemInput = {
+  externalId: string;              // id da mensagem no AtendAI
+  mensagem: string;
+  remetente?: string | null;
+  tipo?: string | null;
+  mensagemBot?: boolean;
+  sentAt?: Date | null;
+};
+
+// Grava/atualiza as mensagens da conversa, dedup por externalId (id do AtendAI).
+// Chamada tanto no create quanto no re-toque → acumula entre re-entradas de fila.
+async function upsertMensagens(leadId: string, mensagens?: LeadMensagemInput[] | null): Promise<void> {
+  if (!mensagens?.length) return;
+  for (const m of mensagens) {
+    if (!m.externalId || !m.mensagem) continue;
+    const data = {
+      remetente: m.remetente ?? null,
+      mensagem: m.mensagem,
+      tipo: m.tipo ?? null,
+      mensagemBot: !!m.mensagemBot,
+      sentAt: m.sentAt ?? null,
+    };
+    await db.leadMensagem.upsert({
+      where: { externalId: m.externalId },
+      create: { leadId, externalId: m.externalId, ...data },
+      update: { leadId, ...data },
+    });
+  }
+}
 
 // Resolve o responsável: id > e-mail > username(==prefixo e-mail) > nome exato > nome começa-com. null se não achar.
 async function resolveAssignedUserId(input: Pick<LeadInput, "assignedUserId" | "assignedUserName" | "assignedUserEmail" | "assignedUserUsername">): Promise<string | null> {
@@ -141,6 +172,7 @@ export async function ingestLead(input: LeadInput): Promise<IngestResult> {
     const observacoes = [atual?.observacoes, carimbo].filter(Boolean).join("\n");
     // re-toque: atualiza o responsável se veio um atendente (reflete quem assumiu agora).
     await db.lead.update({ where: { id: dup.id }, data: { lastContactAt: new Date(), observacoes, ...(assignedUserId ? { assignedUserId } : {}) } });
+    await upsertMensagens(dup.id, input.mensagens);
     return { created: false, id: dup.id, matchedBy: dup.by };
   }
 
@@ -169,5 +201,17 @@ export async function ingestLead(input: LeadInput): Promise<IngestResult> {
       payload: (input.payload ?? undefined) as Prisma.InputJsonValue | undefined,
     },
   });
+  await upsertMensagens(lead.id, input.mensagens);
   return { created: true, id: lead.id, matchedBy: null };
+}
+
+// Detalhe de um lead p/ a página /comercial/leads/[id]: lead + conversa + responsável.
+export async function getLeadDetail(id: string) {
+  const lead = await db.lead.findUnique({ where: { id } });
+  if (!lead) return null;
+  const [mensagens, user] = await Promise.all([
+    db.leadMensagem.findMany({ where: { leadId: id }, orderBy: [{ sentAt: "asc" }, { createdAt: "asc" }] }),
+    lead.assignedUserId ? db.user.findUnique({ where: { id: lead.assignedUserId }, select: { name: true } }) : Promise.resolve(null),
+  ]);
+  return { lead, mensagens, assignedUserName: user?.name ?? null };
 }

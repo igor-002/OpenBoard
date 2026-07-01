@@ -55,6 +55,11 @@ services:
       IXC_CAMPO_STATUS_CONTRATO: ${IXC_CAMPO_STATUS_CONTRATO:-}
       # Webhook de ingest de leads do chat de atendimento (POST /api/comercial/leads).
       LEADS_INGEST_TOKEN: ${LEADS_INGEST_TOKEN:-}
+      # Análise IA da conversa (OpenAI). Sem OPENAI_API_KEY o botão de análise fica off.
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-}
+      OPENAI_PRICE_IN_PER_1M: ${OPENAI_PRICE_IN_PER_1M:-}
+      OPENAI_PRICE_OUT_PER_1M: ${OPENAI_PRICE_OUT_PER_1M:-}
     depends_on:
       db:
         condition: service_healthy
