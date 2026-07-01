@@ -29,15 +29,23 @@ export async function setSettings(entries: Record<string, string | null | undefi
   }
 }
 
+// Trata "" (compose passa envs vazias como string vazia) como ausente.
+const clean = (s?: string | null): string | undefined => (s && s.trim() ? s.trim() : undefined);
+const num = (s: string | undefined, def: number): number => {
+  const n = Number(s);
+  return Number.isFinite(n) && n >= 0 ? n : def;
+};
+
 export async function getOpenAIConfig(): Promise<OpenAIConfig> {
   const rows = await db.appSetting.findMany({ where: { key: { in: Object.values(SETTING_KEYS) } } });
   const m = new Map(rows.map((r) => [r.key, r.value]));
-  const g = (k: string) => m.get(k) || undefined;
+  const g = (k: string) => clean(m.get(k));
+  const env = (k: string) => clean(process.env[k]);
   return {
-    apiKey: g(SETTING_KEYS.openaiApiKey) ?? process.env.OPENAI_API_KEY ?? "",
-    model: g(SETTING_KEYS.openaiModel) ?? process.env.OPENAI_MODEL ?? "gpt-4o-mini",
-    priceIn: Number(g(SETTING_KEYS.openaiPriceIn) ?? process.env.OPENAI_PRICE_IN_PER_1M ?? "0.15"),
-    priceOut: Number(g(SETTING_KEYS.openaiPriceOut) ?? process.env.OPENAI_PRICE_OUT_PER_1M ?? "0.60"),
+    apiKey: g(SETTING_KEYS.openaiApiKey) ?? env("OPENAI_API_KEY") ?? "",
+    model: g(SETTING_KEYS.openaiModel) ?? env("OPENAI_MODEL") ?? "gpt-4o-mini",
+    priceIn: num(g(SETTING_KEYS.openaiPriceIn) ?? env("OPENAI_PRICE_IN_PER_1M"), 0.15),
+    priceOut: num(g(SETTING_KEYS.openaiPriceOut) ?? env("OPENAI_PRICE_OUT_PER_1M"), 0.6),
     baseUrl: (process.env.OPENAI_BASE_URL || "https://api.openai.com/v1").replace(/\/$/, ""),
   };
 }
