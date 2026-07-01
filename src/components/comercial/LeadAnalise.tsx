@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Icon } from "@/components/ui/Icon";
 import { analisarLead } from "@/app/(comercial)/comercial/leads/actions";
@@ -31,21 +31,62 @@ export function LeadAnalise({ leadId, hasMensagens, analise }: { leadId: string;
   const router = useRouter();
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [elapsed, setElapsed] = useState(0);
+  const [ok, setOk] = useState<{ secs: number } | null>(null);
+  const t0 = useRef(0);
   const temAnalise = analise.nota != null;
+
+  // cronômetro enquanto roda
+  useEffect(() => {
+    if (!pending) return;
+    t0.current = Date.now();
+    setElapsed(0);
+    const iv = setInterval(() => setElapsed((Date.now() - t0.current) / 1000), 100);
+    return () => clearInterval(iv);
+  }, [pending]);
+
+  // some com o banner de sucesso depois de 5s
+  useEffect(() => {
+    if (!ok) return;
+    const to = setTimeout(() => setOk(null), 5000);
+    return () => clearTimeout(to);
+  }, [ok]);
 
   function run() {
     setError(null);
+    setOk(null);
+    const started = Date.now();
     start(async () => {
       const r = await analisarLead(leadId);
+      const secs = (Date.now() - started) / 1000;
       if (r.error) setError(r.error);
-      else router.refresh();
+      else {
+        setOk({ secs });
+        router.refresh();
+      }
     });
   }
 
   const botao = (
     <button className="btn btn-primary" onClick={run} disabled={pending || !hasMensagens}>
-      <Icon name="zap" size={15} /> {pending ? "Analisando…" : temAnalise ? "Reanalisar" : "Analisar conversa"}
+      <Icon name={pending ? "clock" : "zap"} size={15} className={pending ? "spin" : undefined} />{" "}
+      {pending ? `Analisando… ${elapsed.toFixed(1)}s` : temAnalise ? "Reanalisar" : "Analisar conversa"}
     </button>
+  );
+
+  const banner = (
+    <>
+      {error && (
+        <div className="form-error" style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 8 }}>
+          <Icon name="alert" size={15} /> {error}
+        </div>
+      )}
+      {ok && !error && (
+        <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 700, color: "var(--st-done)", background: "var(--st-done-bg)", padding: "8px 12px", borderRadius: "var(--r-md)" }}>
+          <Icon name="checkCircle" size={15} /> Análise concluída em {ok.secs.toFixed(1)}s
+        </div>
+      )}
+    </>
   );
 
   if (!temAnalise) {
@@ -55,7 +96,7 @@ export function LeadAnalise({ leadId, hasMensagens, analise }: { leadId: string;
           {hasMensagens ? "Ainda não analisada. Rode a IA para avaliar o atendimento." : "Sem mensagens da conversa para analisar."}
         </p>
         {botao}
-        {error && <div className="form-error" style={{ marginTop: 12 }}>{error}</div>}
+        {banner}
       </div>
     );
   }
@@ -98,7 +139,7 @@ export function LeadAnalise({ leadId, hasMensagens, analise }: { leadId: string;
         {analise.modelo} · {analise.tokensIn ?? 0} tokens entrada · {analise.tokensOut ?? 0} saída · custo {analise.custoUsdMicros != null ? usd(analise.custoUsdMicros) : "—"}
         {analise.at ? ` · ${new Date(analise.at).toLocaleString("pt-BR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}` : ""}
       </div>
-      {error && <div className="form-error" style={{ margin: "8px 18px 0" }}>{error}</div>}
+      <div style={{ padding: "0 18px" }}>{banner}</div>
     </div>
   );
 }

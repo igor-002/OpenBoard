@@ -76,6 +76,32 @@ export type LeadMensagemInput = {
   sentAt?: Date | null;
 };
 
+// Extrai mensagens do payload cru do AtendAI (`payload.data.mensagensAtendimento`).
+// Usado p/ backfill de leads antigos (criados antes da tabela LeadMensagem existir).
+export function extractMensagensFromPayload(payload: unknown): LeadMensagemInput[] {
+  if (!payload || typeof payload !== "object") return [];
+  const data = (payload as Record<string, unknown>).data as Record<string, unknown> | undefined;
+  const arr = data && Array.isArray(data.mensagensAtendimento) ? (data.mensagensAtendimento as Record<string, unknown>[]) : [];
+  return arr
+    .filter((m) => m.id != null && typeof m.mensagem === "string" && m.mensagem)
+    .map((m) => ({
+      externalId: String(m.id),
+      mensagem: String(m.mensagem),
+      remetente: typeof m.remetente === "string" ? m.remetente : null,
+      tipo: typeof m.tipo_mensagem === "string" ? m.tipo_mensagem : null,
+      mensagemBot: m.mensagem_bot === true || m.mensagem_ia === true,
+      sentAt: typeof m.data_envio === "string" ? new Date(m.data_envio) : null,
+    }));
+}
+
+// Garante que as mensagens do lead estão na tabela; se vazias, backfill do payload.
+export async function ensureMensagens(leadId: string, payload?: unknown): Promise<void> {
+  const n = await db.leadMensagem.count({ where: { leadId } });
+  if (n > 0) return;
+  const fromPayload = extractMensagensFromPayload(payload);
+  if (fromPayload.length) await upsertMensagens(leadId, fromPayload);
+}
+
 // Grava/atualiza as mensagens da conversa, dedup por externalId (id do AtendAI).
 // Chamada tanto no create quanto no re-toque → acumula entre re-entradas de fila.
 async function upsertMensagens(leadId: string, mensagens?: LeadMensagemInput[] | null): Promise<void> {
@@ -206,9 +232,11 @@ export async function ingestLead(input: LeadInput): Promise<IngestResult> {
 }
 
 // Detalhe de um lead p/ a página /comercial/leads/[id]: lead + conversa + responsável.
+// Se o lead não tem mensagens na tabela (criado antes da feature), faz backfill do payload.
 export async function getLeadDetail(id: string) {
   const lead = await db.lead.findUnique({ where: { id } });
   if (!lead) return null;
+  await ensureMensagens(id, lead.payload);
   const [mensagens, user] = await Promise.all([
     db.leadMensagem.findMany({ where: { leadId: id }, orderBy: [{ sentAt: "asc" }, { createdAt: "asc" }] }),
     lead.assignedUserId ? db.user.findUnique({ where: { id: lead.assignedUserId }, select: { name: true } }) : Promise.resolve(null),

@@ -3,6 +3,7 @@
 // tokens e custo real nos campos analise* do Lead. Re-executável (sobrescreve).
 import "server-only";
 import { db } from "@/lib/db";
+import { ensureMensagens } from "@/server/comercial/leads";
 import { chatJson, custoUsdMicros, openaiConfigured, OPENAI_MODEL, OpenAIError, type ChatMessage } from "@/lib/openai";
 import type { Prisma } from "@/generated/prisma";
 
@@ -13,9 +14,10 @@ const asStr = (v: unknown): string => (typeof v === "string" ? v : "");
 export async function analisarConversaLead(leadId: string): Promise<{ ok: true } | { ok: false; error: string }> {
   if (!openaiConfigured()) return { ok: false, error: "IA não configurada (OPENAI_API_KEY ausente)." };
 
-  const lead = await db.lead.findUnique({ where: { id: leadId }, select: { id: true, nome: true } });
+  const lead = await db.lead.findUnique({ where: { id: leadId }, select: { id: true, nome: true, payload: true } });
   if (!lead) return { ok: false, error: "Lead não encontrado." };
 
+  await ensureMensagens(leadId, lead.payload); // backfill de leads antigos
   const mensagens = await db.leadMensagem.findMany({
     where: { leadId },
     orderBy: [{ sentAt: "asc" }, { createdAt: "asc" }],

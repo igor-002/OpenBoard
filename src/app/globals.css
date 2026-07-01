@@ -866,6 +866,13 @@ a {
   .toast-pop { animation: none; }
 }
 
+/* Spinner (ícone girando) — usado no botão de análise IA. */
+@keyframes spin { to { transform: rotate(360deg); } }
+.spin { animation: spin 0.9s linear infinite; transform-origin: center; }
+@media (prefers-reduced-motion: reduce) {
+  .spin { animation: none; }
+}
+
 /* ---------- Comercial: selects de filtro ---------- */
 .select-comercial {
   background: var(--surface-3);
