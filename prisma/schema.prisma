@@ -335,6 +335,14 @@ model Lead {
   @@index([emailNorm])
 }
 
+// Configurações do app editáveis pela UI (key-value). Ex.: chave/modelo/preço da
+// OpenAI. Server-only (nunca expor valores sensíveis ao client). Fallback = env.
+model AppSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
 // Mensagens da conversa do AtendAI, por lead. Acumulam entre re-entradas de fila;
 // dedup por externalId (id da mensagem no AtendAI). Ver src/server/comercial/leads.ts.
 model LeadMensagem {

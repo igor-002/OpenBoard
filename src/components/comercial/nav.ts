@@ -14,6 +14,7 @@ export const COMERCIAL_NAV: NavItem[] = [
   { href: "/comercial/mrr", label: "MRR & Metas", icon: "wallet" },
   // { href: "/comercial/margem", label: "Margem", icon: "trendUp" }, // oculto por enquanto
   { href: "/comercial/sync", label: "Sincronização", icon: "zap" },
+  { href: "/comercial/config", label: "Config IA", icon: "settings" },
 ];
 
 export const COMERCIAL_CRUMBS: { prefix: string; a: string; b: string }[] = [
@@ -26,6 +27,7 @@ export const COMERCIAL_CRUMBS: { prefix: string; a: string; b: string }[] = [
   { prefix: "/comercial/mrr", a: "Comercial", b: "MRR & Metas" },
   { prefix: "/comercial/margem", a: "Comercial", b: "Margem" },
   { prefix: "/comercial/sync", a: "Comercial", b: "Sincronização" },
+  { prefix: "/comercial/config", a: "Comercial", b: "Config IA" },
   { prefix: "/comercial", a: "Comercial", b: "Visão geral" },
 ];
 

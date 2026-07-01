@@ -4,7 +4,8 @@
 import "server-only";
 import { db } from "@/lib/db";
 import { ensureMensagens, sortConversa } from "@/server/comercial/leads";
-import { chatJson, custoUsdMicros, openaiConfigured, OPENAI_MODEL, OpenAIError, type ChatMessage } from "@/lib/openai";
+import { getOpenAIConfig } from "@/server/settings";
+import { chatJson, custoUsdMicros, openaiConfigured, OpenAIError, type ChatMessage } from "@/lib/openai";
 import type { Prisma } from "@/generated/prisma";
 
 const asStrArray = (v: unknown): string[] =>
@@ -12,7 +13,8 @@ const asStrArray = (v: unknown): string[] =>
 const asStr = (v: unknown): string => (typeof v === "string" ? v : "");
 
 export async function analisarConversaLead(leadId: string): Promise<{ ok: true } | { ok: false; error: string }> {
-  if (!openaiConfigured()) return { ok: false, error: "IA não configurada (OPENAI_API_KEY ausente)." };
+  const cfg = await getOpenAIConfig();
+  if (!openaiConfigured(cfg)) return { ok: false, error: "IA não configurada — informe a chave da OpenAI em Config IA." };
 
   const lead = await db.lead.findUnique({ where: { id: leadId }, select: { id: true, nome: true, payload: true } });
   if (!lead) return { ok: false, error: "Lead não encontrado." };
@@ -37,7 +39,7 @@ export async function analisarConversaLead(leadId: string): Promise<{ ok: true }
 
   let r;
   try {
-    r = await chatJson(messages);
+    r = await chatJson(cfg, messages);
   } catch (e) {
     const msg = e instanceof OpenAIError ? e.message : (e as Error).message;
     return { ok: false, error: `Falha na IA: ${msg}` };
@@ -63,10 +65,10 @@ export async function analisarConversaLead(leadId: string): Promise<{ ok: true }
       analiseNota: nota,
       analiseResumo: asStr(parsed.resumo) || null,
       analisePontos: pontos as unknown as Prisma.InputJsonValue,
-      analiseModelo: OPENAI_MODEL,
+      analiseModelo: cfg.model,
       analiseTokensIn: r.usage.promptTokens,
       analiseTokensOut: r.usage.completionTokens,
-      analiseCustoUsdMicros: custoUsdMicros(r.usage),
+      analiseCustoUsdMicros: custoUsdMicros(cfg, r.usage),
       analiseAt: new Date(),
     },
   });
