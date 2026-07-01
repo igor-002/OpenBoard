@@ -64,6 +64,8 @@ export type LeadInput = {
   assignedUserEmail?: string | null;    // hint p/ casar por e-mail (prioritário)
   assignedUserUsername?: string | null; // hint AtendAI: username == prefixo do e-mail no OpenBoard
   mensagens?: LeadMensagemInput[] | null; // conversa do AtendAI (acumula, dedup por externalId)
+  eventoUltimo?: string | null;           // tipo do último evento do AtendAI
+  finalizado?: boolean;                   // evento de finalização do atendimento
   payload?: unknown;
 };
 
@@ -197,7 +199,16 @@ export async function ingestLead(input: LeadInput): Promise<IngestResult> {
     const carimbo = `[${new Date().toISOString().slice(0, 16).replace("T", " ")}] novo contato via ${input.origem ?? "ingest"}${input.observacoes ? `: ${input.observacoes}` : ""}`;
     const observacoes = [atual?.observacoes, carimbo].filter(Boolean).join("\n");
     // re-toque: atualiza o responsável se veio um atendente (reflete quem assumiu agora).
-    await db.lead.update({ where: { id: dup.id }, data: { lastContactAt: new Date(), observacoes, ...(assignedUserId ? { assignedUserId } : {}) } });
+    await db.lead.update({
+      where: { id: dup.id },
+      data: {
+        lastContactAt: new Date(),
+        observacoes,
+        ...(assignedUserId ? { assignedUserId } : {}),
+        ...(input.eventoUltimo ? { eventoUltimo: input.eventoUltimo } : {}),
+        ...(input.finalizado ? { finalizadoAt: new Date() } : {}),
+      },
+    });
     await upsertMensagens(dup.id, input.mensagens);
     return { created: false, id: dup.id, matchedBy: dup.by };
   }
@@ -224,6 +235,8 @@ export async function ingestLead(input: LeadInput): Promise<IngestResult> {
       order: (max._max.order ?? 0) + 1,
       ixcClienteId,
       assignedUserId: assignedUserId || null,
+      eventoUltimo: input.eventoUltimo || null,
+      finalizadoAt: input.finalizado ? new Date() : null,
       payload: (input.payload ?? undefined) as Prisma.InputJsonValue | undefined,
     },
   });

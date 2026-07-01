@@ -40,6 +40,12 @@ function fromAtendAI(body: unknown): LeadInput | null {
   const nome = typeof d.nome === "string" ? d.nome.trim() : "";
   if (!nome) return null;
 
+  // Tipo do evento + detecção de finalização do atendimento (2º gatilho do AtendAI).
+  // Cobre variações do nome (FINALIZACAO_ATENDIMENTO, ATENDIMENTO_FINALIZADO, ENCERRAMENTO…).
+  const evento = typeof env.evento === "string" ? env.evento : null;
+  const finalizado = !!evento && /FINALIZ|ENCERR|CONCLU|\bFIM\b|FINISH|CLOSE/i.test(evento);
+  console.log("[leads-ingest] evento:", evento, "finalizado:", finalizado); // TEMP: confirmar nome do evento de finalização
+
   const contato = d.whatsappid != null ? String(d.whatsappid) : null;
   const fila = (d.filaPersonalizada as Record<string, unknown> | null)?.nome_fila;
   const setor = (d.setor as Record<string, unknown> | null)?.nome_setor;
@@ -87,6 +93,8 @@ function fromAtendAI(body: unknown): LeadInput | null {
     assignedUserEmail,
     assignedUserUsername,
     mensagens,
+    eventoUltimo: evento,
+    finalizado,
     payload: safePayload,
   };
 }

@@ -315,6 +315,8 @@ model Lead {
   ixcClienteId       String?  // casado a um cliente IXC (por doc), se houver
   assignedUserId     String?  // responsável OpenBoard
   payload            Json?    // payload bruto do ingest (auditoria)
+  eventoUltimo       String?  // último evento do AtendAI (ex.: ENTRADA_NOVA_CONVERSA_FILA)
+  finalizadoAt       DateTime? // setado quando chega evento de finalização do atendimento
   lastContactAt      DateTime @default(now()) // último toque (ingest re-bate aqui)
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt

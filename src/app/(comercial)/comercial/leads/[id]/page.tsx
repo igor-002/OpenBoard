@@ -45,6 +45,11 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
           <p className="page-sub">
             {lead.empresa ? `${lead.empresa} · ` : ""}<span style={{ color: stage.c, fontWeight: 700 }}>{stage.label}</span>
             {lead.origem ? ` · origem ${lead.origem}` : ""}
+            {lead.finalizadoAt && (
+              <span className="badge" style={{ marginLeft: 8, color: "var(--st-done)", background: "var(--st-done-bg)", fontWeight: 700 }}>
+                Atendimento finalizado · {fullLabel(new Date(lead.finalizadoAt))}
+              </span>
+            )}
           </p>
         </div>
         {lead.ixcClienteId && (
