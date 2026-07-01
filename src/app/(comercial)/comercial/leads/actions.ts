@@ -49,6 +49,8 @@ export async function assignLead(id: string, userId: string | null): Promise<Lea
 
 export async function deleteLead(id: string): Promise<LeadActionState> {
   await requireAdmin();
+  // FK loose (sem cascade) → apaga as mensagens antes p/ não deixar órfãs.
+  await db.leadMensagem.deleteMany({ where: { leadId: id } });
   await db.lead.delete({ where: { id } });
   revalidatePath("/comercial/leads");
   return { ok: true };
