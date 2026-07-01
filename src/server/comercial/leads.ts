@@ -231,15 +231,29 @@ export async function ingestLead(input: LeadInput): Promise<IngestResult> {
   return { created: true, id: lead.id, matchedBy: null };
 }
 
+// Ordena a conversa cronologicamente. Chave primária = id numérico do AtendAI
+// (externalId; auto-incremento, sempre presente) — robusto quando `sentAt` (data_envio)
+// vem null p/ parte das mensagens (nesse caso `sentAt asc` do Postgres jogava os null
+// pro fim e bagunçava a ordem). Fallback: sentAt, depois createdAt.
+export function sortConversa<T extends { externalId: string; sentAt: Date | null; createdAt: Date }>(ms: T[]): T[] {
+  return [...ms].sort((a, b) => {
+    const na = Number(a.externalId), nb = Number(b.externalId);
+    if (Number.isFinite(na) && Number.isFinite(nb) && na !== nb) return na - nb;
+    const ta = a.sentAt?.getTime() ?? a.createdAt.getTime();
+    const tb = b.sentAt?.getTime() ?? b.createdAt.getTime();
+    return ta - tb;
+  });
+}
+
 // Detalhe de um lead p/ a página /comercial/leads/[id]: lead + conversa + responsável.
 // Se o lead não tem mensagens na tabela (criado antes da feature), faz backfill do payload.
 export async function getLeadDetail(id: string) {
   const lead = await db.lead.findUnique({ where: { id } });
   if (!lead) return null;
   await ensureMensagens(id, lead.payload);
-  const [mensagens, user] = await Promise.all([
-    db.leadMensagem.findMany({ where: { leadId: id }, orderBy: [{ sentAt: "asc" }, { createdAt: "asc" }] }),
+  const [raw, user] = await Promise.all([
+    db.leadMensagem.findMany({ where: { leadId: id } }),
     lead.assignedUserId ? db.user.findUnique({ where: { id: lead.assignedUserId }, select: { name: true } }) : Promise.resolve(null),
   ]);
-  return { lead, mensagens, assignedUserName: user?.name ?? null };
+  return { lead, mensagens: sortConversa(raw), assignedUserName: user?.name ?? null };
 }
