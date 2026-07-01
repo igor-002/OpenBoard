@@ -5,6 +5,7 @@ import { ContratosPeriodoCards } from "@/components/comercial/ContratosPeriodo";
 import { DiarioManager } from "@/components/comercial/DiarioManager";
 import { EquipeFilter } from "@/components/comercial/EquipeFilter";
 import { EquipePdf } from "@/components/comercial/EquipePdf";
+import { GerencialPdf } from "@/components/comercial/GerencialPdf";
 import { StatCard } from "@/components/ui/Stat";
 import { Card } from "@/components/ui/Card";
 import { brl } from "@/lib/format";
@@ -38,7 +39,7 @@ export default async function RelatoriosPage({
 
       {aba === "gerencial" && (
         <div style={{ marginTop: "var(--gap)" }}>
-          {sub === "geral" && <VisaoGeral periodo={periodo} vendedor={sp.vendedor} filial={sp.filial} />}
+          {sub === "geral" && <VisaoGeral periodo={periodo} vendedor={sp.vendedor} filial={sp.filial} escopo={[sp.vendedor ? opcoes.vendedores.find((v) => v.ixcId === sp.vendedor)?.nome : null, sp.filial ? opcoes.filiais.find((f) => f.value === sp.filial)?.label : null].filter(Boolean).join(" · ")} />}
           {sub === "ranking" && <Ranking periodo={periodo} filial={sp.filial} />}
           {sub === "vendedor" && <PorVendedor periodo={periodo} vendedor={sp.vendedor} filial={sp.filial} vendedores={opcoes.vendedores} />}
         </div>
@@ -177,7 +178,7 @@ async function Diario({ dataISO }: { dataISO: string }) {
 }
 
 // ── Visão Geral ───────────────────────────────────────────────────────────────
-async function VisaoGeral({ periodo, vendedor, filial }: { periodo: number; vendedor?: string; filial?: string }) {
+async function VisaoGeral({ periodo, vendedor, filial, escopo = "" }: { periodo: number; vendedor?: string; filial?: string; escopo?: string }) {
   const extra = { vendedorIxcId: vendedor, filial };
   const { mes, ano } = periodoMesAno(periodo);
   const [d, ranking, evolucao, pfpj, metaTime, tempoAtiv, contratos] = await Promise.all([
@@ -206,7 +207,31 @@ async function VisaoGeral({ periodo, vendedor, filial }: { periodo: number; vend
 
   return (
     <>
-      <p className="page-sub" style={{ marginBottom: 12 }}>{MESES[d.mes - 1]} {d.ano} · resultado real do IXC</p>
+      <div className="row between" style={{ alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
+        <p className="page-sub" style={{ margin: 0 }}>{MESES[d.mes - 1]} {d.ano}{escopo ? ` · ${escopo}` : ""} · resultado real do IXC</p>
+        <GerencialPdf
+          periodoLabel={`${MESES[d.mes - 1]} ${d.ano}`}
+          escopo={escopo}
+          kpis={{
+            totalVendas: d.ativos + d.aguardando,
+            mrrTotalCents: d.valorAtivosCents + d.valorAguardandoCents,
+            ativos: d.ativos,
+            mrrAtivosCents: d.valorAtivosCents,
+            aguardando: d.aguardando,
+            mrrAguardCents: d.valorAguardandoCents,
+            cancelados: d.cancelados,
+            cadastrados,
+            ticketCents: ticket,
+            conversao,
+          }}
+          metaContratos={metaContratos}
+          atingMeta={atingMeta}
+          forecastCents={forecastCents}
+          tempoAtiv={tempoAtiv}
+          evolucao={evolucao}
+          contratos={contratos}
+        />
+      </div>
 
       {/* KPIs */}
       <div className="grid" style={{ gridTemplateColumns: "repeat(5,1fr)", gap: "var(--gap)" }}>
