@@ -548,6 +548,8 @@ export type ContratoFiltro = {
   status?: string;
   vendedorIxcId?: string;
   filial?: string;
+  ini?: string; // filtro por data de cadastro (YYYY-MM-DD), início
+  fim?: string; // ...fim (inclusivo)
   page?: number;
 };
 
@@ -574,6 +576,10 @@ export async function getContratos(f: ContratoFiltro): Promise<{ rows: ContratoR
   if (f.vendedorIxcId) where.vendedorIxcId = f.vendedorIxcId;
   else where.vendedorIxcId = { in: await activeVendedorIxcIds() };
   if (f.filial) where.filial = f.filial;
+  // Filtro por período (data de cadastro do contrato). Só quando o range completo.
+  if (isISO(f.ini) && isISO(f.fim)) {
+    where.dataCadastro = { gte: diaUTC(f.ini), lt: new Date(diaUTC(f.fim).getTime() + 86400000) };
+  }
   if (f.q && f.q.trim()) {
     const q = f.q.trim();
     const clientes = await db.ixcCliente.findMany({

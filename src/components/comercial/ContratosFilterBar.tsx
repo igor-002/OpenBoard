@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { Icon } from "@/components/ui/Icon";
 
 type Opt = { value: string; label: string };
@@ -34,7 +34,16 @@ export function ContratosFilterBar({
   const status = sp.get("status") ?? "";
   const vendedor = sp.get("vendedor") ?? "";
   const filial = sp.get("filial") ?? "";
-  const temFiltro = q || status || vendedor || filial;
+  const urlIni = sp.get("ini") ?? "";
+  const urlFim = sp.get("fim") ?? "";
+  // Estado local dos inputs de data — aplica só no blur/Enter (senão o ano zera o campo).
+  const [ini, setIni] = useState(urlIni);
+  const [fim, setFim] = useState(urlFim);
+  useEffect(() => { setIni(urlIni); setFim(urlFim); }, [urlIni, urlFim]);
+  function aplicarRange(a: string, b: string) {
+    if (a && b && (a !== urlIni || b !== urlFim)) apply({ ini: a, fim: b });
+  }
+  const temFiltro = q || status || vendedor || filial || (urlIni && urlFim);
 
   return (
     <div className="card card-pad row gap12" style={{ flexWrap: "wrap", alignItems: "center" }}>
@@ -77,6 +86,13 @@ export function ContratosFilterBar({
           <option key={f.value} value={f.value}>{f.label}</option>
         ))}
       </select>
+
+      <div className="row gap8" style={{ alignItems: "center", background: urlIni && urlFim ? "var(--primary-tint)" : "var(--surface-3)", border: "1px solid var(--line-2)", borderRadius: "var(--r-md)", padding: "4px 10px" }} title="Filtrar por data de cadastro do contrato">
+        <span style={{ fontSize: 12, color: "var(--muted)" }}>Cadastro:</span>
+        <input type="date" value={ini} max={fim || undefined} onChange={(e) => setIni(e.target.value)} onBlur={() => aplicarRange(ini, fim)} onKeyDown={(e) => { if (e.key === "Enter") aplicarRange(ini, fim); }} className="select-comercial" style={{ padding: "3px 6px" }} />
+        <span style={{ color: "var(--muted)" }}>–</span>
+        <input type="date" value={fim} min={ini || undefined} onChange={(e) => setFim(e.target.value)} onBlur={() => aplicarRange(ini, fim)} onKeyDown={(e) => { if (e.key === "Enter") aplicarRange(ini, fim); }} className="select-comercial" style={{ padding: "3px 6px" }} />
+      </div>
 
       {temFiltro && (
         <button

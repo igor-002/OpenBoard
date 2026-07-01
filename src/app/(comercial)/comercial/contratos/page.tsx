@@ -16,12 +16,12 @@ function statusTone(s: string): { c: string; bg: string } {
 export default async function ContratosPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; status?: string; vendedor?: string; filial?: string; page?: string }>;
+  searchParams: Promise<{ q?: string; status?: string; vendedor?: string; filial?: string; ini?: string; fim?: string; page?: string }>;
 }) {
   const sp = await searchParams;
   const page = sp.page ? parseInt(sp.page, 10) : 0;
   const [{ rows, total, pageSize }, opcoes] = await Promise.all([
-    getContratos({ q: sp.q, status: sp.status, vendedorIxcId: sp.vendedor, filial: sp.filial, page }),
+    getContratos({ q: sp.q, status: sp.status, vendedorIxcId: sp.vendedor, filial: sp.filial, ini: sp.ini, fim: sp.fim, page }),
     getContratoFiltroOpcoes(),
   ]);
 
@@ -32,6 +32,8 @@ export default async function ContratosPage({
   if (sp.status) baseParams.set("status", sp.status);
   if (sp.vendedor) baseParams.set("vendedor", sp.vendedor);
   if (sp.filial) baseParams.set("filial", sp.filial);
+  if (sp.ini) baseParams.set("ini", sp.ini);
+  if (sp.fim) baseParams.set("fim", sp.fim);
   const pageHref = (p: number) => {
     const params = new URLSearchParams(baseParams);
     if (p > 0) params.set("page", String(p));
