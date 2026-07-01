@@ -365,6 +365,69 @@ export async function getRelatorioRanking(periodo: number, filial?: string): Pro
   return [...map.values()].sort((a, b) => b.ativos - a.ativos || b.mrrCents - a.mrrCents);
 }
 
+// ── Contratos/clientes do período (lista detalhada p/ Visão Geral e Relatórios) ─
+// "Ativados" = status ativo com dataAtivacao no mês (de qual data eram = dataCadastro).
+// "Fechados" = qualquer contrato com dataCadastro no mês (novos negócios assinados).
+export type ContratoLinha = {
+  ixcId: string;
+  clienteIxcId: string;
+  clienteNome: string;
+  vendedorNome: string | null;
+  status: string;
+  mrrCents: number;
+  dataCadastro: Date | null;
+  dataAtivacao: Date | null;
+  diasAtivacao: number | null; // ativação − cadastro
+};
+export type ContratosPeriodo = {
+  ativados: ContratoLinha[];
+  fechados: ContratoLinha[];
+  mrrAtivadosCents: number;
+  mrrFechadosCents: number;
+};
+
+export async function getContratosDoPeriodo(periodo: number, extra: ExtraWhere = {}): Promise<ContratosPeriodo> {
+  const r = periodoRef(Math.min(2, Math.max(0, periodo)));
+  const { inicio, fim } = monthRange(r.mes, r.ano);
+  const w = await resolveWhere(extra);
+
+  const [ativadosRaw, fechadosRaw] = await Promise.all([
+    db.contrato.findMany({ where: { ...w, status: { in: ST_ATIVO }, dataAtivacao: { gte: inicio, lt: fim } }, orderBy: { dataAtivacao: "desc" } }),
+    db.contrato.findMany({ where: { ...w, dataCadastro: { gte: inicio, lt: fim } }, orderBy: { dataCadastro: "desc" } }),
+  ]);
+
+  const all = [...ativadosRaw, ...fechadosRaw];
+  const clienteIds = [...new Set(all.map((c) => c.clienteIxcId))];
+  const vendIds = [...new Set(all.map((c) => c.vendedorIxcId).filter((x): x is string => !!x))];
+  const [clientes, vendedores] = await Promise.all([
+    clienteIds.length ? db.ixcCliente.findMany({ where: { ixcId: { in: clienteIds } }, select: { ixcId: true, razao: true } }) : [],
+    vendIds.length ? db.vendedor.findMany({ where: { ixcId: { in: vendIds } }, select: { ixcId: true, nome: true } }) : [],
+  ]);
+  const cMap = new Map(clientes.map((c) => [c.ixcId, c.razao]));
+  const vMap = new Map(vendedores.map((v) => [v.ixcId, v.nome]));
+
+  const toLinha = (c: (typeof all)[number]): ContratoLinha => ({
+    ixcId: c.ixcId,
+    clienteIxcId: c.clienteIxcId,
+    clienteNome: cMap.get(c.clienteIxcId) ?? `#${c.clienteIxcId}`,
+    vendedorNome: c.vendedorIxcId ? vMap.get(c.vendedorIxcId) ?? `#${c.vendedorIxcId}` : null,
+    status: c.status,
+    mrrCents: c.mrrCents,
+    dataCadastro: c.dataCadastro,
+    dataAtivacao: c.dataAtivacao,
+    diasAtivacao: c.dataAtivacao && c.dataCadastro ? Math.max(0, Math.round((+c.dataAtivacao - +c.dataCadastro) / 86400000)) : null,
+  });
+
+  const ativados = ativadosRaw.map(toLinha);
+  const fechados = fechadosRaw.map(toLinha);
+  return {
+    ativados,
+    fechados,
+    mrrAtivadosCents: ativados.reduce((a, c) => a + c.mrrCents, 0),
+    mrrFechadosCents: fechados.reduce((a, c) => a + c.mrrCents, 0),
+  };
+}
+
 // ── Evolução (últimos N meses) — para gráficos de linha/barra ─────────────────
 const MES_CURTO = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
 

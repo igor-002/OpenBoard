@@ -1,9 +1,10 @@
 import Link from "next/link";
-import { getComercialOverview, getDashboard, getDashboardFiltroOpcoes, getAlertasAA, getCarteiraResumo } from "@/server/comercial/queries";
+import { getComercialOverview, getDashboard, getDashboardFiltroOpcoes, getAlertasAA, getCarteiraResumo, getContratosDoPeriodo } from "@/server/comercial/queries";
 import { StatCard } from "@/components/ui/Stat";
 import { Card } from "@/components/ui/Card";
 import { Icon } from "@/components/ui/Icon";
 import { DashboardFilterBar } from "@/components/comercial/DashboardFilterBar";
+import { ContratosPeriodoCards } from "@/components/comercial/ContratosPeriodo";
 import { AutoRefresh } from "@/components/common/AutoRefresh";
 import { brl, fullLabel } from "@/lib/format";
 
@@ -18,12 +19,13 @@ export default async function ComercialOverviewPage({
   const periodo = sp.periodo ? parseInt(sp.periodo, 10) : 0;
   const extra = { vendedorIxcId: sp.vendedor, filial: sp.filial };
 
-  const [o, d, opcoes, alertas, carteira] = await Promise.all([
+  const [o, d, opcoes, alertas, carteira, contratos] = await Promise.all([
     getComercialOverview(),
     getDashboard(periodo, extra),
     getDashboardFiltroOpcoes(),
     getAlertasAA(7, 8, extra),
     getCarteiraResumo(),
+    getContratosDoPeriodo(periodo, extra),
   ]);
 
   const escopo = [
@@ -157,6 +159,9 @@ export default async function ComercialOverviewPage({
           </div>
         </Card>
       </div>
+
+      {/* Contratos/clientes do período — quem fechou e quem ativou (respeita o filtro) */}
+      <ContratosPeriodoCards data={contratos} />
 
       <div className="grid" style={{ gridTemplateColumns: "1fr", marginTop: "var(--gap)" }}>
         <Card title="Última sincronização" sub="Espelho local dos dados do IXC" pad>

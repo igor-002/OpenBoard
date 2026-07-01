@@ -1,6 +1,7 @@
-import { getDashboard, getDashboardFiltroOpcoes, getRelatorioRanking, getEvolucao, getDistribuicaoPfPj, getMetaTime, getMetasVendedorMap, getTempoAtivacao, diasUteis, periodoMesAno, getDiarioDia, getVendedoresCRM, getRelatorioEquipe } from "@/server/comercial/queries";
+import { getDashboard, getDashboardFiltroOpcoes, getRelatorioRanking, getEvolucao, getDistribuicaoPfPj, getMetaTime, getMetasVendedorMap, getTempoAtivacao, getContratosDoPeriodo, diasUteis, periodoMesAno, getDiarioDia, getVendedoresCRM, getRelatorioEquipe } from "@/server/comercial/queries";
 import { RelatoriosNav } from "@/components/comercial/RelatoriosNav";
 import { FunilVendas, EvolucaoBars, DonutCard } from "@/components/comercial/RelatorioCharts";
+import { ContratosPeriodoCards } from "@/components/comercial/ContratosPeriodo";
 import { DiarioManager } from "@/components/comercial/DiarioManager";
 import { EquipeFilter } from "@/components/comercial/EquipeFilter";
 import { StatCard } from "@/components/ui/Stat";
@@ -175,13 +176,14 @@ async function Diario({ dataISO }: { dataISO: string }) {
 async function VisaoGeral({ periodo, vendedor, filial }: { periodo: number; vendedor?: string; filial?: string }) {
   const extra = { vendedorIxcId: vendedor, filial };
   const { mes, ano } = periodoMesAno(periodo);
-  const [d, ranking, evolucao, pfpj, metaTime, tempoAtiv] = await Promise.all([
+  const [d, ranking, evolucao, pfpj, metaTime, tempoAtiv, contratos] = await Promise.all([
     getDashboard(periodo, extra),
     getRelatorioRanking(periodo, filial),
     getEvolucao(extra, 6),
     getDistribuicaoPfPj(extra),
     getMetaTime(mes, ano),
     getTempoAtivacao(periodo, extra),
+    getContratosDoPeriodo(periodo, extra),
   ]);
 
   const cadastrados = d.ativos + d.aguardando + d.cancelados + d.bloqueados;
@@ -284,6 +286,9 @@ async function VisaoGeral({ periodo, vendedor, filial }: { periodo: number; vend
           items={[{ label: "Pessoa Física", value: pfpj.pf }, { label: "Pessoa Jurídica", value: pfpj.pj }]}
         />
       </div>
+
+      {/* Contratos/clientes do período — quem fechou e quem ativou */}
+      <ContratosPeriodoCards data={contratos} />
     </>
   );
 }
