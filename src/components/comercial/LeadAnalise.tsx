@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import { Icon } from "@/components/ui/Icon";
 import { analisarLead } from "@/app/(comercial)/comercial/leads/actions";
 
-export type AnalisePontos = { fortes: string[]; aMelhorar: string[]; proximoPasso: string };
+export type Criterio = { nome: string; nota: number; comentario: string };
+export type AnalisePontos = { fortes: string[]; aMelhorar: string[]; proximoPasso: string; criterios?: Criterio[]; risco?: string | null };
 export type AnaliseView = {
   nota: number | null;
   resumo: string | null;
@@ -113,14 +114,38 @@ export function LeadAnalise({ leadId, hasMensagens, analise }: { leadId: string;
           </span>
           <div>
             <div style={{ fontWeight: 800, fontSize: 14 }}>Nota do atendimento</div>
-            <div className="muted" style={{ fontSize: 12 }}>de 0 a 10</div>
+            <div className="muted" style={{ fontSize: 12 }}>de 0 a 10{pontos.risco ? " · risco de perder o lead:" : ""}</div>
           </div>
+          {pontos.risco && <RiscoBadge risco={pontos.risco} />}
         </div>
         <div className="row gap8" style={{ alignItems: "center" }}>{botao}</div>
       </div>
 
       {analise.resumo && (
         <p style={{ padding: "0 18px 14px", fontSize: 13.5, color: "var(--ink-2)", lineHeight: 1.5 }}>{analise.resumo}</p>
+      )}
+
+      {pontos.criterios && pontos.criterios.length > 0 && (
+        <div style={{ padding: "0 18px 14px" }}>
+          <div style={{ fontWeight: 700, fontSize: 12.5, marginBottom: 8, color: "var(--muted)" }}>Avaliação por critério</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {pontos.criterios.map((c, i) => {
+              const t = notaTone(c.nota);
+              return (
+                <div key={i} title={c.comentario}>
+                  <div className="row between" style={{ alignItems: "baseline", gap: 8 }}>
+                    <span style={{ fontSize: 13, fontWeight: 600 }}>{c.nome}</span>
+                    <span style={{ fontSize: 12.5, fontWeight: 800, color: t.c }}>{c.nota}<span className="muted" style={{ fontWeight: 500 }}>/10</span></span>
+                  </div>
+                  <div style={{ height: 6, background: "var(--surface-3)", borderRadius: 999, marginTop: 3, overflow: "hidden" }}>
+                    <div style={{ width: `${c.nota * 10}%`, height: "100%", background: t.c }} />
+                  </div>
+                  {c.comentario && <div className="muted" style={{ fontSize: 11.5, marginTop: 3 }}>{c.comentario}</div>}
+                </div>
+              );
+            })}
+          </div>
+        </div>
       )}
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, padding: "0 18px" }}>
@@ -142,6 +167,16 @@ export function LeadAnalise({ leadId, hasMensagens, analise }: { leadId: string;
       <div style={{ padding: "0 18px" }}>{banner}</div>
     </div>
   );
+}
+
+function RiscoBadge({ risco }: { risco: string }) {
+  const map: Record<string, { c: string; bg: string; label: string }> = {
+    baixo: { c: "var(--st-done)", bg: "var(--st-done-bg)", label: "Risco baixo" },
+    medio: { c: "var(--pr-med)", bg: "var(--pr-med-bg)", label: "Risco médio" },
+    alto: { c: "var(--st-risk)", bg: "var(--st-risk-bg)", label: "Risco alto" },
+  };
+  const m = map[risco] ?? map.medio;
+  return <span className="badge" style={{ color: m.c, background: m.bg, fontWeight: 700 }}>{m.label}</span>;
 }
 
 function PontoList({ titulo, cor, itens }: { titulo: string; cor: string; itens: string[] }) {
