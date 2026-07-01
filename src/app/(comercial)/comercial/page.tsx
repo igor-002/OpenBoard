@@ -13,19 +13,20 @@ const MESES = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julh
 export default async function ComercialOverviewPage({
   searchParams,
 }: {
-  searchParams: Promise<{ periodo?: string; vendedor?: string; filial?: string }>;
+  searchParams: Promise<{ periodo?: string; vendedor?: string; filial?: string; ini?: string; fim?: string }>;
 }) {
   const sp = await searchParams;
   const periodo = sp.periodo ? parseInt(sp.periodo, 10) : 0;
+  const custom = !!(sp.ini && sp.fim);
   const extra = { vendedorIxcId: sp.vendedor, filial: sp.filial };
 
   const [o, d, opcoes, alertas, carteira, contratos] = await Promise.all([
     getComercialOverview(),
-    getDashboard(periodo, extra),
+    getDashboard(periodo, extra, sp.ini, sp.fim),
     getDashboardFiltroOpcoes(),
     getAlertasAA(7, 8, extra),
     getCarteiraResumo(),
-    getContratosDoPeriodo(periodo, extra),
+    getContratosDoPeriodo(periodo, extra, sp.ini, sp.fim),
   ]);
 
   const escopo = [
@@ -40,7 +41,7 @@ export default async function ComercialOverviewPage({
         <div>
           <h1 className="page-title">Comercial</h1>
           <p className="page-sub">
-            {MESES[d.mes - 1]} {d.ano}{escopo ? ` · ${escopo}` : ""} — via IXC
+            {custom ? d.label : `${MESES[d.mes - 1]} ${d.ano}`}{escopo ? ` · ${escopo}` : ""} — via IXC
           </p>
         </div>
         <div className="row gap12">

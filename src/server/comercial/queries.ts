@@ -105,6 +105,11 @@ async function resolveWhere(f: ExtraWhere): Promise<Record<string, unknown>> {
 
 async function statusDoMes(mes: number, ano: number, label: string, extra: ExtraWhere = {}): Promise<StatusMes> {
   const { inicio, fim } = monthRange(mes, ano);
+  return statusCore(inicio, fim, label, mes, ano, extra);
+}
+
+// Núcleo: métricas de contratos num intervalo [inicio, fim) qualquer (mês ou range).
+async function statusCore(inicio: Date, fim: Date, label: string, mes: number, ano: number, extra: ExtraWhere = {}): Promise<StatusMes> {
   const trintaDias = new Date(Date.now() - 30 * 86400000);
   const x = await resolveWhere(extra);
 
@@ -138,10 +143,8 @@ async function statusDoMes(mes: number, ano: number, label: string, extra: Extra
 // tempo do cadastro à ativação. Retorna média/melhor/pior em dias.
 export type TempoAtivacao = { mediaDias: number; melhorDias: number; piorDias: number; n: number } | null;
 
-export async function getTempoAtivacao(periodo: number, extra: ExtraWhere = {}): Promise<TempoAtivacao> {
-  const idx = Math.min(2, Math.max(0, periodo));
-  const r = periodoRef(idx);
-  const { inicio, fim } = monthRange(r.mes, r.ano);
+export async function getTempoAtivacao(periodo: number, extra: ExtraWhere = {}, ini?: string, fimP?: string): Promise<TempoAtivacao> {
+  const { inicio, fim } = resolvePeriodo({ periodo, ini, fim: fimP });
   const w = await resolveWhere(extra);
   const rows = await db.contrato.findMany({
     where: { ...w, status: { in: ST_ATIVO }, dataAtivacao: { gte: inicio, lt: fim, not: null }, dataCadastro: { not: null } },
@@ -300,11 +303,31 @@ function periodoRef(idx: number) {
   return { mes: m, ano: a, label: PERIODO_LABELS[idx] ?? "Mês atual" };
 }
 
-// Dashboard escopado por período + vendedor + filial (Visão Geral filtrada).
-export async function getDashboard(periodo: number, extra: ExtraWhere = {}): Promise<StatusMes> {
-  const idx = Math.min(2, Math.max(0, periodo));
-  const r = periodoRef(idx);
-  return statusDoMes(r.mes, r.ano, r.label, extra);
+// Filtro de tempo: período rápido (0/1/2) OU intervalo livre (ini/fim "YYYY-MM-DD").
+export type PeriodoInput = { periodo?: number; ini?: string; fim?: string };
+export type PeriodoRange = { inicio: Date; fim: Date; label: string; mes: number; ano: number; custom: boolean };
+const isISO = (s?: string): s is string => !!s && /^\d{4}-\d{2}-\d{2}$/.test(s);
+const brDay = (iso: string) => `${iso.slice(8)}/${iso.slice(5, 7)}`;
+
+// Resolve o filtro num intervalo [inicio, fim) + rótulo. `fim` é exclusivo (o dia
+// final é incluído somando 1 dia). mes/ano ficam como referência (mês do fim no
+// range custom) p/ metas/labels que ainda pensam por mês.
+export function resolvePeriodo(p: PeriodoInput): PeriodoRange {
+  if (isISO(p.ini) && isISO(p.fim)) {
+    const inicio = diaUTC(p.ini);
+    const fim = new Date(diaUTC(p.fim).getTime() + 86400000); // inclui o dia final
+    const ref = diaUTC(p.fim);
+    return { inicio, fim, label: `${brDay(p.ini)}–${brDay(p.fim)}/${p.fim.slice(0, 4)}`, mes: ref.getUTCMonth() + 1, ano: ref.getUTCFullYear(), custom: true };
+  }
+  const r = periodoRef(Math.min(2, Math.max(0, p.periodo ?? 0)));
+  const { inicio, fim } = monthRange(r.mes, r.ano);
+  return { inicio, fim, label: r.label, mes: r.mes, ano: r.ano, custom: false };
+}
+
+// Dashboard escopado por período (rápido ou range) + vendedor + filial.
+export async function getDashboard(periodo: number, extra: ExtraWhere = {}, ini?: string, fim?: string): Promise<StatusMes> {
+  const r = resolvePeriodo({ periodo, ini, fim });
+  return statusCore(r.inicio, r.fim, r.label, r.mes, r.ano, extra);
 }
 
 // ── Relatórios Gerenciais — Ranking / Performance por Vendedor (SalesTracker §5) ─
@@ -320,9 +343,8 @@ export type RankingRow = {
   conversao: number; // ativos / (ativos+aguardando) %
 };
 
-export async function getRelatorioRanking(periodo: number, filial?: string): Promise<RankingRow[]> {
-  const r = periodoRef(Math.min(2, Math.max(0, periodo)));
-  const { inicio, fim } = monthRange(r.mes, r.ano);
+export async function getRelatorioRanking(periodo: number, filial?: string, ini?: string, fimP?: string): Promise<RankingRow[]> {
+  const { inicio, fim } = resolvePeriodo({ periodo, ini, fim: fimP });
   const fil = filial ? { filial } : {};
   const ativoIds = await activeVendedorIxcIds(); // gate: só vendedores ativos
   const base = { ...fil, vendedorIxcId: { in: ativoIds } };
@@ -386,9 +408,8 @@ export type ContratosPeriodo = {
   mrrFechadosCents: number;
 };
 
-export async function getContratosDoPeriodo(periodo: number, extra: ExtraWhere = {}): Promise<ContratosPeriodo> {
-  const r = periodoRef(Math.min(2, Math.max(0, periodo)));
-  const { inicio, fim } = monthRange(r.mes, r.ano);
+export async function getContratosDoPeriodo(periodo: number, extra: ExtraWhere = {}, ini?: string, fimP?: string): Promise<ContratosPeriodo> {
+  const { inicio, fim } = resolvePeriodo({ periodo, ini, fim: fimP });
   const w = await resolveWhere(extra);
 
   const [ativadosRaw, fechadosRaw] = await Promise.all([

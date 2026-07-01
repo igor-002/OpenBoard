@@ -20,6 +20,9 @@ export function DashboardFilterBar({
   const periodo = Number(sp.get("periodo") ?? "0");
   const vendedor = sp.get("vendedor") ?? "";
   const filial = sp.get("filial") ?? "";
+  const ini = sp.get("ini") ?? "";
+  const fim = sp.get("fim") ?? "";
+  const custom = !!(ini && fim);
 
   function apply(next: Record<string, string>) {
     const params = new URLSearchParams(sp.toString());
@@ -30,7 +33,7 @@ export function DashboardFilterBar({
     start(() => router.push(`/comercial?${params.toString()}`));
   }
 
-  const temFiltro = periodo !== 0 || vendedor || filial;
+  const temFiltro = periodo !== 0 || vendedor || filial || custom;
 
   return (
     <div className="card card-pad row gap12" style={{ flexWrap: "wrap", alignItems: "center" }}>
@@ -38,10 +41,10 @@ export function DashboardFilterBar({
         {PERIODOS.map((label, i) => (
           <button
             key={i}
-            onClick={() => apply({ periodo: String(i) })}
+            onClick={() => apply({ periodo: String(i), ini: "", fim: "" })}
             className="btn"
             style={
-              periodo === i
+              periodo === i && !custom
                 ? { background: "var(--primary)", color: "#fff", padding: "5px 14px", fontSize: 12, borderRadius: "var(--r-pill)" }
                 : { background: "transparent", color: "var(--muted)", padding: "5px 14px", fontSize: 12, borderRadius: "var(--r-pill)" }
             }
@@ -49,6 +52,14 @@ export function DashboardFilterBar({
             {label}
           </button>
         ))}
+      </div>
+
+      {/* Período livre (data início/fim) */}
+      <div className="row gap8" style={{ alignItems: "center", background: custom ? "var(--primary-tint)" : "var(--surface-3)", border: "1px solid var(--line-2)", borderRadius: "var(--r-pill)", padding: "4px 10px" }}>
+        <span style={{ fontSize: 12, color: "var(--muted)" }}>Período:</span>
+        <input type="date" value={ini} max={fim || undefined} onChange={(e) => apply({ ini: e.target.value, periodo: "" })} className="select-comercial" style={{ padding: "3px 6px" }} />
+        <span style={{ color: "var(--muted)" }}>–</span>
+        <input type="date" value={fim} min={ini || undefined} onChange={(e) => apply({ fim: e.target.value, periodo: "" })} className="select-comercial" style={{ padding: "3px 6px" }} />
       </div>
 
       <select value={vendedor} onChange={(e) => apply({ vendedor: e.target.value })} className="select-comercial">

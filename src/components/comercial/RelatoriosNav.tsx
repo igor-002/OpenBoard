@@ -31,6 +31,9 @@ export function RelatoriosNav({
   const periodo = Number(sp.get("periodo") ?? "0");
   const vendedor = sp.get("vendedor") ?? "";
   const filial = sp.get("filial") ?? "";
+  const ini = sp.get("ini") ?? "";
+  const fim = sp.get("fim") ?? "";
+  const custom = !!(ini && fim);
 
   function go(next: Record<string, string>) {
     const params = new URLSearchParams(sp.toString());
@@ -72,10 +75,17 @@ export function RelatoriosNav({
 
           <div className="row gap8" style={{ background: "var(--surface-3)", border: "1px solid var(--line-2)", borderRadius: "var(--r-pill)", padding: 4 }}>
             {PERIODOS.map((label, i) => (
-              <button key={i} className="btn" style={pill(periodo === i)} onClick={() => go({ periodo: String(i) })}>
+              <button key={i} className="btn" style={pill(periodo === i && !custom)} onClick={() => go({ periodo: String(i), ini: "", fim: "" })}>
                 {label}
               </button>
             ))}
+          </div>
+
+          <div className="row gap8" style={{ alignItems: "center", background: custom ? "var(--primary-tint)" : "var(--surface-3)", border: "1px solid var(--line-2)", borderRadius: "var(--r-pill)", padding: "4px 10px" }}>
+            <span style={{ fontSize: 12, color: "var(--muted)" }}>Período:</span>
+            <input type="date" value={ini} max={fim || undefined} onChange={(e) => go({ ini: e.target.value, periodo: "" })} className="select-comercial" style={{ padding: "3px 6px" }} />
+            <span style={{ color: "var(--muted)" }}>–</span>
+            <input type="date" value={fim} min={ini || undefined} onChange={(e) => go({ fim: e.target.value, periodo: "" })} className="select-comercial" style={{ padding: "3px 6px" }} />
           </div>
 
           {sub !== "vendedor" && (

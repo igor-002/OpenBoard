@@ -39,9 +39,9 @@ export default async function RelatoriosPage({
 
       {aba === "gerencial" && (
         <div style={{ marginTop: "var(--gap)" }}>
-          {sub === "geral" && <VisaoGeral periodo={periodo} vendedor={sp.vendedor} filial={sp.filial} escopo={[sp.vendedor ? opcoes.vendedores.find((v) => v.ixcId === sp.vendedor)?.nome : null, sp.filial ? opcoes.filiais.find((f) => f.value === sp.filial)?.label : null].filter(Boolean).join(" · ")} />}
-          {sub === "ranking" && <Ranking periodo={periodo} filial={sp.filial} />}
-          {sub === "vendedor" && <PorVendedor periodo={periodo} vendedor={sp.vendedor} filial={sp.filial} vendedores={opcoes.vendedores} />}
+          {sub === "geral" && <VisaoGeral periodo={periodo} vendedor={sp.vendedor} filial={sp.filial} ini={sp.ini} fim={sp.fim} escopo={[sp.vendedor ? opcoes.vendedores.find((v) => v.ixcId === sp.vendedor)?.nome : null, sp.filial ? opcoes.filiais.find((f) => f.value === sp.filial)?.label : null].filter(Boolean).join(" · ")} />}
+          {sub === "ranking" && <Ranking periodo={periodo} filial={sp.filial} ini={sp.ini} fim={sp.fim} />}
+          {sub === "vendedor" && <PorVendedor periodo={periodo} vendedor={sp.vendedor} filial={sp.filial} ini={sp.ini} fim={sp.fim} vendedores={opcoes.vendedores} />}
         </div>
       )}
     </div>
@@ -178,17 +178,18 @@ async function Diario({ dataISO }: { dataISO: string }) {
 }
 
 // ── Visão Geral ───────────────────────────────────────────────────────────────
-async function VisaoGeral({ periodo, vendedor, filial, escopo = "" }: { periodo: number; vendedor?: string; filial?: string; escopo?: string }) {
+async function VisaoGeral({ periodo, vendedor, filial, ini, fim, escopo = "" }: { periodo: number; vendedor?: string; filial?: string; ini?: string; fim?: string; escopo?: string }) {
   const extra = { vendedorIxcId: vendedor, filial };
+  const custom = !!(ini && fim);
   const { mes, ano } = periodoMesAno(periodo);
   const [d, ranking, evolucao, pfpj, metaTime, tempoAtiv, contratos] = await Promise.all([
-    getDashboard(periodo, extra),
-    getRelatorioRanking(periodo, filial),
+    getDashboard(periodo, extra, ini, fim),
+    getRelatorioRanking(periodo, filial, ini, fim),
     getEvolucao(extra, 6),
     getDistribuicaoPfPj(extra),
-    getMetaTime(mes, ano),
-    getTempoAtivacao(periodo, extra),
-    getContratosDoPeriodo(periodo, extra),
+    custom ? Promise.resolve(null) : getMetaTime(mes, ano),
+    getTempoAtivacao(periodo, extra, ini, fim),
+    getContratosDoPeriodo(periodo, extra, ini, fim),
   ]);
 
   const cadastrados = d.ativos + d.aguardando + d.cancelados + d.bloqueados;
@@ -198,7 +199,7 @@ async function VisaoGeral({ periodo, vendedor, filial, escopo = "" }: { periodo:
 
   // Forecast (SalesTracker): MRR projetado fim do mês por dias úteis. Só no mês atual.
   const du = diasUteis(mes, ano);
-  const forecastCents = periodo === 0 && du.passados > 0 ? Math.round((d.valorAtivosCents / du.passados) * du.total) : null;
+  const forecastCents = periodo === 0 && !custom && du.passados > 0 ? Math.round((d.valorAtivosCents / du.passados) * du.total) : null;
   const metaContratos = metaTime?.metaContratos ?? 0;
   const atingMeta = metaContratos > 0 ? Math.round((d.ativos / metaContratos) * 100) : null;
 
@@ -208,9 +209,9 @@ async function VisaoGeral({ periodo, vendedor, filial, escopo = "" }: { periodo:
   return (
     <>
       <div className="row between" style={{ alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
-        <p className="page-sub" style={{ margin: 0 }}>{MESES[d.mes - 1]} {d.ano}{escopo ? ` · ${escopo}` : ""} · resultado real do IXC</p>
+        <p className="page-sub" style={{ margin: 0 }}>{custom ? d.label : `${MESES[d.mes - 1]} ${d.ano}`}{escopo ? ` · ${escopo}` : ""} · resultado real do IXC</p>
         <GerencialPdf
-          periodoLabel={`${MESES[d.mes - 1]} ${d.ano}`}
+          periodoLabel={custom ? d.label : `${MESES[d.mes - 1]} ${d.ano}`}
           escopo={escopo}
           kpis={{
             totalVendas: d.ativos + d.aguardando,
@@ -323,9 +324,9 @@ async function VisaoGeral({ periodo, vendedor, filial, escopo = "" }: { periodo:
 }
 
 // ── Ranking / Performance por Vendedor ────────────────────────────────────────
-async function Ranking({ periodo, filial }: { periodo: number; filial?: string }) {
+async function Ranking({ periodo, filial, ini, fim }: { periodo: number; filial?: string; ini?: string; fim?: string }) {
   const { mes, ano } = periodoMesAno(periodo);
-  const [rows, metasVend] = await Promise.all([getRelatorioRanking(periodo, filial), getMetasVendedorMap(mes, ano)]);
+  const [rows, metasVend] = await Promise.all([getRelatorioRanking(periodo, filial, ini, fim), getMetasVendedorMap(mes, ano)]);
   const tot = rows.reduce(
     (a, r) => ({ cadastrados: a.cadastrados + r.cadastrados, ativos: a.ativos + r.ativos, aguardando: a.aguardando + r.aguardando, cancelados: a.cancelados + r.cancelados, mrrCents: a.mrrCents + r.mrrCents }),
     { cadastrados: 0, ativos: 0, aguardando: 0, cancelados: 0, mrrCents: 0 },
@@ -403,12 +404,13 @@ async function Ranking({ periodo, filial }: { periodo: number; filial?: string }
 }
 
 // ── Por Vendedor ──────────────────────────────────────────────────────────────
-async function PorVendedor({ periodo, vendedor, filial, vendedores }: { periodo: number; vendedor?: string; filial?: string; vendedores: { ixcId: string; nome: string }[] }) {
+async function PorVendedor({ periodo, vendedor, filial, ini, fim, vendedores }: { periodo: number; vendedor?: string; filial?: string; ini?: string; fim?: string; vendedores: { ixcId: string; nome: string }[] }) {
   if (!vendedor) {
     return <div className="card card-pad muted" style={{ marginTop: 4 }}>Selecione um vendedor no filtro acima.</div>;
   }
   const extra = { vendedorIxcId: vendedor, filial };
-  const [d, evolucao] = await Promise.all([getDashboard(periodo, extra), getEvolucao(extra, 6)]);
+  const custom = !!(ini && fim);
+  const [d, evolucao] = await Promise.all([getDashboard(periodo, extra, ini, fim), getEvolucao(extra, 6)]);
   const nome = vendedores.find((v) => v.ixcId === vendedor)?.nome ?? `#${vendedor}`;
   const totalPipeline = d.ativos + d.aguardando;
   const ticket = d.ativos > 0 ? Math.round(d.valorAtivosCents / d.ativos) : 0;
@@ -417,7 +419,7 @@ async function PorVendedor({ periodo, vendedor, filial, vendedores }: { periodo:
 
   return (
     <>
-      <p className="page-sub" style={{ marginBottom: 12 }}>{nome} · {MESES[d.mes - 1]} {d.ano}</p>
+      <p className="page-sub" style={{ marginBottom: 12 }}>{nome} · {custom ? d.label : `${MESES[d.mes - 1]} ${d.ano}`}</p>
       <div className="grid" style={{ gridTemplateColumns: "repeat(4,1fr)", gap: "var(--gap)" }}>
         <StatCard icon="checkCircle" label="Ativados" value={d.ativos} foot={`${brl(d.valorAtivosCents)} MRR`} accent="var(--st-done)" />
         <StatCard icon="target" label="Aguardando" value={d.aguardando} foot={brl(d.valorAguardandoCents)} accent="var(--st-progress)" />
