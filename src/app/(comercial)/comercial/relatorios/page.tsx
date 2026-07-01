@@ -4,6 +4,7 @@ import { FunilVendas, EvolucaoBars, DonutCard } from "@/components/comercial/Rel
 import { ContratosPeriodoCards } from "@/components/comercial/ContratosPeriodo";
 import { DiarioManager } from "@/components/comercial/DiarioManager";
 import { EquipeFilter } from "@/components/comercial/EquipeFilter";
+import { EquipePdf } from "@/components/comercial/EquipePdf";
 import { StatCard } from "@/components/ui/Stat";
 import { Card } from "@/components/ui/Card";
 import { brl } from "@/lib/format";
@@ -57,7 +58,10 @@ async function Equipe({ ini, fim }: { ini: string; fim: string }) {
   const maxValor = Math.max(...porDia.map((d) => d.valorCents), 1);
   return (
     <>
-      <EquipeFilter ini={ini} fim={fim} />
+      <div className="row gap12" style={{ alignItems: "center", flexWrap: "wrap" }}>
+        <div style={{ flex: 1, minWidth: 240 }}><EquipeFilter ini={ini} fim={fim} /></div>
+        <EquipePdf ini={ini} fim={fim} totais={totais} porVendedor={porVendedor} porDia={porDia} produtos={produtos} />
+      </div>
       <div className="grid" style={{ gridTemplateColumns: "repeat(4,1fr)", gap: "var(--gap)", marginTop: "var(--gap)" }}>
         <StatCard icon="briefcase" label="Vendas fechadas" value={totais.vendas} foot={`${brl(totais.valorCents)} · ${totais.dias} dias com registro`} accent="var(--st-done)" />
         <StatCard icon="users" label="Contatos" value={totais.contatos} foot={`${totais.leads} leads`} accent="var(--st-progress)" />
