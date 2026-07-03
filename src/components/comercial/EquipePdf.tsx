@@ -59,7 +59,8 @@ export function EquipePdf({
       <div className="diario-print">
         <h2 style={{ margin: "0 0 2px", fontSize: 18 }}>Relatório de Equipe — {fmtDia(ini)} a {fmtDia(fim)}</h2>
         <div style={{ fontSize: 11, color: "#555", marginBottom: 12 }}>
-          Consolidado dos apontamentos diários · gerado em {new Date().toLocaleString("pt-BR")}
+          {/* suppressHydrationWarning: timestamp muda entre server e client (bloco só de impressão) */}
+          Consolidado dos apontamentos diários · gerado em <span suppressHydrationWarning>{new Date().toLocaleString("pt-BR")}</span>
         </div>
 
         {/* KPIs (dashboard) */}
