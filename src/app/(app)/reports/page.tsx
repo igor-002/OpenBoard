@@ -6,14 +6,9 @@ import { Icon } from "@/components/ui/Icon";
 import { Avatar } from "@/components/ui/Avatar";
 import { ProgressBar } from "@/components/ui/Progress";
 import { StatusBadge } from "@/components/ui/Badge";
-import { LineChart, Donut } from "@/components/charts/Charts";
-import { MONTHS } from "@/lib/meta";
+import { Donut } from "@/components/charts/Charts";
 import { fullLabel } from "@/lib/format";
 
-// Produtividade mensal: ainda não há histórico (tarefas são recentes).
-// Séries ilustrativas até haver dados temporais suficientes.
-const THROUGHPUT = [18, 24, 21, 30, 28, 34, 31, 38, 42, 39, 45, 48];
-const COMPLETED = [12, 15, 14, 22, 20, 26, 24, 30, 33, 31, 38, 42];
 const AREA_COLORS = ["var(--c1)", "var(--c3)", "var(--c4)", "var(--c5)", "var(--c6)"];
 
 export default async function ReportsPage() {
@@ -33,30 +28,52 @@ export default async function ReportsPage() {
       </div>
 
       <div className="grid" style={{ gridTemplateColumns: "repeat(3,1fr)" }}>
-        <StatCard icon="checkCircle" label="Tarefas concluídas" value={d.tasksDone} foot="no período" accent="var(--st-done)" />
-        <StatCard icon="clock" label="Tempo médio de entrega" value="3.2" suffix="d" foot="por tarefa (estimado)" accent="var(--primary)" />
-        <StatCard icon="target" label="Entrega no prazo" value="92" suffix="%" foot="meta (estimado)" accent="var(--st-progress)" />
+        <StatCard icon="checkCircle" label="Tarefas concluídas" value={d.tasksDone} foot="no total" accent="var(--st-done)" />
+        <StatCard
+          icon="clock"
+          label="Tempo médio de entrega"
+          value={d.tempoMedioDias != null ? String(d.tempoMedioDias) : "—"}
+          suffix={d.tempoMedioDias != null ? "d" : undefined}
+          foot={d.tempoMedioDias != null ? "criação → conclusão" : "sem conclusões registradas ainda"}
+          accent="var(--primary)"
+        />
+        <StatCard
+          icon="target"
+          label="Entrega no prazo"
+          value={d.noPrazoPct != null ? String(d.noPrazoPct) : "—"}
+          suffix={d.noPrazoPct != null ? "%" : undefined}
+          foot={d.noPrazoPct != null ? "concluídas até o prazo" : "sem concluídas com prazo ainda"}
+          accent="var(--st-progress)"
+        />
       </div>
 
       <div className="grid" style={{ gridTemplateColumns: "1.6fr 1fr", marginTop: "var(--gap)" }}>
         <Card
           title="Produtividade"
-          sub="Tarefas criadas vs. concluídas por mês"
+          sub="Tarefas criadas vs. concluídas por mês — últimos 6 meses"
           action={
             <div className="row gap16">
-              <span className="est-badge">dados de exemplo</span>
               <div className="row gap8"><span style={{ width: 10, height: 10, borderRadius: 3, background: "var(--primary)" }} /><span style={{ fontSize: 12.5, fontWeight: 600, color: "var(--muted)" }}>Criadas</span></div>
               <div className="row gap8"><span style={{ width: 10, height: 10, borderRadius: 3, background: "var(--st-done)" }} /><span style={{ fontSize: 12.5, fontWeight: 600, color: "var(--muted)" }}>Concluídas</span></div>
             </div>
           }
         >
-          <div style={{ position: "relative", paddingTop: 6 }}>
-            <div style={{ position: "absolute", inset: 0 }}><LineChart data={THROUGHPUT} h={210} color="var(--primary)" /></div>
-            <LineChart data={COMPLETED} h={210} color="var(--st-done)" fill={false} />
-            <div className="row between" style={{ marginTop: 8 }}>
-              {MONTHS.map((m) => <span key={m} style={{ fontSize: 11, color: "var(--muted)", fontWeight: 600 }}>{m}</span>)}
-            </div>
-          </div>
+          {(() => {
+            const max = Math.max(...d.produtividade.map((m) => Math.max(m.criadas, m.concluidas)), 1);
+            return (
+              <div style={{ display: "flex", alignItems: "flex-end", gap: 18, height: 210, padding: "8px 4px 0" }}>
+                {d.produtividade.map((m) => (
+                  <div key={m.label} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 8, height: "100%" }}>
+                    <div style={{ flex: 1, width: "100%", display: "flex", alignItems: "flex-end", justifyContent: "center", gap: 5 }}>
+                      <div title={`Criadas: ${m.criadas}`} style={{ width: 18, height: `${(m.criadas / max) * 100}%`, background: "var(--primary)", borderRadius: "5px 5px 0 0", minHeight: m.criadas ? 4 : 0 }} />
+                      <div title={`Concluídas: ${m.concluidas}`} style={{ width: 18, height: `${(m.concluidas / max) * 100}%`, background: "var(--st-done)", borderRadius: "5px 5px 0 0", minHeight: m.concluidas ? 4 : 0 }} />
+                    </div>
+                    <span style={{ fontSize: 11, color: "var(--muted)", fontWeight: 600 }}>{m.label}</span>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
         </Card>
 
         <Card title="Esforço por área" sub="Por tag de tarefa">

@@ -53,6 +53,7 @@ export async function createTask(_prev: TaskActionState, formData: FormData): Pr
       title: parsed.data.title,
       priority: parsed.data.priority,
       column: parsed.data.column ?? "todo",
+      doneAt: parsed.data.column === "done" ? new Date() : null,
       assigneeId: parsed.data.assigneeId || null,
       order: count,
       tags: tags.length ? { create: tags.map((label) => ({ label })) } : undefined,
@@ -112,7 +113,7 @@ export async function updateTask(taskId: string, _prev: TaskActionState, formDat
   const user = await requireUser();
   const task = await db.task.findFirst({
     where: { id: taskId, project: { workspaceId: user.workspaceId } },
-    select: { id: true, assigneeId: true },
+    select: { id: true, assigneeId: true, column: true, doneAt: true },
   });
   if (!task) return { error: "Tarefa não encontrada." };
 
@@ -143,6 +144,8 @@ export async function updateTask(taskId: string, _prev: TaskActionState, formDat
         title: d.title,
         priority: d.priority,
         column: d.column,
+        // Carimba a conclusão ao entrar em "done"; limpa se sair de lá.
+        doneAt: d.column === "done" ? (task.column === "done" ? task.doneAt : new Date()) : null,
         assigneeId,
         dueDate: d.dueDate ? new Date(d.dueDate + "T12:00:00") : null,
         tags: tags.length ? { create: tags.map((label) => ({ label })) } : undefined,
@@ -186,11 +189,15 @@ export async function moveTask(taskId: string, column: TaskColumn): Promise<Task
 
   const task = await db.task.findFirst({
     where: { id: taskId, project: { workspaceId: user.workspaceId } },
-    select: { id: true },
+    select: { id: true, column: true, doneAt: true },
   });
   if (!task) return { error: "Tarefa não encontrada." };
 
-  await db.task.update({ where: { id: taskId }, data: { column } });
+  await db.task.update({
+    where: { id: taskId },
+    // Carimba a conclusão ao entrar em "done"; limpa se sair de lá.
+    data: { column, doneAt: column === "done" ? (task.column === "done" ? task.doneAt : new Date()) : null },
+  });
   revalidatePath("/kanban");
   revalidatePath("/dashboard");
   return { ok: true };
