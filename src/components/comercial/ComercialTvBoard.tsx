@@ -158,7 +158,7 @@ function SlidePipeline({ d }: { d: ComercialTvData }) {
   const cards = d.pipeline.slice(0, 7); // menos linhas, cada uma maior
   const alertas = d.alertas.slice(0, 6);
   return (
-    <div className="tv-grid" style={{ gridTemplateRows: "168px 1fr" }}>
+    <div className="tv-grid" style={{ gridTemplateRows: "210px 1fr" }}>
       <div className="tv-grid" style={{ gridTemplateColumns: "repeat(3,1fr)", gridTemplateRows: "none" }}>
         <KPI icon="layers" color="var(--info)" label="Em negociação" value={d.kpis.pipeline} foot="contratos aguardando" />
         <KPI icon="wallet" color="var(--tv-accent)" label="MRR potencial" value={brl(d.kpis.mrrPipelineCents)} foot="se tudo fechar" />
@@ -257,7 +257,7 @@ function SlideEvolucao({ d }: { d: ComercialTvData }) {
 /* ============ SLIDE 5 — RANKING (tabela) ============ */
 function SlideRanking({ d }: { d: ComercialTvData }) {
   return (
-    <Panel icon="trendUp" title="Performance por vendedor" sub="Resultado real do IXC no mês" right={`${d.ranking.length}`} style={{ height: "100%" }}>
+    <Panel icon="trendUp" title="Performance por vendedor" sub="Resultado real do IXC no mês" right={`${d.ranking.length} no mês`} style={{ height: "100%" }}>
       <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
         <div style={{ display: "grid", gridTemplateColumns: "60px 1fr 130px 150px 230px 120px", gap: 12, padding: "0 8px 10px", fontSize: 13, fontWeight: 700, color: "var(--tv-muted)", textTransform: "uppercase", letterSpacing: ".5px", borderBottom: "1px solid var(--tv-line)" }}>
           <span>#</span><span>Vendedor</span><span style={{ textAlign: "right" }}>Ativos</span><span style={{ textAlign: "right" }}>Aguard.</span><span style={{ textAlign: "right" }}>MRR</span><span style={{ textAlign: "right" }}>Conv.</span>
@@ -286,7 +286,7 @@ function SlideLeads({ d }: { d: ComercialTvData }) {
   const valorTotal = d.leads.reduce((a, s) => a + s.valorCents, 0);
   const ganhos = d.leads.find((s) => s.id === "ganho")?.total ?? 0;
   return (
-    <div className="tv-grid" style={{ gridTemplateRows: "168px 1fr" }}>
+    <div className="tv-grid" style={{ gridTemplateRows: "210px 1fr" }}>
       <div className="tv-grid" style={{ gridTemplateColumns: "repeat(3,1fr)", gridTemplateRows: "none" }}>
         <KPI icon="target" color="var(--info)" label="Leads no funil" value={d.leadsTotal} foot="vindos do chat de atendimento" />
         <KPI icon="wallet" color="var(--tv-accent)" label="Valor estimado" value={brl(valorTotal)} foot="potencial em negociação" />
@@ -347,7 +347,10 @@ export function ComercialTvBoard({ initial }: { initial: ComercialTvData }) {
     const fit = () => {
       const el = canvasRef.current;
       if (!el) return;
-      el.style.transform = `translate(-50%, -50%) scale(${window.innerWidth / 1920}, ${window.innerHeight / 1080})`;
+      // Escala uniforme (letterbox): em telas fora de 16:9 sobra borda preta em
+      // vez de esticar/distorcer o conteúdo. TV 16:9 preenche exato.
+      const s = Math.min(window.innerWidth / 1920, window.innerHeight / 1080);
+      el.style.transform = `translate(-50%, -50%) scale(${s})`;
     };
     fit();
     window.addEventListener("resize", fit);
