@@ -164,24 +164,31 @@ async function upsertCliente(ixcId: string): Promise<void> {
   const exists = await db.ixcCliente.findUnique({ where: { ixcId }, select: { id: true } });
   if (exists) return;
   const [c] = await ixcListAll("cliente", { qtype: "cliente.id", query: ixcId, oper: "=", rp: 1 });
-  await db.ixcCliente.upsert({
-    where: { ixcId },
-    create: {
-      ixcId,
-      razao: c?.razao || c?.fantasia || `Cliente #${ixcId}`,
-      cnpjCpf: c?.cnpj_cpf ?? null,
-      uf: c?.uf ?? null,
-    },
-    update: {},
-  });
+  try {
+    await db.ixcCliente.upsert({
+      where: { ixcId },
+      create: {
+        ixcId,
+        razao: c?.razao || c?.fantasia || `Cliente #${ixcId}`,
+        cnpjCpf: c?.cnpj_cpf ?? null,
+        uf: c?.uf ?? null,
+      },
+      update: {},
+    });
+  } catch (e) {
+    // Corrida no lote (contratos do mesmo cliente em paralelo): outro worker criou
+    // o cliente entre o find e o upsert → P2002. Cliente existe, segue o jogo.
+    if ((e as { code?: string }).code !== "P2002") throw e;
+  }
 }
 
 // ── Orquestrador com log (handoff §9) ────────────────────────────────────────
-export async function runFullSync(): Promise<{ ok: boolean; runId: string; error?: string }> {
+// `kind`: "full" (manual) ou "auto" (cron do scheduler) — aparece no histórico.
+export async function runFullSync(kind: "full" | "auto" = "full"): Promise<{ ok: boolean; runId: string; error?: string }> {
   if (!ixcConfigured()) {
     return { ok: false, runId: "", error: "IXC não configurado (defina IXC_TOKEN/IXC_PROXY_URL)." };
   }
-  const run = await db.syncRun.create({ data: { kind: "full" } });
+  const run = await db.syncRun.create({ data: { kind } });
   const t0 = Date.now();
   try {
     const nVend = await syncVendedores();
