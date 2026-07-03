@@ -353,6 +353,7 @@ async function Ranking({ periodo, filial, ini, fim }: { periodo: number; filial?
                 <th style={{ textAlign: "right" }}>MRR</th>
                 <th style={{ textAlign: "right" }}>Ticket</th>
                 <th style={{ textAlign: "right" }}>Conv.</th>
+                <th style={{ textAlign: "right" }} title="Tempo médio do cadastro à ativação (ativados no período)">Tempo ativ.</th>
                 <th style={{ textAlign: "right" }}>Meta</th>
                 <th style={{ textAlign: "right" }}>Ating.</th>
               </tr>
@@ -372,6 +373,7 @@ async function Ranking({ periodo, filial, ini, fim }: { periodo: number; filial?
                   <td style={{ textAlign: "right", fontWeight: 700 }}>{brl(r.mrrCents)}</td>
                   <td style={{ textAlign: "right" }} className="muted">{brl(r.ticketCents)}</td>
                   <td style={{ textAlign: "right" }}>{r.conversao}%</td>
+                  <td style={{ textAlign: "right" }} className="muted">{r.tempoMedioDias != null ? `${r.tempoMedioDias}d` : "—"}</td>
                   <td style={{ textAlign: "right" }} className="muted">{meta || "—"}</td>
                   <td style={{ textAlign: "right", fontWeight: 700, color: ating == null ? "var(--muted)" : ating >= 100 ? "var(--st-done)" : ating >= 50 ? "var(--pr-med)" : "var(--st-risk)" }}>{ating == null ? "—" : `${ating}%`}</td>
                 </tr>
@@ -389,15 +391,17 @@ async function Ranking({ periodo, filial, ini, fim }: { periodo: number; filial?
                 <td style={{ textAlign: "right" }}>{convTime}%</td>
                 <td />
                 <td />
+                <td />
               </tr>
             </tbody>
           </table>
         )}
       </Card>
 
-      <div className="grid" style={{ gridTemplateColumns: "1fr 1fr", gap: "var(--gap)", marginTop: "var(--gap)" }}>
+      <div className="grid" style={{ gridTemplateColumns: "repeat(3,1fr)", gap: "var(--gap)", marginTop: "var(--gap)" }}>
         <DonutCard title="MRR por vendedor" sub="Participação no MRR ativado" items={donutMrr} />
         <DonutCard title="Contratos ativos por vendedor" items={rows.slice(0, 6).map((r) => ({ label: r.nome, value: r.ativos }))} />
+        <DonutCard title="Aguardando por vendedor" sub="MRR parado no pipeline (AA/P)" items={[...rows].sort((a, b) => b.mrrAguardCents - a.mrrAguardCents).filter((r) => r.mrrAguardCents > 0).slice(0, 6).map((r) => ({ label: r.nome, value: r.mrrAguardCents, money: true }))} />
       </div>
     </>
   );

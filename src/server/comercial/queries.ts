@@ -339,8 +339,10 @@ export type RankingRow = {
   aguardando: number;
   cancelados: number;
   mrrCents: number;
+  mrrAguardCents: number; // MRR parado no pipeline (AA/P)
   ticketCents: number; // mrr / ativos
   conversao: number; // ativos / (ativos+aguardando) %
+  tempoMedioDias: number | null; // média cadastro→ativação dos ativados no período
 };
 
 export async function getRelatorioRanking(periodo: number, filial?: string, ini?: string, fimP?: string): Promise<RankingRow[]> {
@@ -360,6 +362,7 @@ export async function getRelatorioRanking(periodo: number, filial?: string, ini?
       by: ["vendedorIxcId"],
       where: { ...base, status: { in: ST_AGUARD }, dataCadastro: { gte: inicio, lt: fim } },
       _count: { _all: true },
+      _sum: { mrrCents: true },
     }),
     db.contrato.groupBy({
       by: ["vendedorIxcId"],
@@ -369,13 +372,28 @@ export async function getRelatorioRanking(periodo: number, filial?: string, ini?
     db.vendedor.findMany({ select: { ixcId: true, nome: true } }),
   ]);
 
+  // Tempo médio cadastro→ativação por vendedor (ativados no período).
+  const ativadosDatas = await db.contrato.findMany({
+    where: { ...base, status: { in: ST_ATIVO }, dataAtivacao: { gte: inicio, lt: fim, not: null }, dataCadastro: { not: null } },
+    select: { vendedorIxcId: true, dataAtivacao: true, dataCadastro: true },
+  });
+  const tempoAgg = new Map<string, { soma: number; n: number }>();
+  for (const c of ativadosDatas) {
+    if (!c.vendedorIxcId) continue;
+    const dias = Math.round((+c.dataAtivacao! - +c.dataCadastro!) / 86400000);
+    if (dias < 0) continue; // inconsistência (ativação antes do cadastro)
+    const t = tempoAgg.get(c.vendedorIxcId) ?? { soma: 0, n: 0 };
+    t.soma += dias; t.n += 1;
+    tempoAgg.set(c.vendedorIxcId, t);
+  }
+
   const nomeMap = new Map(vendedores.map((v) => [v.ixcId, v.nome]));
   const map = new Map<string, RankingRow>();
   const row = (id: string): RankingRow =>
-    map.get(id) ?? { vendedorIxcId: id, nome: nomeMap.get(id) ?? `#${id}`, cadastrados: 0, ativos: 0, aguardando: 0, cancelados: 0, mrrCents: 0, ticketCents: 0, conversao: 0 };
+    map.get(id) ?? { vendedorIxcId: id, nome: nomeMap.get(id) ?? `#${id}`, cadastrados: 0, ativos: 0, aguardando: 0, cancelados: 0, mrrCents: 0, mrrAguardCents: 0, ticketCents: 0, conversao: 0, tempoMedioDias: null };
 
   for (const g of ativosG) { const id = g.vendedorIxcId as string; const x = row(id); x.ativos = g._count._all; x.mrrCents = g._sum.mrrCents ?? 0; map.set(id, x); }
-  for (const g of aguardG) { const id = g.vendedorIxcId as string; const x = row(id); x.aguardando = g._count._all; map.set(id, x); }
+  for (const g of aguardG) { const id = g.vendedorIxcId as string; const x = row(id); x.aguardando = g._count._all; x.mrrAguardCents = g._sum.mrrCents ?? 0; map.set(id, x); }
   for (const g of cancelG) { const id = g.vendedorIxcId as string; const x = row(id); x.cancelados = g._count._all; map.set(id, x); }
 
   for (const x of map.values()) {
@@ -383,6 +401,8 @@ export async function getRelatorioRanking(periodo: number, filial?: string, ini?
     x.ticketCents = x.ativos > 0 ? Math.round(x.mrrCents / x.ativos) : 0;
     const pipe = x.ativos + x.aguardando;
     x.conversao = pipe > 0 ? Math.round((x.ativos / pipe) * 100) : 0;
+    const t = tempoAgg.get(x.vendedorIxcId);
+    x.tempoMedioDias = t && t.n > 0 ? Math.round(t.soma / t.n) : null;
   }
   return [...map.values()].sort((a, b) => b.ativos - a.ativos || b.mrrCents - a.mrrCents);
 }

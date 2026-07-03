@@ -38,25 +38,37 @@ export function FunilVendas({
   );
 }
 
-// ── Evolução: barras agrupadas (Ativos / Aguardando) por mês ──────────────────
+// ── Evolução: barras agrupadas (Ativos / Aguardando) + linha de MRR ativado ───
 export function EvolucaoBars({ data }: { data: { label: string; ativos: number; aguardando: number; mrrCents: number }[] }) {
   const max = Math.max(...data.map((d) => Math.max(d.ativos, d.aguardando)), 1);
+  const maxMrr = Math.max(...data.map((d) => d.mrrCents), 1);
+  const temMrr = data.some((d) => d.mrrCents > 0);
+  // Pontos da linha de MRR em % do plot (x centrado em cada mês; y invertido).
+  const pts = data.map((d, i) => `${((i + 0.5) / data.length) * 100},${100 - (d.mrrCents / maxMrr) * 92}`).join(" ");
   return (
     <div>
-      <div style={{ display: "flex", alignItems: "flex-end", gap: 16, height: 200, padding: "8px 4px 0" }}>
-        {data.map((d, i) => (
-          <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 8, height: "100%" }}>
-            <div style={{ flex: 1, width: "100%", display: "flex", alignItems: "flex-end", justifyContent: "center", gap: 5 }}>
-              <div title={`Ativos: ${d.ativos}`} style={{ width: 16, height: `${(d.ativos / max) * 100}%`, background: "var(--st-done)", borderRadius: "5px 5px 0 0", minHeight: d.ativos ? 4 : 0 }} />
-              <div title={`Aguardando: ${d.aguardando}`} style={{ width: 16, height: `${(d.aguardando / max) * 100}%`, background: "var(--st-progress)", borderRadius: "5px 5px 0 0", minHeight: d.aguardando ? 4 : 0 }} />
+      <div style={{ position: "relative" }}>
+        <div style={{ display: "flex", alignItems: "flex-end", gap: 16, height: 200, padding: "8px 4px 0" }}>
+          {data.map((d, i) => (
+            <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 8, height: "100%" }}>
+              <div style={{ flex: 1, width: "100%", display: "flex", alignItems: "flex-end", justifyContent: "center", gap: 5 }}>
+                <div title={`Ativos: ${d.ativos}`} style={{ width: 16, height: `${(d.ativos / max) * 100}%`, background: "var(--st-done)", borderRadius: "5px 5px 0 0", minHeight: d.ativos ? 4 : 0 }} />
+                <div title={`Aguardando: ${d.aguardando}`} style={{ width: 16, height: `${(d.aguardando / max) * 100}%`, background: "var(--st-progress)", borderRadius: "5px 5px 0 0", minHeight: d.aguardando ? 4 : 0 }} />
+              </div>
+              <span style={{ fontSize: 11.5, fontWeight: 600, color: "var(--muted)" }} title={`MRR ativado: ${brl(d.mrrCents)}`}>{d.label}</span>
             </div>
-            <span style={{ fontSize: 11.5, fontWeight: 600, color: "var(--muted)" }}>{d.label}</span>
-          </div>
-        ))}
+          ))}
+        </div>
+        {temMrr && (
+          <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: "absolute", inset: "8px 4px 28px", width: "calc(100% - 8px)", height: "calc(100% - 36px)", pointerEvents: "none", overflow: "visible" }}>
+            <polyline points={pts} fill="none" stroke="var(--c1)" strokeWidth={1.6} strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" strokeDasharray="4 3" opacity={0.9} />
+          </svg>
+        )}
       </div>
       <div className="row gap12" style={{ justifyContent: "center", marginTop: 8, fontSize: 12 }}>
         <span className="row gap8" style={{ alignItems: "center" }}><span style={{ width: 10, height: 10, borderRadius: 3, background: "var(--st-done)" }} /> Ativos</span>
         <span className="row gap8" style={{ alignItems: "center" }}><span style={{ width: 10, height: 10, borderRadius: 3, background: "var(--st-progress)" }} /> Aguardando</span>
+        {temMrr && <span className="row gap8" style={{ alignItems: "center" }}><span style={{ width: 14, height: 0, borderTop: "2px dashed var(--c1)" }} /> MRR ativado (escala própria)</span>}
       </div>
     </div>
   );
