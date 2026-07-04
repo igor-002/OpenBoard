@@ -12,7 +12,7 @@ import { useOverlayClose } from "@/components/ui/useOverlayClose";
 import { brl } from "@/lib/format";
 import { LEAD_STAGES, type LeadStage } from "@/lib/leads";
 import type { LeadsBoard as LeadsBoardData, LeadCard } from "@/server/comercial/leads";
-import { createLeadManual, moveLeadStage, assignLead, deleteLead } from "@/app/(comercial)/comercial/leads/actions";
+import { createLeadManual, moveLeadStage, assignLead, deleteLead, updateLeadValor } from "@/app/(comercial)/comercial/leads/actions";
 
 type UserOpt = { id: string; name: string };
 
@@ -435,8 +435,19 @@ function LeadDetailModal({ lead, userOpts, isAdmin, onClose }: { lead: LeadCard;
   const [pending, start] = useTransition();
   const [assigned, setAssigned] = useState(lead.assignedUserId ?? "");
   const [stage, setStage] = useState<LeadStage>(lead.stage);
+  const [valor, setValor] = useState(lead.valorEstimadoCents > 0 ? String(lead.valorEstimadoCents / 100) : "");
+  const [valorSalvo, setValorSalvo] = useState(false);
   function changeAssign(v: string) { setAssigned(v); start(async () => { await assignLead(lead.id, v || null); router.refresh(); }); }
   function changeStage(v: string) { setStage(v as LeadStage); start(async () => { await moveLeadStage(lead.id, v); router.refresh(); }); }
+  function saveValor() {
+    const n = parseFloat(valor.replace(",", ".")) || 0;
+    if (Math.round(n * 100) === lead.valorEstimadoCents) return; // sem mudança
+    start(async () => {
+      const r = await updateLeadValor(lead.id, n);
+      if (r.ok) { setValorSalvo(true); setTimeout(() => setValorSalvo(false), 2500); }
+      router.refresh();
+    });
+  }
   function remove() { start(async () => { await deleteLead(lead.id); onClose(); }); }
   return (
     <div {...useOverlayClose(onClose)} style={{ position: "fixed", inset: 0, background: "rgba(16,24,40,.45)", zIndex: 60, display: "grid", placeItems: "center", padding: 24 }}>
@@ -451,7 +462,6 @@ function LeadDetailModal({ lead, userOpts, isAdmin, onClose }: { lead: LeadCard;
           {lead.contato && <><span className="muted">Contato</span><span>{lead.contato}</span></>}
           {lead.email && <><span className="muted">E-mail</span><span>{lead.email}</span></>}
           {lead.origem && <><span className="muted">Origem</span><span>{lead.origem}</span></>}
-          {lead.valorEstimadoCents > 0 && <><span className="muted">Valor est.</span><span style={{ fontWeight: 700 }}>{brl(lead.valorEstimadoCents)}</span></>}
           <span className="muted">Na fila</span>
           <span>
             <span style={{ fontWeight: 700, color: LEAD_STAGES.find((s) => s.id === lead.stage)?.c }}>{LEAD_STAGES.find((s) => s.id === lead.stage)?.label ?? lead.stage}</span>
@@ -467,6 +477,19 @@ function LeadDetailModal({ lead, userOpts, isAdmin, onClose }: { lead: LeadCard;
             <div style={{ fontSize: 13, color: "var(--ink-2)", whiteSpace: "pre-wrap", background: "var(--surface-3)", borderRadius: "var(--r-md)", padding: 10, maxHeight: 160, overflowY: "auto" }}>{lead.observacoes}</div>
           </div>
         )}
+        <div className="field" style={{ marginBottom: 14 }}>
+          <label htmlFor="valor-est">Valor estimado (R$)</label>
+          <div className="row gap8" style={{ alignItems: "center" }}>
+            <input
+              className="input" id="valor-est" type="number" min="0" step="0.01" inputMode="decimal"
+              value={valor} onChange={(e) => setValor(e.target.value)}
+              onBlur={saveValor}
+              onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+              disabled={pending} placeholder="0,00 — o chat não manda valor; preencha ao qualificar"
+            />
+            {valorSalvo && <span style={{ color: "var(--st-done)", fontSize: 12, fontWeight: 800, flexShrink: 0 }}>✓ salvo</span>}
+          </div>
+        </div>
         <div className="row gap12">
           <div className="field" style={{ flex: 1 }}>
             <label htmlFor="stage-sel">Fila / estágio</label>

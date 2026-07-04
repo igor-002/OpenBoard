@@ -38,6 +38,16 @@ export async function moveLeadStage(id: string, stage: string): Promise<LeadActi
   return { ok: true };
 }
 
+// Atualiza o valor estimado (R$) — AtendAI não manda valor, então o time
+// preenche na mão ao qualificar o lead.
+export async function updateLeadValor(id: string, valorReais: number): Promise<LeadActionState> {
+  await requireUser();
+  if (!Number.isFinite(valorReais) || valorReais < 0) return { error: "Valor inválido." };
+  await db.lead.update({ where: { id }, data: { valorEstimadoCents: Math.round(valorReais * 100) } });
+  revalidatePath("/comercial/leads");
+  return { ok: true };
+}
+
 // Define o responsável do lead.
 export async function assignLead(id: string, userId: string | null): Promise<LeadActionState> {
   await requireUser();
