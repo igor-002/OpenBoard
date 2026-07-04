@@ -31,9 +31,10 @@ export async function setSettings(entries: Record<string, string | null | undefi
 
 // Trata "" (compose passa envs vazias como string vazia) como ausente.
 const clean = (s?: string | null): string | undefined => (s && s.trim() ? s.trim() : undefined);
+// Aceita vírgula decimal ("0,15") — user digita no padrão pt-BR. Preço 0/invalid → default.
 const num = (s: string | undefined, def: number): number => {
-  const n = Number(s);
-  return Number.isFinite(n) && n >= 0 ? n : def;
+  const n = Number((s ?? "").replace(",", "."));
+  return Number.isFinite(n) && n > 0 ? n : def;
 };
 
 export async function getOpenAIConfig(): Promise<OpenAIConfig> {
