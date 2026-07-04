@@ -35,8 +35,9 @@ export default async function LeadsRelatoriosPage() {
       </div>
 
       {/* KPIs */}
-      <div className="grid" style={{ gridTemplateColumns: "repeat(4,1fr)", gap: "var(--gap)" }}>
+      <div className="grid" style={{ gridTemplateColumns: "repeat(5,1fr)", gap: "var(--gap)" }}>
         <StatCard icon="target" label="Leads ativos" value={s.kpis.ativos} foot={`${brl(s.kpis.valorAbertoCents)} em aberto`} accent="var(--st-progress)" />
+        <StatCard icon="wallet" label="Previsão ponderada" value={brl(s.kpis.forecastCents)} foot="valor em aberto × prob. do estágio" accent="var(--st-review)" />
         <StatCard icon="check" label="Ganhos (30d)" value={s.kpis.ganhos30d} foot={`${brl(s.kpis.valorGanho30dCents)} · ${s.kpis.perdidos30d} perdidos`} accent="var(--st-done)" />
         <StatCard icon="trendUp" label="Taxa de conversão" value={s.kpis.taxaConversao != null ? `${s.kpis.taxaConversao}%` : "—"} foot={s.kpis.cicloMedioDias != null ? `ciclo médio ${fmtDias(s.kpis.cicloMedioDias)} até ganho` : "sem leads fechados ainda"} accent="var(--primary)" />
         <StatCard icon="alert" label="Parados há +7 dias" value={s.kpis.paradosMais7d} foot="ativos sem mudar de fila" accent="var(--st-risk)" />
@@ -230,7 +231,7 @@ export default async function LeadsRelatoriosPage() {
           )}
         </Card>
 
-        <Card title="Por origem" sub="De onde os leads estão vindo" pad={false}>
+        <Card title="Por origem" sub="Conversão e receita por canal — onde vale investir" pad={false}>
           {s.porOrigem.length === 0 ? (
             <div className="card-pad muted">Nenhum lead cadastrado.</div>
           ) : (
@@ -242,6 +243,8 @@ export default async function LeadsRelatoriosPage() {
                     <th style={{ ...th, textAlign: "right" }}>Total</th>
                     <th style={{ ...th, textAlign: "right" }}>Ativos</th>
                     <th style={{ ...th, textAlign: "right" }}>Ganhos</th>
+                    <th style={{ ...th, textAlign: "right" }}>Conversão</th>
+                    <th style={{ ...th, textAlign: "right" }}>Valor ganho</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -251,10 +254,39 @@ export default async function LeadsRelatoriosPage() {
                       <td style={{ ...td, textAlign: "right", fontWeight: 700 }}>{o.total}</td>
                       <td style={{ ...td, textAlign: "right" }}>{o.ativos}</td>
                       <td style={{ ...td, textAlign: "right", fontWeight: 700, color: "var(--st-done)" }}>{o.ganhos}</td>
+                      <td style={{ ...td, textAlign: "right", fontWeight: 700 }}>{o.conversao != null ? `${o.conversao}%` : <span className="muted">—</span>}</td>
+                      <td style={{ ...td, textAlign: "right", fontWeight: 700 }}>{o.valorGanhoCents > 0 ? brl(o.valorGanhoCents) : <span className="muted">—</span>}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
+            </div>
+          )}
+        </Card>
+      </div>
+
+      {/* Motivos de perda */}
+      <div style={{ marginTop: "var(--gap)" }}>
+        <Card title="Motivos de perda" sub="Por que os leads não fecham — onde o funil vaza" pad>
+          {s.motivosPerda.length === 0 ? (
+            <div className="muted" style={{ padding: 20, textAlign: "center" }}>Nenhum lead perdido ainda. Ao mover um lead para “Perdido”, o motivo é registrado e aparece aqui.</div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {(() => {
+                const max = Math.max(...s.motivosPerda.map((m) => m.count), 1);
+                return s.motivosPerda.map((m) => (
+                  <div key={m.motivo} className="row gap12" style={{ alignItems: "center" }}>
+                    <span style={{ width: 220, fontSize: 13, color: "var(--muted)", flexShrink: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={m.motivo}>{m.motivo}</span>
+                    <div style={{ flex: 1, background: "var(--surface-3)", borderRadius: "var(--r-pill)", height: 24, position: "relative", overflow: "hidden" }}>
+                      <div style={{ width: `${(m.count / max) * 100}%`, background: "var(--st-risk)", height: "100%", borderRadius: "var(--r-pill)", minWidth: 24, opacity: 0.85 }} />
+                    </div>
+                    <span style={{ width: 150, textAlign: "right", fontWeight: 800, fontSize: 13, flexShrink: 0 }}>
+                      {m.count}
+                      {m.valorCents > 0 && <span className="muted" style={{ fontWeight: 600, fontSize: 11.5, marginLeft: 6 }}>{brl(m.valorCents)}</span>}
+                    </span>
+                  </div>
+                ));
+              })()}
             </div>
           )}
         </Card>

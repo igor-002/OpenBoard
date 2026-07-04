@@ -19,6 +19,28 @@ export function leadStageMeta(id: string) {
   return LEAD_STAGES.find((s) => s.id === id) ?? { id, label: id, c: "var(--muted)" };
 }
 
+// Motivos de perda (obrigatório ao mover pra "perdido" — alimenta o relatório
+// de onde o funil vaza). "Outro" libera texto livre.
+export const LEAD_MOTIVOS_PERDA = [
+  "Preço",
+  "Sem retorno / contato perdido",
+  "Fechou com concorrente",
+  "Sem interesse",
+  "Fora da área de cobertura",
+  "Outro",
+] as const;
+
+// Probabilidade de fechamento por estágio — base do forecast ponderado
+// (Σ valorEstimado × prob dos leads ativos). Calibrar conforme o funil madurar.
+export const LEAD_STAGE_PROB: Record<LeadStage, number> = {
+  novo: 0.1,
+  contato: 0.25,
+  qualificado: 0.5,
+  proposta: 0.75,
+  ganho: 1,
+  perdido: 0,
+};
+
 export const onlyDigits = (s?: string | null) => (s ?? "").replace(/\D/g, "");
 
 // CPF (11) ou CNPJ (14). Só considera match forte se o tamanho bater; senão null.

@@ -9,6 +9,8 @@ import { StatusBadge } from "@/components/ui/Badge";
 import { Donut } from "@/components/charts/Charts";
 import { fullLabel } from "@/lib/format";
 
+const COL_LABEL: Record<string, string> = { todo: "A fazer", doing: "Em andamento", review: "Revisão", done: "Concluída" };
+
 const AREA_COLORS = ["var(--c1)", "var(--c3)", "var(--c4)", "var(--c5)", "var(--c6)"];
 
 export default async function ReportsPage() {
@@ -148,6 +150,102 @@ export default async function ReportsPage() {
             })}
           </tbody>
         </table>
+      </Card>
+
+      {/* Capacidade do time + previsão de entrega */}
+      <div className="grid" style={{ gridTemplateColumns: "1.2fr 1fr", marginTop: "var(--gap)" }}>
+        <Card title="Capacidade do time" sub="Tarefas abertas, atrasos e horas logadas (30d) por pessoa" pad={false}>
+          <table className="tbl" style={{ marginTop: 6, width: "100%" }}>
+            <thead>
+              <tr><th>Pessoa</th><th style={{ textAlign: "right" }}>Abertas</th><th style={{ textAlign: "right" }}>Vencidas</th><th style={{ textAlign: "right" }}>Projetos</th><th style={{ textAlign: "right" }}>Horas (30d)</th></tr>
+            </thead>
+            <tbody>
+              {d.carga.map((p) => (
+                <tr key={p.id}>
+                  <td>
+                    <div className="row gap8" style={{ minWidth: 0 }}>
+                      <Avatar user={p} size={28} />
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.name}</div>
+                        <div style={{ fontSize: 11.5, color: "var(--muted)" }}>{p.jobTitle}</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td style={{ textAlign: "right", fontWeight: 700 }}>{p.abertas}</td>
+                  <td style={{ textAlign: "right", fontWeight: 700, color: p.vencidas > 0 ? "var(--st-risk)" : "var(--muted)" }}>{p.vencidas || "—"}</td>
+                  <td style={{ textAlign: "right" }}>{p.projetos || "—"}</td>
+                  <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{p.horas30d > 0 ? `${p.horas30d.toLocaleString("pt-BR")}h` : <span className="muted">—</span>}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </Card>
+
+        <Card title="Previsão de entrega" sub="Ritmo atual (concluídas/semana) × tarefas restantes" pad={false}>
+          {d.previsoes.length === 0 ? (
+            <div className="card-pad muted" style={{ fontSize: 13.5 }}>Nenhum projeto ativo com tarefas pendentes.</div>
+          ) : (
+            <table className="tbl" style={{ marginTop: 6, width: "100%" }}>
+              <thead>
+                <tr><th>Projeto</th><th style={{ textAlign: "right" }}>Restantes</th><th style={{ textAlign: "right" }}>Ritmo/sem</th><th style={{ textAlign: "right" }}>Previsão</th></tr>
+              </thead>
+              <tbody>
+                {d.previsoes.map((p) => {
+                  const atrasa = p.atrasoPrevistoDias != null && p.atrasoPrevistoDias > 0;
+                  return (
+                    <tr key={p.id}>
+                      <td>
+                        <div className="nm" style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 200 }}>{p.name}</div>
+                        {p.dueDate && <div style={{ fontSize: 11.5, color: "var(--muted)" }}>prazo {fullLabel(p.dueDate)}</div>}
+                      </td>
+                      <td style={{ textAlign: "right", fontWeight: 700 }}>{p.restantes}</td>
+                      <td style={{ textAlign: "right" }}>{p.velocidadeSemana > 0 ? p.velocidadeSemana.toLocaleString("pt-BR") : <span className="muted">0</span>}</td>
+                      <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+                        {p.previsao == null ? (
+                          <span title="Nenhuma tarefa concluída nas últimas 4 semanas" style={{ color: "var(--st-risk)", fontWeight: 700 }}>sem ritmo</span>
+                        ) : (
+                          <span style={{ fontWeight: 700, color: atrasa ? "var(--st-risk)" : "var(--st-done)" }}>
+                            {fullLabel(p.previsao)}
+                            {p.atrasoPrevistoDias != null && (
+                              <span style={{ fontSize: 11.5, marginLeft: 6, color: atrasa ? "var(--st-risk)" : "var(--muted)" }}>
+                                {atrasa ? `+${p.atrasoPrevistoDias}d` : "no prazo"}
+                              </span>
+                            )}
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </Card>
+      </div>
+
+      {/* Tarefas vencidas (aging) */}
+      <Card title="Tarefas vencidas" sub="Prazo estourado — mais atrasadas primeiro" style={{ marginTop: "var(--gap)" }} pad={false}>
+        {d.vencidas.length === 0 ? (
+          <div className="card-pad muted" style={{ fontSize: 13.5 }}>Nenhuma tarefa com prazo estourado. 🎉</div>
+        ) : (
+          <table className="tbl" style={{ marginTop: 6, width: "100%" }}>
+            <thead>
+              <tr><th>Tarefa</th><th>Projeto</th><th>Responsável</th><th>Etapa</th><th style={{ textAlign: "right" }}>Prazo</th><th style={{ textAlign: "right" }}>Atraso</th></tr>
+            </thead>
+            <tbody>
+              {d.vencidas.map((t) => (
+                <tr key={t.id}>
+                  <td><div className="nm" style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 260 }}>{t.title}</div></td>
+                  <td style={{ color: "var(--ink-2)" }}>{t.projectName}</td>
+                  <td style={{ color: t.assigneeName ? "var(--ink-2)" : "var(--muted)" }}>{t.assigneeName ?? "Sem responsável"}</td>
+                  <td>{COL_LABEL[t.column] ?? t.column}</td>
+                  <td style={{ textAlign: "right", whiteSpace: "nowrap", color: "var(--ink-2)" }}>{fullLabel(t.dueDate)}</td>
+                  <td style={{ textAlign: "right", fontWeight: 800, color: "var(--st-risk)" }}>{t.diasAtraso}d</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </Card>
     </div>
   );

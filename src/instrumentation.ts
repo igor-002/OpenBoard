@@ -4,5 +4,8 @@ export async function register() {
   if (process.env.NEXT_RUNTIME === "nodejs") {
     const { startSyncScheduler } = await import("@/server/comercial/scheduler");
     startSyncScheduler();
+    // Alertas proativos (leads parados, prazos de projeto) → sininho.
+    const { startAlertsScheduler } = await import("@/server/alerts");
+    startAlertsScheduler();
   }
 }

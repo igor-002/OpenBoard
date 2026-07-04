@@ -316,6 +316,7 @@ model Lead {
   observacoes        String?
   stage              String   @default("novo") // ver LEAD_STAGES
   stageChangedAt     DateTime @default(now()) // quando entrou no estágio atual (tempo em fila)
+  motivoPerda        String?  // preenchido ao mover pra "perdido" (ver LEAD_MOTIVOS_PERDA)
   order              Int      @default(0)
   ixcClienteId       String?  // casado a um cliente IXC (por doc), se houver
   assignedUserId     String?  // responsável OpenBoard
@@ -378,6 +379,24 @@ model LeadStageEvent {
 
   @@index([leadId, createdAt])
   @@index([toStage, createdAt])
+}
+
+// Transição de status de contrato detectada no sync (upsert viu status diferente
+// do espelho local). Base do relatório de churn/net-MRR — o IXC não expõe esse
+// histórico, então ele acumula daqui pra frente. Vínculos frouxos (padrão comercial).
+model ContratoStatusEvent {
+  id            String   @id @default(cuid())
+  contratoIxcId String
+  clienteIxcId  String
+  vendedorIxcId String?
+  fromStatus    String
+  toStatus      String
+  mrrCents      Int      @default(0) // MRR do contrato no momento da transição
+  createdAt     DateTime @default(now())
+
+  @@index([contratoIxcId])
+  @@index([toStatus, createdAt])
+  @@index([createdAt])
 }
 
 // Log de cada execução de sync (observabilidade — ver handoff §9).

@@ -17,6 +17,7 @@ export type LeadCard = {
   valorEstimadoCents: number;
   observacoes: string | null;
   stage: LeadStage;
+  motivoPerda: string | null;
   ixcClienteId: string | null;
   assignedUserId: string | null;
   assignedUserName: string | null;
@@ -40,7 +41,7 @@ export async function getLeadsBoard(): Promise<LeadsBoard> {
     const col = cols.get(stage)!;
     col.cards.push({
       id: l.id, nome: l.nome, empresa: l.empresa, cnpjCpf: l.cnpjCpf, contato: l.contato, email: l.email,
-      origem: l.origem, valorEstimadoCents: l.valorEstimadoCents, observacoes: l.observacoes, stage,
+      origem: l.origem, valorEstimadoCents: l.valorEstimadoCents, observacoes: l.observacoes, stage, motivoPerda: l.motivoPerda,
       ixcClienteId: l.ixcClienteId, assignedUserId: l.assignedUserId, assignedUserName: l.assignedUserId ? uMap.get(l.assignedUserId) ?? null : null,
       lastContactAt: l.lastContactAt, stageChangedAt: l.stageChangedAt, finalizadoAt: l.finalizadoAt, createdAt: l.createdAt,
     });
@@ -249,12 +250,14 @@ export async function ingestLead(input: LeadInput): Promise<IngestResult> {
 }
 
 // Move o lead de estágio registrando o histórico (única forma correta de mudar stage).
-export async function changeLeadStage(id: string, stage: LeadStage, movedByUserId?: string | null): Promise<void> {
+// motivoPerda: gravado ao entrar em "perdido"; limpo ao sair (lead reaberto).
+export async function changeLeadStage(id: string, stage: LeadStage, movedByUserId?: string | null, motivoPerda?: string | null): Promise<void> {
   const lead = await db.lead.findUnique({ where: { id }, select: { stage: true } });
   if (!lead || lead.stage === stage) return;
   const max = await db.lead.aggregate({ where: { stage }, _max: { order: true } });
+  const motivo = stage === "perdido" ? (motivoPerda?.trim() || null) : null;
   await db.$transaction([
-    db.lead.update({ where: { id }, data: { stage, stageChangedAt: new Date(), order: (max._max.order ?? 0) + 1 } }),
+    db.lead.update({ where: { id }, data: { stage, stageChangedAt: new Date(), order: (max._max.order ?? 0) + 1, motivoPerda: motivo } }),
     db.leadStageEvent.create({ data: { leadId: id, fromStage: lead.stage, toStage: stage, movedByUserId: movedByUserId ?? null } }),
   ]);
 }

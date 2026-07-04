@@ -11,6 +11,7 @@ export const COMERCIAL_NAV: NavItem[] = [
   { href: "/comercial/pipeline", label: "Pipeline", icon: "layers" },
   { href: "/comercial/vendedores", label: "Vendedores", icon: "users" },
   { href: "/comercial/relatorios", label: "Relatórios", icon: "chart" },
+  { href: "/comercial/churn", label: "Churn & Retenção", icon: "trendUp" },
   { href: "/comercial/mrr", label: "MRR & Metas", icon: "wallet" },
   // { href: "/comercial/margem", label: "Margem", icon: "trendUp" }, // oculto por enquanto
   { href: "/comercial/sync", label: "Sincronização", icon: "zap" },
@@ -25,6 +26,7 @@ export const COMERCIAL_CRUMBS: { prefix: string; a: string; b: string }[] = [
   { prefix: "/comercial/pipeline", a: "Comercial", b: "Pipeline" },
   { prefix: "/comercial/vendedores", a: "Comercial", b: "Vendedores" },
   { prefix: "/comercial/relatorios", a: "Comercial", b: "Relatórios" },
+  { prefix: "/comercial/churn", a: "Comercial", b: "Churn & Retenção" },
   { prefix: "/comercial/mrr", a: "Comercial", b: "MRR & Metas" },
   { prefix: "/comercial/margem", a: "Comercial", b: "Margem" },
   { prefix: "/comercial/sync", a: "Comercial", b: "Sincronização" },

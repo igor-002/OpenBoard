@@ -30,10 +30,11 @@ export async function createLeadManual(_prev: LeadActionState, formData: FormDat
 }
 
 // Move um lead para outro estágio (drag no Kanban) — registra histórico p/ relatórios.
-export async function moveLeadStage(id: string, stage: string): Promise<LeadActionState> {
+// motivoPerda obrigatório na UI ao mover pra "perdido" (relatório de motivos).
+export async function moveLeadStage(id: string, stage: string, motivoPerda?: string): Promise<LeadActionState> {
   const user = await requireUser();
   if (!isLeadStage(stage)) return { error: "Estágio inválido." };
-  await changeLeadStage(id, stage, user.id);
+  await changeLeadStage(id, stage, user.id, motivoPerda ?? null);
   revalidatePath("/comercial/leads");
   return { ok: true };
 }

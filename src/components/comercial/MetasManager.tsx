@@ -30,6 +30,9 @@ export function MetasManager({
   metaContratos,
   metaMrrCents,
   vendedores,
+  mrrAtivadoMesCents,
+  diasUteisTotal,
+  diasUteisPassados,
 }: {
   isAdmin: boolean;
   mes: number;
@@ -40,6 +43,9 @@ export function MetasManager({
   metaContratos: number;
   metaMrrCents: number;
   vendedores: VendRow[];
+  mrrAtivadoMesCents: number;
+  diasUteisTotal: number;
+  diasUteisPassados: number;
 }) {
   const [pending, start] = useTransition();
   const [mc, setMc] = useState(String(metaContratos || ""));
@@ -95,6 +101,40 @@ export function MetasManager({
           </div>
           <Barra atual={ativosTotal} meta={metaContratos} />
         </div>
+
+        {/* Run-rate: projeção de fechamento do mês pelo ritmo de dias úteis */}
+        {diasUteisPassados > 0 && (ativosTotal > 0 || metaContratos > 0) && (() => {
+          const projContratos = Math.round((ativosTotal / diasUteisPassados) * diasUteisTotal);
+          const projMrrCents = Math.round((mrrAtivadoMesCents / diasUteisPassados) * diasUteisTotal);
+          const pctProj = metaContratos > 0 ? Math.round((projContratos / metaContratos) * 100) : null;
+          const faltam = Math.max(0, metaContratos - ativosTotal);
+          const diasRestantes = Math.max(0, diasUteisTotal - diasUteisPassados);
+          const ritmoNecessario = faltam > 0 && diasRestantes > 0 ? Math.ceil((faltam / diasRestantes) * 10) / 10 : null;
+          const cor = pctProj == null ? "var(--muted)" : pctProj >= 100 ? "var(--st-done)" : pctProj >= 80 ? "var(--pr-med)" : "var(--st-risk)";
+          return (
+            <div style={{ marginTop: 18, paddingTop: 16, borderTop: "1px solid var(--line)", display: "flex", flexWrap: "wrap", gap: "12px 36px" }}>
+              <div>
+                <div style={{ fontSize: 10.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.5, color: "var(--muted)" }}>Projeção do mês (run-rate)</div>
+                <div style={{ fontSize: 18, fontWeight: 800, color: cor }}>
+                  {projContratos} contratos{pctProj != null && <span style={{ fontSize: 13, marginLeft: 6 }}>({pctProj}% da meta)</span>}
+                </div>
+                <div className="muted" style={{ fontSize: 11.5 }}>ritmo atual × {diasUteisTotal} dias úteis ({diasUteisPassados} decorridos)</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 10.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.5, color: "var(--muted)" }}>Projeção de MRR ativado</div>
+                <div style={{ fontSize: 18, fontWeight: 800 }}>{brl(projMrrCents)}</div>
+                <div className="muted" style={{ fontSize: 11.5 }}>{brl(mrrAtivadoMesCents)} ativados até agora</div>
+              </div>
+              {ritmoNecessario != null && (
+                <div>
+                  <div style={{ fontSize: 10.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.5, color: "var(--muted)" }}>Pra bater a meta</div>
+                  <div style={{ fontSize: 18, fontWeight: 800 }}>{ritmoNecessario}/dia útil</div>
+                  <div className="muted" style={{ fontSize: 11.5 }}>faltam {faltam} em {diasRestantes} dias úteis</div>
+                </div>
+              )}
+            </div>
+          );
+        })()}
       </Card>
 
       {/* Metas por vendedor */}

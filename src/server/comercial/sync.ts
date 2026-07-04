@@ -13,6 +13,11 @@ import {
   ixcConfigured,
   type IxcRecord,
 } from "@/lib/ixc";
+import { notify } from "@/server/notifications";
+import { brl } from "@/lib/format";
+
+// Status que tiram um contrato de ativo (perda de MRR — vira alerta + churn).
+const STATUS_PERDA = ["C", "CN", "CA", "D"];
 
 // ── Vendedores (tabela `vendedor`, status 'A') ───────────────────────────────
 export async function syncVendedores(): Promise<number> {
@@ -128,6 +133,33 @@ export async function syncContratos(): Promise<{ processed: number; errors: numb
       const dataAtivacao = ixcDate(c.data_ativacao);
       const dataCadastro = ixcDate(c.data_cadastro_sistema ?? c.data);
 
+      // Transição de status (base do relatório de churn): o IXC não guarda esse
+      // histórico, então comparamos com o espelho antes do upsert. Ao sair de
+      // ativo, o MRR registrado é o antigo (o que deixou de faturar).
+      const existing = await db.contrato.findUnique({ where: { ixcId: String(c.id) }, select: { status: true, mrrCents: true } });
+      if (existing && existing.status !== status) {
+        const mrrEvento = existing.status === "A" ? existing.mrrCents : mrrCents;
+        await db.contratoStatusEvent.create({
+          data: {
+            contratoIxcId: String(c.id),
+            clienteIxcId,
+            vendedorIxcId: c.id_vendedor ? String(c.id_vendedor) : null,
+            fromStatus: existing.status,
+            toStatus: status,
+            mrrCents: mrrEvento,
+          },
+        });
+        // Alerta: contrato ativo virou cancelado/desativado → avisa admins e o
+        // vendedor vinculado. Falha de notificação não pode derrubar o sync.
+        if (existing.status === "A" && STATUS_PERDA.includes(status)) {
+          try {
+            await notifyContratoPerdido(String(c.id), clienteIxcId, c.id_vendedor ? String(c.id_vendedor) : null, mrrEvento);
+          } catch (e) {
+            console.error("[sync] falha ao notificar perda de contrato:", (e as Error).message);
+          }
+        }
+      }
+
       await db.contrato.upsert({
         where: { ixcId: String(c.id) },
         create: {
@@ -158,6 +190,21 @@ export async function syncContratos(): Promise<{ processed: number; errors: numb
     10, // lote (handoff §9)
   );
   return { processed: todos.length, errors, vendedoresUsados: autorizados.length };
+}
+
+// Notifica admins (+ vendedor mapeado a User) que um contrato ativo foi perdido.
+async function notifyContratoPerdido(contratoIxcId: string, clienteIxcId: string, vendedorIxcId: string | null, mrrCents: number): Promise<void> {
+  const [cliente, vendedor, admins] = await Promise.all([
+    db.ixcCliente.findUnique({ where: { ixcId: clienteIxcId }, select: { razao: true } }),
+    vendedorIxcId ? db.vendedor.findUnique({ where: { ixcId: vendedorIxcId }, select: { userId: true } }) : Promise.resolve(null),
+    db.user.findMany({ where: { role: "admin" }, select: { id: true } }),
+  ]);
+  await notify([vendedor?.userId, ...admins.map((a) => a.id)], {
+    type: "contrato_perdido",
+    title: `Contrato cancelado: ${cliente?.razao ?? `Cliente #${clienteIxcId}`}`,
+    body: `Contrato #${contratoIxcId} saiu de ativo${mrrCents > 0 ? ` — ${brl(mrrCents)}/mês de MRR perdido` : ""}.`,
+    link: `/comercial/clientes/${clienteIxcId}`,
+  });
 }
 
 async function upsertCliente(ixcId: string): Promise<void> {

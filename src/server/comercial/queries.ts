@@ -180,6 +180,104 @@ export async function getCarteiraResumo(): Promise<CarteiraResumo> {
   return { ativos, mrrAtivoCents: mrr._sum.mrrCents ?? 0, pipeline, bloqueados, cancelados, inativosD };
 }
 
+// ── Churn / Net-MRR ──────────────────────────────────────────────────────────
+// Perda = contrato que SAIU de ativo pra cancelado/desativado (ContratoStatusEvent,
+// gravado pelo sync). Novo = contrato ativado no período (dataAtivacao). O histórico
+// de transições só existe a partir da criação da tabela — `desdeQuando` expõe isso.
+const ST_PERDA = [...ST_CANCEL, "D"];
+
+export type ChurnMes = { label: string; novos: number; novosMrrCents: number; perdidos: number; perdidosMrrCents: number; netCents: number };
+export type ChurnEvento = { contratoIxcId: string; clienteNome: string; vendedorNome: string | null; fromStatus: string; toStatus: string; mrrCents: number; at: Date };
+export type ChurnStats = {
+  kpis: {
+    novos30d: number;
+    mrrNovo30dCents: number;
+    perdidos30d: number;
+    mrrPerdido30dCents: number;
+    net30dCents: number;
+    churnRate30d: number | null; // perdidos / base ativa atual
+  };
+  meses: ChurnMes[];
+  eventosRecentes: ChurnEvento[];
+  desdeQuando: Date | null; // primeiro evento registrado (início do histórico)
+};
+
+export async function getChurnStats(): Promise<ChurnStats> {
+  const ativoIds = await activeVendedorIxcIds();
+  const gate = { vendedorIxcId: { in: ativoIds } };
+  const d30 = new Date(Date.now() - 30 * 86400000);
+
+  const perdaWhere = { fromStatus: "A", toStatus: { in: ST_PERDA }, vendedorIxcId: { in: ativoIds } };
+  const [perdas, primeiro, ativosBase, novos30, eventosRecentesRaw] = await Promise.all([
+    db.contratoStatusEvent.findMany({ where: perdaWhere, orderBy: { createdAt: "asc" } }),
+    db.contratoStatusEvent.findFirst({ orderBy: { createdAt: "asc" }, select: { createdAt: true } }),
+    db.contrato.count({ where: { ...gate, status: { in: ST_ATIVO } } }),
+    db.contrato.findMany({ where: { ...gate, status: { in: ST_ATIVO }, dataAtivacao: { gte: d30 } }, select: { mrrCents: true } }),
+    db.contratoStatusEvent.findMany({ where: perdaWhere, orderBy: { createdAt: "desc" }, take: 12 }),
+  ]);
+
+  // Meses (últimos 6): novos por dataAtivacao; perdas por data do evento.
+  const meses: ChurnMes[] = [];
+  const now = new Date();
+  for (let i = 5; i >= 0; i--) {
+    let m = now.getMonth() + 1 - i;
+    let a = now.getFullYear();
+    while (m <= 0) { m += 12; a--; }
+    const { inicio, fim } = monthRange(m, a);
+    const novosMes = await db.contrato.findMany({
+      where: { ...gate, status: { in: ST_ATIVO }, dataAtivacao: { gte: inicio, lt: fim } },
+      select: { mrrCents: true },
+    });
+    const perdasMes = perdas.filter((e) => e.createdAt >= inicio && e.createdAt < fim);
+    const novosMrr = novosMes.reduce((s, c) => s + c.mrrCents, 0);
+    const perdidosMrr = perdasMes.reduce((s, e) => s + e.mrrCents, 0);
+    meses.push({
+      label: `${MES_CURTO[m - 1]}/${String(a).slice(2)}`,
+      novos: novosMes.length,
+      novosMrrCents: novosMrr,
+      perdidos: perdasMes.length,
+      perdidosMrrCents: perdidosMrr,
+      netCents: novosMrr - perdidosMrr,
+    });
+  }
+
+  const perdas30 = perdas.filter((e) => e.createdAt >= d30);
+  const mrrNovo30dCents = novos30.reduce((s, c) => s + c.mrrCents, 0);
+  const mrrPerdido30dCents = perdas30.reduce((s, e) => s + e.mrrCents, 0);
+
+  // Nomes (join manual, sem FK).
+  const cliIds = [...new Set(eventosRecentesRaw.map((e) => e.clienteIxcId))];
+  const vendIds = [...new Set(eventosRecentesRaw.map((e) => e.vendedorIxcId).filter((x): x is string => !!x))];
+  const [clientes, vendedores] = await Promise.all([
+    cliIds.length ? db.ixcCliente.findMany({ where: { ixcId: { in: cliIds } }, select: { ixcId: true, razao: true } }) : [],
+    vendIds.length ? db.vendedor.findMany({ where: { ixcId: { in: vendIds } }, select: { ixcId: true, nome: true } }) : [],
+  ]);
+  const cliMap = new Map(clientes.map((c) => [c.ixcId, c.razao]));
+  const vendMap = new Map(vendedores.map((v) => [v.ixcId, v.nome]));
+
+  return {
+    kpis: {
+      novos30d: novos30.length,
+      mrrNovo30dCents,
+      perdidos30d: perdas30.length,
+      mrrPerdido30dCents,
+      net30dCents: mrrNovo30dCents - mrrPerdido30dCents,
+      churnRate30d: ativosBase + perdas30.length > 0 ? Math.round((perdas30.length / (ativosBase + perdas30.length)) * 1000) / 10 : null,
+    },
+    meses,
+    eventosRecentes: eventosRecentesRaw.map((e) => ({
+      contratoIxcId: e.contratoIxcId,
+      clienteNome: cliMap.get(e.clienteIxcId) ?? `Cliente #${e.clienteIxcId}`,
+      vendedorNome: e.vendedorIxcId ? vendMap.get(e.vendedorIxcId) ?? null : null,
+      fromStatus: e.fromStatus,
+      toStatus: e.toStatus,
+      mrrCents: e.mrrCents,
+      at: e.createdAt,
+    })),
+    desdeQuando: primeiro?.createdAt ?? null,
+  };
+}
+
 // ── Metas (time + por vendedor) ──────────────────────────────────────────────
 export function getMetaTime(mes: number, ano: number) {
   return db.meta.findUnique({ where: { mes_ano: { mes, ano } } });
@@ -734,13 +832,14 @@ export async function getClientes({ q, page = 0 }: { q?: string; page?: number }
 }
 
 export type Cliente360Contrato = { ixcId: string; status: string; mrrCents: number; vendedorNome: string | null; dataAtivacao: Date | null; dataCadastro: Date | null };
-export type Cliente360Projeto = { id: string; name: string; status: string; progress: number; dueDate: Date | null; tasksTotal: number; tasksDone: number };
+export type Cliente360Projeto = { id: string; name: string; status: string; progress: number; dueDate: Date | null; tasksTotal: number; tasksDone: number; horas: number };
 export type Cliente360 = {
   cliente: { ixcId: string; razao: string; uf: string | null; cnpjCpf: string | null } | null;
   contratos: Cliente360Contrato[];
   mrrAtivoCents: number;
   projetos: Cliente360Projeto[];
   projetosDisponiveis: { id: string; name: string }[];
+  horasTotal: number; // horas logadas em todos os projetos do cliente
 };
 
 export async function getCliente360(ixcId: string, workspaceId: string): Promise<Cliente360> {
@@ -750,6 +849,11 @@ export async function getCliente360(ixcId: string, workspaceId: string): Promise
     db.project.findMany({ where: { ixcClienteId: ixcId }, orderBy: { createdAt: "desc" }, select: { id: true, name: true, status: true, manualProgress: true, dueDate: true, tasks: { select: { column: true } } } }),
     db.project.findMany({ where: { workspaceId, ixcClienteId: null }, orderBy: { createdAt: "desc" }, take: 100, select: { id: true, name: true } }),
   ]);
+  // Horas logadas por projeto (TimeLog) — esforço real investido no cliente.
+  const logs = projetos.length
+    ? await db.timeLog.groupBy({ by: ["projectId"], where: { projectId: { in: projetos.map((p) => p.id) } }, _sum: { durationSec: true } })
+    : [];
+  const horasProj = new Map(logs.map((g) => [g.projectId, (g._sum.durationSec ?? 0) / 3600]));
   const vendIds = [...new Set(contratos.map((c) => c.vendedorIxcId).filter((x): x is string => !!x))];
   const vendedores = vendIds.length ? await db.vendedor.findMany({ where: { ixcId: { in: vendIds } }, select: { ixcId: true, nome: true } }) : [];
   const vendMap = new Map(vendedores.map((v) => [v.ixcId, v.nome]));
@@ -760,9 +864,10 @@ export async function getCliente360(ixcId: string, workspaceId: string): Promise
     mrrAtivoCents: contratos.filter((c) => ST_ATIVO.includes(c.status)).reduce((a, c) => a + c.mrrCents, 0),
     projetos: projetos.map((p) => {
       const done = p.tasks.filter((t) => t.column === "done").length;
-      return { id: p.id, name: p.name, status: p.status, progress: effectiveProgress(p.manualProgress, done, p.tasks.length), dueDate: p.dueDate, tasksTotal: p.tasks.length, tasksDone: done };
+      return { id: p.id, name: p.name, status: p.status, progress: effectiveProgress(p.manualProgress, done, p.tasks.length), dueDate: p.dueDate, tasksTotal: p.tasks.length, tasksDone: done, horas: Math.round((horasProj.get(p.id) ?? 0) * 10) / 10 };
     }),
     projetosDisponiveis: disponiveis,
+    horasTotal: Math.round([...horasProj.values()].reduce((a, h) => a + h, 0) * 10) / 10,
   };
 }
 

@@ -3,7 +3,7 @@
 // Tempo em fila: Lead.stageChangedAt (estágio atual) + LeadStageEvent (histórico).
 import "server-only";
 import { db } from "@/lib/db";
-import { LEAD_STAGES, type LeadStage } from "@/lib/leads";
+import { LEAD_STAGES, LEAD_STAGE_PROB, type LeadStage } from "@/lib/leads";
 
 const DAY = 86_400_000;
 const ATIVOS: LeadStage[] = ["novo", "contato", "qualificado", "proposta"];
@@ -20,14 +20,16 @@ export type LeadsStats = {
     taxaConversao: number | null; // ganho / (ganho + perdido), histórico todo
     cicloMedioDias: number | null; // entrada no funil → ganho
     paradosMais7d: number; // ativos há +7 dias no mesmo estágio
+    forecastCents: number; // Σ valorEstimado × prob do estágio (leads ativos)
   };
   porEstagio: { id: LeadStage; label: string; c: string; count: number; valorCents: number; mediaDias: number | null; maxDias: number | null }[];
   funil: { id: LeadStage; label: string; c: string; reached: number; pct: number }[];
   tempoMedioEstagio: { id: LeadStage; label: string; c: string; mediaDias: number | null; amostras: number }[];
   aging: { id: string; nome: string; empresa: string | null; stage: LeadStage; dias: number; assignedUserName: string | null; valorCents: number; semContatoDias: number }[];
   porResponsavel: { name: string; ativos: number; ganhos: number; perdidos: number; valorAbertoCents: number; conversao: number | null }[];
-  porOrigem: { origem: string; total: number; ativos: number; ganhos: number }[];
+  porOrigem: { origem: string; total: number; ativos: number; ganhos: number; perdidos: number; valorGanhoCents: number; conversao: number | null }[];
   entradaSemanas: { label: string; novos: number; ganhos: number }[];
+  motivosPerda: { motivo: string; count: number; valorCents: number }[];
 };
 
 const round1 = (n: number) => Math.round(n * 10) / 10;
@@ -146,17 +148,31 @@ export async function getLeadsStats(): Promise<LeadsStats> {
     .map((r) => ({ ...r, conversao: r.ganhos + r.perdidos > 0 ? Math.round((r.ganhos / (r.ganhos + r.perdidos)) * 100) : null }))
     .sort((a, b) => b.ativos + b.ganhos - (a.ativos + a.ganhos));
 
-  // ── Por origem ──────────────────────────────────────────────────────────────
-  const porOrig = new Map<string, { origem: string; total: number; ativos: number; ganhos: number }>();
+  // ── Por origem (com valor ganho + conversão = ROI por canal) ────────────────
+  const porOrig = new Map<string, { origem: string; total: number; ativos: number; ganhos: number; perdidos: number; valorGanhoCents: number }>();
   for (const l of leads) {
     const key = l.origem?.trim() || "sem origem";
-    const r = porOrig.get(key) ?? { origem: key, total: 0, ativos: 0, ganhos: 0 };
+    const r = porOrig.get(key) ?? { origem: key, total: 0, ativos: 0, ganhos: 0, perdidos: 0, valorGanhoCents: 0 };
     r.total++;
     if (isAtivo(l.stage)) r.ativos++;
-    if (l.stage === "ganho") r.ganhos++;
+    if (l.stage === "ganho") { r.ganhos++; r.valorGanhoCents += l.valorEstimadoCents; }
+    if (l.stage === "perdido") r.perdidos++;
     porOrig.set(key, r);
   }
-  const porOrigem = [...porOrig.values()].sort((a, b) => b.total - a.total);
+  const porOrigem = [...porOrig.values()]
+    .map((r) => ({ ...r, conversao: r.ganhos + r.perdidos > 0 ? Math.round((r.ganhos / (r.ganhos + r.perdidos)) * 100) : null }))
+    .sort((a, b) => b.total - a.total);
+
+  // ── Motivos de perda ─────────────────────────────────────────────────────────
+  const motivosMap = new Map<string, { motivo: string; count: number; valorCents: number }>();
+  for (const l of perdidos) {
+    const key = l.motivoPerda?.trim() || "Sem motivo registrado";
+    const r = motivosMap.get(key) ?? { motivo: key, count: 0, valorCents: 0 };
+    r.count++;
+    r.valorCents += l.valorEstimadoCents;
+    motivosMap.set(key, r);
+  }
+  const motivosPerda = [...motivosMap.values()].sort((a, b) => b.count - a.count);
 
   // ── Entrada por semana (últimas 8) ──────────────────────────────────────────
   const weekStart = (t: number) => {
@@ -187,7 +203,8 @@ export async function getLeadsStats(): Promise<LeadsStats> {
       taxaConversao: fechados > 0 ? Math.round((ganhos.length / fechados) * 100) : null,
       cicloMedioDias: ciclos.length ? round1(ciclos.reduce((a, b) => a + b, 0) / ciclos.length) : null,
       paradosMais7d: ativos.filter((l) => now - l.stageChangedAt.getTime() > 7 * DAY).length,
+      forecastCents: Math.round(ativos.reduce((a, l) => a + l.valorEstimadoCents * (LEAD_STAGE_PROB[stageOf(l.stage)] ?? 0), 0)),
     },
-    porEstagio, funil, tempoMedioEstagio, aging, porResponsavel, porOrigem, entradaSemanas,
+    porEstagio, funil, tempoMedioEstagio, aging, porResponsavel, porOrigem, entradaSemanas, motivosPerda,
   };
 }

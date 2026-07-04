@@ -28,7 +28,7 @@ export default async function Cliente360Page({ params }: { params: Promise<{ ixc
   const user = await requireUser();
   const data = await getCliente360(ixcId, user.workspaceId);
   if (!data.cliente) notFound();
-  const { cliente, contratos, mrrAtivoCents, projetos, projetosDisponiveis } = data;
+  const { cliente, contratos, mrrAtivoCents, projetos, projetosDisponiveis, horasTotal } = data;
   const ativos = contratos.filter((c) => c.status === "A").length;
 
   return (
@@ -48,7 +48,7 @@ export default async function Cliente360Page({ params }: { params: Promise<{ ixc
         <StatCard icon="wallet" label="MRR ativo" value={brl(mrrAtivoCents)} foot="contratos ativos" accent="var(--st-done)" />
         <StatCard icon="briefcase" label="Contratos" value={contratos.length} foot={`${ativos} ativos`} accent="var(--primary)" />
         <StatCard icon="layers" label="Projetos OpenBoard" value={projetos.length} foot="vinculados" accent="var(--st-progress)" />
-        <StatCard icon="checkCircle" label="Ativos" value={ativos} foot="contratos status A" accent="var(--st-review)" />
+        <StatCard icon="clock" label="Horas de projeto" value={horasTotal > 0 ? `${horasTotal.toLocaleString("pt-BR")}h` : "—"} foot={mrrAtivoCents > 0 && horasTotal > 0 ? `${brl(Math.round(mrrAtivoCents / horasTotal))}/h de MRR` : "esforço investido no cliente"} accent="var(--st-review)" />
       </div>
 
       {/* Contratos IXC */}
@@ -106,7 +106,7 @@ export default async function Cliente360Page({ params }: { params: Promise<{ ixc
                       <div style={{ minWidth: 0 }}>
                         <Link href={`/projects/${p.id}`} style={{ fontWeight: 700, color: "var(--ink)" }}>{p.name}</Link>
                         <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>
-                          <span style={{ color: st.c, fontWeight: 700 }}>{st.label}</span> · {p.progress}% · {p.tasksDone}/{p.tasksTotal} tarefas{p.dueDate ? ` · prazo ${dayLabel(new Date(p.dueDate))}` : ""}
+                          <span style={{ color: st.c, fontWeight: 700 }}>{st.label}</span> · {p.progress}% · {p.tasksDone}/{p.tasksTotal} tarefas{p.horas > 0 ? ` · ${p.horas.toLocaleString("pt-BR")}h logadas` : ""}{p.dueDate ? ` · prazo ${dayLabel(new Date(p.dueDate))}` : ""}
                         </div>
                       </div>
                       <div className="row gap8" style={{ alignItems: "center" }}>

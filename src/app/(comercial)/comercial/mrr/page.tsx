@@ -6,6 +6,7 @@ import {
   getMetasVendedorMap,
   getVendedoresCRM,
   periodoMesAno,
+  diasUteis,
 } from "@/server/comercial/queries";
 import { MetasManager } from "@/components/comercial/MetasManager";
 
@@ -24,6 +25,8 @@ export default async function MrrMetasPage() {
 
   const ativosMap = new Map(ranking.map((r) => [r.vendedorIxcId, r.ativos]));
   const ativosTotalMes = ranking.reduce((s, r) => s + r.ativos, 0);
+  const mrrAtivadoMesCents = ranking.reduce((s, r) => s + r.mrrCents, 0);
+  const du = diasUteis(mes, ano); // run-rate: projeção pelo ritmo de dias úteis
 
   const vendRows = vendedores
     .filter((v) => v.ativo)
@@ -41,6 +44,9 @@ export default async function MrrMetasPage() {
       metaContratos={metaTime?.metaContratos ?? 0}
       metaMrrCents={metaTime?.metaMrrCents ?? 0}
       vendedores={vendRows}
+      mrrAtivadoMesCents={mrrAtivadoMesCents}
+      diasUteisTotal={du.total}
+      diasUteisPassados={du.passados}
     />
   );
 }
