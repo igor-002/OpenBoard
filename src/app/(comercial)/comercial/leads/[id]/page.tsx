@@ -22,8 +22,17 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
   await requireUser();
   const data = await getLeadDetail(id);
   if (!data) notFound();
-  const { lead, mensagens, assignedUserName } = data;
+  const { lead, mensagens, assignedUserName, historico } = data;
   const stage = leadStageMeta(lead.stage);
+  // tempo no estágio atual = intervalo aberto do último evento (calculado no server)
+  const naFilaMs = historico.length ? historico[historico.length - 1].durationMs : null;
+  const diasNaFila = naFilaMs != null ? naFilaMs / 86_400_000 : 0;
+  const fmtDur = (ms: number) => {
+    const h = ms / 3_600_000;
+    if (h < 1) return `${Math.max(1, Math.round(ms / 60_000))}min`;
+    if (h < 48) return `${Math.round(h)}h`;
+    return `${(h / 24).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}d`;
+  };
 
   const analise: AnaliseView = {
     nota: lead.analiseNota,
@@ -44,6 +53,11 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
           <h1 className="page-title">{lead.nome}</h1>
           <p className="page-sub">
             {lead.empresa ? `${lead.empresa} · ` : ""}<span style={{ color: stage.c, fontWeight: 700 }}>{stage.label}</span>
+            {naFilaMs != null && (
+              <span style={{ color: diasNaFila > 7 && lead.stage !== "ganho" && lead.stage !== "perdido" ? "var(--st-risk)" : "var(--muted)", fontWeight: 700 }}>
+                {" "}· nesta fila há {fmtDur(naFilaMs)}
+              </span>
+            )}
             {lead.origem ? ` · origem ${lead.origem}` : ""}
             {lead.finalizadoAt && (
               <span className="badge" style={{ marginLeft: 8, color: "var(--st-done)", background: "var(--st-done-bg)", fontWeight: 700 }}>
@@ -68,6 +82,41 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
           <Field label="Último contato">{fullLabel(new Date(lead.lastContactAt))} {hourLabel(new Date(lead.lastContactAt))}</Field>
         </div>
       </Card>
+
+      {/* Histórico de filas (movimentações do funil) */}
+      <div style={{ marginTop: "var(--gap)" }}>
+        <Card title="Histórico de filas" sub="Por onde o lead passou e quanto tempo ficou em cada estágio" pad>
+          {historico.length === 0 ? (
+            <div className="muted">Sem movimentações registradas ainda.</div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+              {historico.map((h, i) => {
+                const to = leadStageMeta(h.toStage);
+                const last = i === historico.length - 1;
+                return (
+                  <div key={h.id} style={{ display: "grid", gridTemplateColumns: "18px 1fr", gap: 12 }}>
+                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+                      <span style={{ width: 12, height: 12, borderRadius: "50%", background: to.c, border: "2px solid var(--surface)", boxShadow: `0 0 0 2px ${to.c}`, marginTop: 4, flexShrink: 0 }} />
+                      {!last && <span style={{ width: 2, flex: 1, background: "var(--line)", minHeight: 18 }} />}
+                    </div>
+                    <div style={{ paddingBottom: last ? 0 : 16 }}>
+                      <div className="row gap8" style={{ alignItems: "baseline", flexWrap: "wrap" }}>
+                        <b style={{ fontSize: 13.5, color: to.c }}>{h.fromStage === null ? `Entrou no funil (${to.label})` : `${leadStageMeta(h.fromStage).label} → ${to.label}`}</b>
+                        <span className="muted" style={{ fontSize: 12 }}>{fullLabel(new Date(h.at))} {hourLabel(new Date(h.at))}</span>
+                      </div>
+                      <div className="muted" style={{ fontSize: 12.5, marginTop: 2 }}>
+                        {h.durationMs != null && !last && `ficou ${fmtDur(h.durationMs)} nesta fila`}
+                        {h.durationMs != null && last && lead.stage !== "ganho" && lead.stage !== "perdido" && `nesta fila há ${fmtDur(h.durationMs)}`}
+                        {h.movedByName ? `${h.durationMs != null && (!last || (lead.stage !== "ganho" && lead.stage !== "perdido")) ? " · " : ""}movido por ${h.movedByName}` : ""}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </Card>
+      </div>
 
       {/* Conversa */}
       <div style={{ marginTop: "var(--gap)" }}>

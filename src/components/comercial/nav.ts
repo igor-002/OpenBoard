@@ -18,6 +18,7 @@ export const COMERCIAL_NAV: NavItem[] = [
 ];
 
 export const COMERCIAL_CRUMBS: { prefix: string; a: string; b: string }[] = [
+  { prefix: "/comercial/leads/relatorios", a: "Comercial", b: "Relatórios de Leads" },
   { prefix: "/comercial/leads", a: "Comercial", b: "Leads" },
   { prefix: "/comercial/contratos", a: "Comercial", b: "Contratos" },
   { prefix: "/comercial/clientes", a: "Comercial", b: "Clientes" },

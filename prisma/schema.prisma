@@ -312,6 +312,7 @@ model Lead {
   valorEstimadoCents Int      @default(0)
   observacoes        String?
   stage              String   @default("novo") // ver LEAD_STAGES
+  stageChangedAt     DateTime @default(now()) // quando entrou no estágio atual (tempo em fila)
   order              Int      @default(0)
   ixcClienteId       String?  // casado a um cliente IXC (por doc), se houver
   assignedUserId     String?  // responsável OpenBoard
@@ -360,6 +361,20 @@ model LeadMensagem {
   createdAt   DateTime  @default(now())
 
   @@index([leadId])
+}
+
+// Histórico de transições de estágio do lead (base dos relatórios de tempo em fila).
+// fromStage null = entrada do lead no funil (criação).
+model LeadStageEvent {
+  id            String   @id @default(cuid())
+  leadId        String   // loose FK -> Lead.id (sem constraint, padrão do comercial)
+  fromStage     String?
+  toStage       String
+  movedByUserId String?  // quem moveu (null = sistema/webhook)
+  createdAt     DateTime @default(now())
+
+  @@index([leadId, createdAt])
+  @@index([toStage, createdAt])
 }
 
 // Log de cada execução de sync (observabilidade — ver handoff §9).

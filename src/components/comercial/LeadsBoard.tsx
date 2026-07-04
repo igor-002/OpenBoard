@@ -37,6 +37,23 @@ function timeAgo(d: Date) {
   return dd < 30 ? `${dd}d` : `${Math.floor(dd / 30)}mês`;
 }
 
+// Lead "parado": há mais de 7 dias na mesma fila (só estágios ativos).
+function isStale(c: LeadCard): boolean {
+  if (c.stage === "ganho" || c.stage === "perdido") return false;
+  return Date.now() - new Date(c.stageChangedAt).getTime() > 7 * 86_400_000;
+}
+
+// Tempo na fila atual + tom de alerta (verde <2d, âmbar 2–7d, vermelho >7d).
+// Ganho/perdido não alertam — são estágios finais.
+function stageAge(c: LeadCard): { label: string; fg: string; bg: string; stale: boolean } {
+  const days = (Date.now() - new Date(c.stageChangedAt).getTime()) / 86_400_000;
+  const closed = c.stage === "ganho" || c.stage === "perdido";
+  const label = timeAgo(c.stageChangedAt);
+  if (closed || days <= 2) return { label, fg: "var(--muted)", bg: "var(--surface-3)", stale: false };
+  if (days <= 7) return { label, fg: "var(--pr-med)", bg: "var(--pr-med-bg)", stale: false };
+  return { label, fg: "var(--st-risk)", bg: "var(--st-risk-bg)", stale: true };
+}
+
 type View = "kanban" | "lista";
 
 export function LeadsBoard({ board, userOpts, isAdmin }: { board: LeadsBoardData; userOpts: UserOpt[]; isAdmin: boolean }) {
@@ -55,9 +72,13 @@ export function LeadsBoard({ board, userOpts, isAdmin }: { board: LeadsBoardData
   const [, startMove] = useTransition();
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
-  useEffect(() => {
+  // re-sincroniza o estado otimista quando o server manda um board novo
+  // (padrão "adjust state during render" — evita o efeito com setState síncrono)
+  const [prevBoard, setPrevBoard] = useState(board);
+  if (prevBoard !== board) {
+    setPrevBoard(board);
     setCardsByStage(Object.fromEntries(board.stages.map((s) => [s.id, s.cards])));
-  }, [board]);
+  }
 
   const allCards = Object.values(cardsByStage).flat();
   const activeCard = allCards.find((c) => c.id === activeId) ?? null;
@@ -103,8 +124,13 @@ export function LeadsBoard({ board, userOpts, isAdmin }: { board: LeadsBoardData
             {view === "kanban" ? " · arraste entre os estágios (clique p/ abrir)" : " · clique numa linha p/ abrir"}
           </p>
         </div>
-        <button className="btn btn-primary" onClick={() => setOpen(true)}><Icon name="plus" size={16} /> Novo lead</button>
+        <div className="row gap12">
+          <Link href="/comercial/leads/relatorios" className="btn"><Icon name="chart" size={15} /> Relatórios</Link>
+          <button className="btn btn-primary" onClick={() => setOpen(true)}><Icon name="plus" size={16} /> Novo lead</button>
+        </div>
       </div>
+
+      <FunnelSummary cards={allCards} />
 
       {/* Toolbar: busca + filtro responsável + toggle de visão */}
       <div className="row" style={{ gap: 12, marginBottom: 18, flexWrap: "wrap", alignItems: "center" }}>
@@ -135,8 +161,9 @@ export function LeadsBoard({ board, userOpts, isAdmin }: { board: LeadsBoardData
             {LEAD_STAGES.map((s) => {
               const items = filteredByStage[s.id] ?? [];
               const valor = items.reduce((a, c) => a + c.valorEstimadoCents, 0);
+              const paradosCol = items.filter(isStale).length;
               return (
-                <Column key={s.id} id={s.id} label={s.label} color={s.c} count={items.length} valorCents={valor} dense={dense}>
+                <Column key={s.id} id={s.id} label={s.label} color={s.c} count={items.length} valorCents={valor} parados={paradosCol} dense={dense}>
                   {items.map((c) => <DraggableCard key={c.id} c={c} color={s.c} dense={dense} dimmed={activeId === c.id} onOpen={() => setDetail(c)} />)}
                 </Column>
               );
@@ -151,6 +178,50 @@ export function LeadsBoard({ board, userOpts, isAdmin }: { board: LeadsBoardData
       {open && <NewLeadModal onClose={() => { setOpen(false); router.refresh(); }} />}
       {detail && <LeadDetailModal lead={detail} userOpts={userOpts} isAdmin={isAdmin} onClose={() => { setDetail(null); router.refresh(); }} />}
     </>
+  );
+}
+
+// Resumo do funil: barra de distribuição por estágio + indicadores rápidos.
+// Só dado real derivado dos cards (nada estimado).
+function FunnelSummary({ cards }: { cards: LeadCard[] }) {
+  if (!cards.length) return null;
+  const ativos = cards.filter((c) => c.stage !== "ganho" && c.stage !== "perdido");
+  const valorAberto = ativos.reduce((a, c) => a + c.valorEstimadoCents, 0);
+  const parados = ativos.filter(isStale).length;
+  const ganhos = cards.filter((c) => c.stage === "ganho").length;
+  const segs = LEAD_STAGES.map((s) => ({ ...s, n: cards.filter((c) => c.stage === s.id).length })).filter((s) => s.n > 0);
+  return (
+    <div className="card" style={{ padding: "14px 18px", marginBottom: 18, display: "flex", flexWrap: "wrap", alignItems: "center", gap: "14px 28px" }}>
+      <div style={{ flex: "1 1 340px", minWidth: 260 }}>
+        <div style={{ display: "flex", height: 12, borderRadius: "var(--r-pill)", overflow: "hidden", gap: 2, background: "var(--surface-3)" }}>
+          {segs.map((s) => (
+            <div key={s.id} title={`${s.label}: ${s.n}`} style={{ flex: `${s.n} 0 auto`, minWidth: 10, background: s.c }} />
+          ))}
+        </div>
+        <div className="row" style={{ gap: "4px 14px", marginTop: 8, flexWrap: "wrap" }}>
+          {segs.map((s) => (
+            <span key={s.id} className="row gap8" style={{ alignItems: "center", fontSize: 11.5, fontWeight: 700, color: "var(--muted)" }}>
+              <span style={{ width: 8, height: 8, borderRadius: "50%", background: s.c }} />{s.label} <b style={{ color: "var(--ink)" }}>{s.n}</b>
+            </span>
+          ))}
+        </div>
+      </div>
+      <div className="row" style={{ gap: 24, flexWrap: "wrap" }}>
+        <MiniStat label="Em aberto" value={brl(valorAberto)} c="var(--ink)" />
+        <MiniStat label="Ativos" value={String(ativos.length)} c="var(--st-progress)" />
+        <MiniStat label="Ganhos" value={String(ganhos)} c="var(--st-done)" />
+        <MiniStat label="Parados +7d" value={String(parados)} c={parados > 0 ? "var(--st-risk)" : "var(--muted)"} />
+      </div>
+    </div>
+  );
+}
+
+function MiniStat({ label, value, c }: { label: string; value: string; c: string }) {
+  return (
+    <div>
+      <div style={{ fontSize: 10.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.5, color: "var(--muted)" }}>{label}</div>
+      <div style={{ fontSize: 17, fontWeight: 800, color: c, letterSpacing: -0.3 }}>{value}</div>
+    </div>
   );
 }
 
@@ -182,6 +253,7 @@ function LeadsTable({ cards, onOpen }: { cards: LeadCard[]; onOpen: (c: LeadCard
             <tr style={{ background: "var(--surface-3)" }}>
               <th style={th}>Lead</th>
               <th style={th}>Estágio</th>
+              <th style={{ ...th, textAlign: "right" }}>Na fila</th>
               <th style={{ ...th, textAlign: "right" }}>Valor est.</th>
               <th style={th}>Origem</th>
               <th style={th}>Responsável</th>
@@ -192,6 +264,7 @@ function LeadsTable({ cards, onOpen }: { cards: LeadCard[]; onOpen: (c: LeadCard
           <tbody>
             {rows.map((c) => {
               const st = LEAD_STAGES.find((s) => s.id === c.stage);
+              const fila = stageAge(c);
               return (
                 <tr key={c.id} onClick={() => onOpen(c)} style={{ cursor: "pointer" }}
                   onMouseEnter={(e) => (e.currentTarget.style.background = "var(--surface-2)")}
@@ -204,6 +277,9 @@ function LeadsTable({ cards, onOpen }: { cards: LeadCard[]; onOpen: (c: LeadCard
                     <span className="row gap8" style={{ alignItems: "center", fontSize: 12.5, fontWeight: 700, color: st?.c ?? "var(--muted)" }}>
                       <span style={{ width: 8, height: 8, borderRadius: "50%", background: st?.c ?? "var(--muted)" }} />{st?.label ?? c.stage}
                     </span>
+                  </td>
+                  <td style={{ ...td, textAlign: "right" }}>
+                    <span style={{ fontSize: 11.5, fontWeight: 800, color: fila.fg, background: fila.bg, padding: "3px 9px", borderRadius: "var(--r-pill)", whiteSpace: "nowrap" }}>{fila.label}</span>
                   </td>
                   <td style={{ ...td, textAlign: "right", fontWeight: 700 }}>{c.valorEstimadoCents > 0 ? brl(c.valorEstimadoCents) : <span className="muted">—</span>}</td>
                   <td style={td}>{c.origem ? <span className="badge" style={{ color: "var(--muted)", background: "var(--surface-3)", fontSize: 11 }}>{c.origem}</span> : <span className="muted">—</span>}</td>
@@ -227,10 +303,10 @@ function LeadsTable({ cards, onOpen }: { cards: LeadCard[]; onOpen: (c: LeadCard
   );
 }
 
-function Column({ id, label, color, count, valorCents, dense, children }: { id: string; label: string; color: string; count: number; valorCents: number; dense?: boolean; children: React.ReactNode }) {
+function Column({ id, label, color, count, valorCents, parados, dense, children }: { id: string; label: string; color: string; count: number; valorCents: number; parados?: number; dense?: boolean; children: React.ReactNode }) {
   const { setNodeRef, isOver } = useDroppable({ id });
   return (
-    <div ref={setNodeRef} style={{ background: "var(--surface-3)", borderRadius: "var(--r-lg)", padding: 14, outline: isOver ? `2px dashed ${color}` : "2px dashed transparent", transition: "outline-color .12s" }}>
+    <div ref={setNodeRef} style={{ background: isOver ? `color-mix(in srgb, ${color} 6%, var(--surface-3))` : "var(--surface-3)", borderRadius: "var(--r-lg)", padding: 14, outline: isOver ? `2px dashed ${color}` : "2px dashed transparent", transition: "outline-color .12s, background-color .12s" }}>
       <div style={{ display: "flex", flexDirection: "column", gap: 6, padding: "2px 4px 14px", borderBottom: `2px solid ${color}`, marginBottom: 14 }}>
         <div className="row between" style={{ alignItems: "center" }}>
           <div className="row gap8" style={{ alignItems: "center" }}>
@@ -239,7 +315,16 @@ function Column({ id, label, color, count, valorCents, dense, children }: { id: 
           </div>
           <span style={{ fontSize: 13, fontWeight: 800, color, background: `color-mix(in srgb, ${color} 14%, var(--surface))`, padding: "2px 11px", borderRadius: "var(--r-pill)", minWidth: 26, textAlign: "center" }}>{count}</span>
         </div>
-        {valorCents > 0 && <span style={{ fontSize: 13, fontWeight: 800, color: "var(--ink-2)" }}>{brl(valorCents)}</span>}
+        {(valorCents > 0 || !!parados) && (
+          <div className="row between" style={{ alignItems: "center" }}>
+            <span style={{ fontSize: 13, fontWeight: 800, color: "var(--ink-2)" }}>{valorCents > 0 ? brl(valorCents) : ""}</span>
+            {!!parados && (
+              <span title={`${parados} lead(s) há mais de 7 dias nesta fila`} className="row gap8" style={{ alignItems: "center", fontSize: 11, fontWeight: 800, color: "var(--st-risk)", background: "var(--st-risk-bg)", padding: "2px 8px", borderRadius: "var(--r-pill)" }}>
+                <Icon name="alert" size={11} /> {parados} parado{parados > 1 ? "s" : ""}
+              </span>
+            )}
+          </div>
+        )}
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: dense ? 6 : 12, minHeight: 48, maxHeight: "calc(100vh - 300px)", overflowY: "auto", margin: "0 -4px", padding: "0 4px 4px" }}>{children}</div>
     </div>
@@ -256,14 +341,16 @@ function DraggableCard({ c, color, dense, dimmed, onOpen }: { c: LeadCard; color
 }
 
 function CardBody({ c, color, dense }: { c: LeadCard; color: string; dense?: boolean }) {
+  const fila = stageAge(c);
   if (dense) {
     return (
-      <div className="card row between" style={{ padding: "9px 12px", paddingLeft: 13, boxShadow: "var(--sh-sm)", border: "1px solid var(--line)", borderLeft: `4px solid ${color}`, borderRadius: "var(--r-sm)", alignItems: "center", gap: 10 }}>
+      <div className="card lead-card row between" style={{ padding: "9px 12px", paddingLeft: 13, boxShadow: "var(--sh-sm)", border: "1px solid var(--line)", borderLeft: `4px solid ${color}`, borderRadius: "var(--r-sm)", alignItems: "center", gap: 10 }}>
         <div style={{ minWidth: 0, flex: 1 }}>
           <div style={{ fontWeight: 700, fontSize: 13.5, lineHeight: 1.2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.nome}</div>
           {c.empresa && <div className="muted" style={{ fontSize: 11.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.empresa}</div>}
         </div>
         {c.valorEstimadoCents > 0 && <span style={{ fontWeight: 800, fontSize: 13, flexShrink: 0 }}>{brl(c.valorEstimadoCents)}</span>}
+        <span title={`Na fila há ${fila.label}`} style={{ flexShrink: 0, fontSize: 10.5, fontWeight: 800, color: fila.fg, background: fila.bg, padding: "2px 7px", borderRadius: "var(--r-pill)" }}>{fila.label}</span>
         {c.assignedUserName && (
           <span title={c.assignedUserName} style={{ flexShrink: 0, width: 24, height: 24, borderRadius: "50%", background: avatarColor(c.assignedUserName), color: "#fff", fontSize: 10, fontWeight: 800, display: "grid", placeItems: "center" }}>{initials(c.assignedUserName)}</span>
         )}
@@ -271,7 +358,7 @@ function CardBody({ c, color, dense }: { c: LeadCard; color: string; dense?: boo
     );
   }
   return (
-    <div className="card" style={{ padding: 16, paddingLeft: 18, boxShadow: "var(--sh-sm)", border: "1px solid var(--line)", borderLeft: `4px solid ${color}`, borderRadius: "var(--r-md)" }}>
+    <div className="card lead-card" style={{ padding: 16, paddingLeft: 18, boxShadow: "var(--sh-sm)", border: "1px solid var(--line)", borderLeft: `4px solid ${color}`, borderRadius: "var(--r-md)" }}>
       <div className="row between" style={{ alignItems: "flex-start", gap: 10 }}>
         <div style={{ minWidth: 0 }}>
           <div style={{ fontWeight: 800, fontSize: 15.5, lineHeight: 1.25, color: "var(--ink)" }}>{c.nome}</div>
@@ -291,17 +378,18 @@ function CardBody({ c, color, dense }: { c: LeadCard; color: string; dense?: boo
         <div style={{ marginTop: 12, fontWeight: 800, fontSize: 19, color: "var(--ink)", letterSpacing: -0.4 }}>{brl(c.valorEstimadoCents)}</div>
       )}
 
-      {(c.origem || c.ixcClienteId) && (
-        <div className="row gap8" style={{ marginTop: 10, flexWrap: "wrap", alignItems: "center" }}>
-          {c.origem && <span className="badge" style={{ color: "var(--muted)", background: "var(--surface-3)", fontSize: 11 }}>{c.origem}</span>}
-          {c.ixcClienteId && <span className="badge" style={{ color: "var(--st-done)", background: "var(--st-done-bg)", fontSize: 11, fontWeight: 700 }}>cliente</span>}
-        </div>
-      )}
+      <div className="row gap8" style={{ marginTop: 10, flexWrap: "wrap", alignItems: "center" }}>
+        <span title={`Entrou nesta fila há ${fila.label}`} className="badge row gap8" style={{ alignItems: "center", color: fila.fg, background: fila.bg, fontSize: 11, fontWeight: 800 }}>
+          <Icon name="clock" size={11} /> {fila.label} na fila
+        </span>
+        {c.origem && <span className="badge" style={{ color: "var(--muted)", background: "var(--surface-3)", fontSize: 11 }}>{c.origem}</span>}
+        {c.ixcClienteId && <span className="badge" style={{ color: "var(--st-done)", background: "var(--st-done-bg)", fontSize: 11, fontWeight: 700 }}>cliente</span>}
+      </div>
 
       <div className="row between" style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--line)", alignItems: "center", gap: 8 }}>
         <span className="muted" style={{ fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.contato ?? "—"}</span>
-        <span className="row gap8 muted" style={{ flexShrink: 0, alignItems: "center", fontSize: 11.5 }}>
-          <Icon name="clock" size={12} /> {timeAgo(c.lastContactAt)}
+        <span className="row gap8 muted" title="Último contato" style={{ flexShrink: 0, alignItems: "center", fontSize: 11.5 }}>
+          <Icon name="msg" size={12} /> {timeAgo(c.lastContactAt)}
         </span>
       </div>
     </div>
@@ -346,7 +434,9 @@ function LeadDetailModal({ lead, userOpts, isAdmin, onClose }: { lead: LeadCard;
   const router = useRouter();
   const [pending, start] = useTransition();
   const [assigned, setAssigned] = useState(lead.assignedUserId ?? "");
+  const [stage, setStage] = useState<LeadStage>(lead.stage);
   function changeAssign(v: string) { setAssigned(v); start(async () => { await assignLead(lead.id, v || null); router.refresh(); }); }
+  function changeStage(v: string) { setStage(v as LeadStage); start(async () => { await moveLeadStage(lead.id, v); router.refresh(); }); }
   function remove() { start(async () => { await deleteLead(lead.id); onClose(); }); }
   return (
     <div {...useOverlayClose(onClose)} style={{ position: "fixed", inset: 0, background: "rgba(16,24,40,.45)", zIndex: 60, display: "grid", placeItems: "center", padding: 24 }}>
@@ -362,6 +452,11 @@ function LeadDetailModal({ lead, userOpts, isAdmin, onClose }: { lead: LeadCard;
           {lead.email && <><span className="muted">E-mail</span><span>{lead.email}</span></>}
           {lead.origem && <><span className="muted">Origem</span><span>{lead.origem}</span></>}
           {lead.valorEstimadoCents > 0 && <><span className="muted">Valor est.</span><span style={{ fontWeight: 700 }}>{brl(lead.valorEstimadoCents)}</span></>}
+          <span className="muted">Na fila</span>
+          <span>
+            <span style={{ fontWeight: 700, color: LEAD_STAGES.find((s) => s.id === lead.stage)?.c }}>{LEAD_STAGES.find((s) => s.id === lead.stage)?.label ?? lead.stage}</span>
+            {" "}há <b style={{ color: stageAge(lead).fg }}>{stageAge(lead).label}</b>
+          </span>
           <span className="muted">Último contato</span><span>{new Date(lead.lastContactAt).toLocaleString("pt-BR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
         </div>
         <Link href={`/comercial/leads/${lead.id}`} className="btn btn-primary" style={{ marginBottom: 14, width: "100%", justifyContent: "center" }}>Abrir conversa e análise IA <Icon name="chevRight" size={14} /></Link>
@@ -372,12 +467,20 @@ function LeadDetailModal({ lead, userOpts, isAdmin, onClose }: { lead: LeadCard;
             <div style={{ fontSize: 13, color: "var(--ink-2)", whiteSpace: "pre-wrap", background: "var(--surface-3)", borderRadius: "var(--r-md)", padding: 10, maxHeight: 160, overflowY: "auto" }}>{lead.observacoes}</div>
           </div>
         )}
-        <div className="field">
-          <label htmlFor="assignee">Responsável</label>
-          <select className="input" id="assignee" value={assigned} onChange={(e) => changeAssign(e.target.value)} disabled={pending}>
-            <option value="">Sem responsável</option>
-            {userOpts.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
-          </select>
+        <div className="row gap12">
+          <div className="field" style={{ flex: 1 }}>
+            <label htmlFor="stage-sel">Fila / estágio</label>
+            <select className="input" id="stage-sel" value={stage} onChange={(e) => changeStage(e.target.value)} disabled={pending}>
+              {LEAD_STAGES.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
+            </select>
+          </div>
+          <div className="field" style={{ flex: 1 }}>
+            <label htmlFor="assignee">Responsável</label>
+            <select className="input" id="assignee" value={assigned} onChange={(e) => changeAssign(e.target.value)} disabled={pending}>
+              <option value="">Sem responsável</option>
+              {userOpts.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+            </select>
+          </div>
         </div>
         <div className="row between" style={{ marginTop: 18 }}>
           {isAdmin ? <button className="btn" style={{ color: "var(--st-risk)" }} onClick={remove} disabled={pending}><Icon name="alert" size={15} /> Excluir</button> : <span />}

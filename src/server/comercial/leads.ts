@@ -21,6 +21,7 @@ export type LeadCard = {
   assignedUserId: string | null;
   assignedUserName: string | null;
   lastContactAt: Date;
+  stageChangedAt: Date; // quando entrou no estágio atual (tempo em fila)
   createdAt: Date;
 };
 export type LeadStageCol = { id: LeadStage; label: string; c: string; cards: LeadCard[]; total: number; valorCents: number };
@@ -40,7 +41,7 @@ export async function getLeadsBoard(): Promise<LeadsBoard> {
       id: l.id, nome: l.nome, empresa: l.empresa, cnpjCpf: l.cnpjCpf, contato: l.contato, email: l.email,
       origem: l.origem, valorEstimadoCents: l.valorEstimadoCents, observacoes: l.observacoes, stage,
       ixcClienteId: l.ixcClienteId, assignedUserId: l.assignedUserId, assignedUserName: l.assignedUserId ? uMap.get(l.assignedUserId) ?? null : null,
-      lastContactAt: l.lastContactAt, createdAt: l.createdAt,
+      lastContactAt: l.lastContactAt, stageChangedAt: l.stageChangedAt, createdAt: l.createdAt,
     });
     col.total += 1;
     col.valorCents += l.valorEstimadoCents;
@@ -241,7 +242,20 @@ export async function ingestLead(input: LeadInput): Promise<IngestResult> {
     },
   });
   await upsertMensagens(lead.id, input.mensagens);
+  // histórico: entrada no funil (base dos relatórios de tempo em fila)
+  await db.leadStageEvent.create({ data: { leadId: lead.id, fromStage: null, toStage: "novo" } });
   return { created: true, id: lead.id, matchedBy: null };
+}
+
+// Move o lead de estágio registrando o histórico (única forma correta de mudar stage).
+export async function changeLeadStage(id: string, stage: LeadStage, movedByUserId?: string | null): Promise<void> {
+  const lead = await db.lead.findUnique({ where: { id }, select: { stage: true } });
+  if (!lead || lead.stage === stage) return;
+  const max = await db.lead.aggregate({ where: { stage }, _max: { order: true } });
+  await db.$transaction([
+    db.lead.update({ where: { id }, data: { stage, stageChangedAt: new Date(), order: (max._max.order ?? 0) + 1 } }),
+    db.leadStageEvent.create({ data: { leadId: id, fromStage: lead.stage, toStage: stage, movedByUserId: movedByUserId ?? null } }),
+  ]);
 }
 
 // Ordena a conversa cronologicamente. Chave primária = id numérico do AtendAI
@@ -260,13 +274,28 @@ export function sortConversa<T extends { externalId: string; sentAt: Date | null
 
 // Detalhe de um lead p/ a página /comercial/leads/[id]: lead + conversa + responsável.
 // Se o lead não tem mensagens na tabela (criado antes da feature), faz backfill do payload.
+export type LeadStageHistItem = { id: string; fromStage: string | null; toStage: string; movedByName: string | null; at: Date; durationMs: number | null };
+
 export async function getLeadDetail(id: string) {
   const lead = await db.lead.findUnique({ where: { id } });
   if (!lead) return null;
   await ensureMensagens(id, lead.payload);
-  const [raw, user] = await Promise.all([
+  const [raw, user, events] = await Promise.all([
     db.leadMensagem.findMany({ where: { leadId: id } }),
     lead.assignedUserId ? db.user.findUnique({ where: { id: lead.assignedUserId }, select: { name: true } }) : Promise.resolve(null),
+    db.leadStageEvent.findMany({ where: { leadId: id }, orderBy: { createdAt: "asc" } }),
   ]);
-  return { lead, mensagens: sortConversa(raw), assignedUserName: user?.name ?? null };
+  const moverIds = [...new Set(events.map((e) => e.movedByUserId).filter((x): x is string => !!x))];
+  const movers = moverIds.length ? await db.user.findMany({ where: { id: { in: moverIds } }, select: { id: true, name: true } }) : [];
+  const mMap = new Map(movers.map((u) => [u.id, u.name]));
+  // duração em cada estágio = intervalo até o próximo evento (último = até agora)
+  const historico: LeadStageHistItem[] = events.map((e, i) => ({
+    id: e.id,
+    fromStage: e.fromStage,
+    toStage: e.toStage,
+    movedByName: e.movedByUserId ? mMap.get(e.movedByUserId) ?? null : null,
+    at: e.createdAt,
+    durationMs: (i < events.length - 1 ? events[i + 1].createdAt.getTime() : Date.now()) - e.createdAt.getTime(),
+  }));
+  return { lead, mensagens: sortConversa(raw), assignedUserName: user?.name ?? null, historico };
 }

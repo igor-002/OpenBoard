@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireUser, requireAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { ingestLead } from "@/server/comercial/leads";
+import { ingestLead, changeLeadStage } from "@/server/comercial/leads";
 import { analisarConversaLead } from "@/server/comercial/analise";
 import { isLeadStage } from "@/lib/leads";
 
@@ -29,12 +29,11 @@ export async function createLeadManual(_prev: LeadActionState, formData: FormDat
   return { ok: true, id: r.id, created: r.created, matchedBy: r.matchedBy };
 }
 
-// Move um lead para outro estágio (drag no Kanban).
+// Move um lead para outro estágio (drag no Kanban) — registra histórico p/ relatórios.
 export async function moveLeadStage(id: string, stage: string): Promise<LeadActionState> {
-  await requireUser();
+  const user = await requireUser();
   if (!isLeadStage(stage)) return { error: "Estágio inválido." };
-  const max = await db.lead.aggregate({ where: { stage }, _max: { order: true } });
-  await db.lead.update({ where: { id }, data: { stage, order: (max._max.order ?? 0) + 1 } });
+  await changeLeadStage(id, stage, user.id);
   revalidatePath("/comercial/leads");
   return { ok: true };
 }
@@ -49,8 +48,9 @@ export async function assignLead(id: string, userId: string | null): Promise<Lea
 
 export async function deleteLead(id: string): Promise<LeadActionState> {
   await requireAdmin();
-  // FK loose (sem cascade) → apaga as mensagens antes p/ não deixar órfãs.
+  // FK loose (sem cascade) → apaga mensagens e histórico antes p/ não deixar órfãos.
   await db.leadMensagem.deleteMany({ where: { leadId: id } });
+  await db.leadStageEvent.deleteMany({ where: { leadId: id } });
   await db.lead.delete({ where: { id } });
   revalidatePath("/comercial/leads");
   return { ok: true };

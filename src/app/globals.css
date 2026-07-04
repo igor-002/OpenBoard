@@ -889,6 +889,19 @@ a {
   border-color: var(--primary);
 }
 
+/* ── Kanban de Leads: polimento dos cards ─────────────────────────────────── */
+.lead-card {
+  transition: box-shadow 0.15s, transform 0.15s, border-color 0.15s;
+}
+.lead-card:hover {
+  box-shadow: var(--sh-md);
+  transform: translateY(-1px);
+}
+@media (prefers-reduced-motion: reduce) {
+  .lead-card,
+  .lead-card:hover { transition: none; transform: none; }
+}
+
 /* ── Impressão do Relatório Diário (Gerar PDF) ───────────────────────────── */
 .diario-print { display: none; }
 .diario-print-tbl { width: 100%; border-collapse: collapse; font-size: 12px; }
