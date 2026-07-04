@@ -54,7 +54,7 @@ function stageAge(c: LeadCard): { label: string; fg: string; bg: string; stale: 
   return { label, fg: "var(--st-risk)", bg: "var(--st-risk-bg)", stale: true };
 }
 
-type View = "kanban" | "lista";
+type View = "kanban" | "lista" | "finalizados";
 
 export function LeadsBoard({ board, userOpts, isAdmin }: { board: LeadsBoardData; userOpts: UserOpt[]; isAdmin: boolean }) {
   const router = useRouter();
@@ -96,6 +96,8 @@ export function LeadsBoard({ board, userOpts, isAdmin }: { board: LeadsBoardData
   const filteredFlat = allCards.filter(matches);
   const shownTotal = filteredFlat.length;
   const filtering = !!term || !!fUser;
+  const finalizados = filteredFlat.filter((c) => c.finalizadoAt != null);
+  const finalizadosCount = allCards.filter((c) => c.finalizadoAt != null).length;
 
   function onDragEnd(e: DragEndEvent) {
     setActiveId(null);
@@ -151,6 +153,7 @@ export function LeadsBoard({ board, userOpts, isAdmin }: { board: LeadsBoardData
           <div style={{ display: "inline-flex", background: "var(--surface-3)", borderRadius: "var(--r-sm)", padding: 3, gap: 2 }}>
             <ViewBtn active={view === "kanban"} onClick={() => setView("kanban")} icon="kanban" label="Kanban" />
             <ViewBtn active={view === "lista"} onClick={() => setView("lista")} icon="grid" label="Lista" />
+            <ViewBtn active={view === "finalizados"} onClick={() => setView("finalizados")} icon="checkCircle" label={`Finalizados${finalizadosCount > 0 ? ` (${finalizadosCount})` : ""}`} />
           </div>
         </div>
       </div>
@@ -171,8 +174,10 @@ export function LeadsBoard({ board, userOpts, isAdmin }: { board: LeadsBoardData
           </div>
           <DragOverlay>{activeCard ? <div style={{ cursor: "grabbing", width: 280 }}><CardBody c={activeCard} color={LEAD_STAGES.find((s) => s.id === activeCard.stage)?.c ?? "var(--muted)"} dense={dense} /></div> : null}</DragOverlay>
         </DndContext>
-      ) : (
+      ) : view === "lista" ? (
         <LeadsTable cards={filteredFlat} onOpen={(c) => setDetail(c)} />
+      ) : (
+        <FinalizadosTable cards={finalizados} isAdmin={isAdmin} onOpen={(c) => setDetail(c)} />
       )}
 
       {open && <NewLeadModal onClose={() => { setOpen(false); router.refresh(); }} />}
@@ -225,7 +230,7 @@ function MiniStat({ label, value, c }: { label: string; value: string; c: string
   );
 }
 
-function ViewBtn({ active, onClick, icon, label }: { active: boolean; onClick: () => void; icon: "kanban" | "grid"; label: string }) {
+function ViewBtn({ active, onClick, icon, label }: { active: boolean; onClick: () => void; icon: "kanban" | "grid" | "checkCircle"; label: string }) {
   return (
     <button onClick={onClick} className="row gap8" style={{
       alignItems: "center", border: "none", cursor: "pointer", fontSize: 13, fontWeight: 700,
@@ -293,6 +298,73 @@ function LeadsTable({ cards, onOpen }: { cards: LeadCard[]; onOpen: (c: LeadCard
                   </td>
                   <td style={{ ...td, color: "var(--ink-2)" }}>{c.contato ?? <span className="muted">—</span>}</td>
                   <td style={{ ...td, textAlign: "right", color: "var(--muted)", whiteSpace: "nowrap" }}>{timeAgo(c.lastContactAt)}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ── Aba Finalizados: atendimentos encerrados no AtendAI — triagem e limpeza ──
+function FinalizadosTable({ cards, isAdmin, onOpen }: { cards: LeadCard[]; isAdmin: boolean; onOpen: (c: LeadCard) => void }) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  const [confirmId, setConfirmId] = useState<string | null>(null);
+  const rows = [...cards].sort((a, b) => new Date(b.finalizadoAt!).getTime() - new Date(a.finalizadoAt!).getTime());
+  const th: React.CSSProperties = { textAlign: "left", padding: "11px 14px", fontSize: 11.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.4, color: "var(--muted)", whiteSpace: "nowrap" };
+  const td: React.CSSProperties = { padding: "12px 14px", fontSize: 13.5, borderTop: "1px solid var(--line)", verticalAlign: "middle" };
+  function remove(id: string) {
+    start(async () => { await deleteLead(id); setConfirmId(null); router.refresh(); });
+  }
+  if (!rows.length) {
+    return <div className="card" style={{ padding: 40, textAlign: "center", color: "var(--muted)" }}>Nenhum atendimento finalizado ainda. Quando o AtendAI encerrar uma conversa, o lead aparece aqui com o histórico completo.</div>;
+  }
+  return (
+    <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+      <div style={{ overflowX: "auto" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <thead>
+            <tr style={{ background: "var(--surface-3)" }}>
+              <th style={th}>Lead</th>
+              <th style={th}>Fila atual</th>
+              <th style={{ ...th, textAlign: "right" }}>Finalizado em</th>
+              <th style={{ ...th, textAlign: "right" }}>Valor est.</th>
+              <th style={th}>Responsável</th>
+              <th style={{ ...th, textAlign: "right" }}>Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((c) => {
+              const st = LEAD_STAGES.find((s) => s.id === c.stage);
+              return (
+                <tr key={c.id}>
+                  <td style={{ ...td, cursor: "pointer" }} onClick={() => onOpen(c)}>
+                    <div style={{ fontWeight: 700 }}>{c.nome}</div>
+                    {c.empresa && <div className="muted" style={{ fontSize: 12 }}>{c.empresa}</div>}
+                  </td>
+                  <td style={td}>
+                    <span className="row gap8" style={{ alignItems: "center", fontSize: 12.5, fontWeight: 700, color: st?.c ?? "var(--muted)" }}>
+                      <span style={{ width: 8, height: 8, borderRadius: "50%", background: st?.c ?? "var(--muted)" }} />{st?.label ?? c.stage}
+                    </span>
+                  </td>
+                  <td style={{ ...td, textAlign: "right", whiteSpace: "nowrap" }}>
+                    {new Date(c.finalizadoAt!).toLocaleString("pt-BR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                  </td>
+                  <td style={{ ...td, textAlign: "right", fontWeight: 700 }}>{c.valorEstimadoCents > 0 ? brl(c.valorEstimadoCents) : <span className="muted">—</span>}</td>
+                  <td style={{ ...td, color: c.assignedUserName ? "var(--ink-2)" : "var(--muted)" }}>{c.assignedUserName ?? "—"}</td>
+                  <td style={{ ...td, textAlign: "right", whiteSpace: "nowrap" }}>
+                    <Link href={`/comercial/leads/${c.id}`} className="btn" style={{ padding: "5px 12px", fontSize: 12.5 }}>Conversa</Link>
+                    {isAdmin && (confirmId === c.id ? (
+                      <button className="btn" style={{ padding: "5px 12px", fontSize: 12.5, marginLeft: 8, color: "#fff", background: "var(--st-risk)", borderColor: "var(--st-risk)" }} disabled={pending} onClick={() => remove(c.id)}>
+                        {pending ? "Excluindo…" : "Confirmar exclusão"}
+                      </button>
+                    ) : (
+                      <button className="btn" style={{ padding: "5px 12px", fontSize: 12.5, marginLeft: 8, color: "var(--st-risk)" }} onClick={() => setConfirmId(c.id)}>Excluir</button>
+                    ))}
+                  </td>
                 </tr>
               );
             })}
@@ -382,6 +454,7 @@ function CardBody({ c, color, dense }: { c: LeadCard; color: string; dense?: boo
         <span title={`Entrou nesta fila há ${fila.label}`} className="badge row gap8" style={{ alignItems: "center", color: fila.fg, background: fila.bg, fontSize: 11, fontWeight: 800 }}>
           <Icon name="clock" size={11} /> {fila.label} na fila
         </span>
+        {c.finalizadoAt && <span title="Atendimento encerrado no AtendAI — conversa completa disponível" className="badge row gap8" style={{ alignItems: "center", color: "var(--st-done)", background: "var(--st-done-bg)", fontSize: 11, fontWeight: 800 }}><Icon name="checkCircle" size={11} /> finalizado</span>}
         {c.origem && <span className="badge" style={{ color: "var(--muted)", background: "var(--surface-3)", fontSize: 11 }}>{c.origem}</span>}
         {c.ixcClienteId && <span className="badge" style={{ color: "var(--st-done)", background: "var(--st-done-bg)", fontSize: 11, fontWeight: 700 }}>cliente</span>}
       </div>

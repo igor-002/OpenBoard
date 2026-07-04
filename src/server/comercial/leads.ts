@@ -22,6 +22,7 @@ export type LeadCard = {
   assignedUserName: string | null;
   lastContactAt: Date;
   stageChangedAt: Date; // quando entrou no estágio atual (tempo em fila)
+  finalizadoAt: Date | null; // atendimento encerrado no AtendAI (conversa completa já chegou)
   createdAt: Date;
 };
 export type LeadStageCol = { id: LeadStage; label: string; c: string; cards: LeadCard[]; total: number; valorCents: number };
@@ -41,7 +42,7 @@ export async function getLeadsBoard(): Promise<LeadsBoard> {
       id: l.id, nome: l.nome, empresa: l.empresa, cnpjCpf: l.cnpjCpf, contato: l.contato, email: l.email,
       origem: l.origem, valorEstimadoCents: l.valorEstimadoCents, observacoes: l.observacoes, stage,
       ixcClienteId: l.ixcClienteId, assignedUserId: l.assignedUserId, assignedUserName: l.assignedUserId ? uMap.get(l.assignedUserId) ?? null : null,
-      lastContactAt: l.lastContactAt, stageChangedAt: l.stageChangedAt, createdAt: l.createdAt,
+      lastContactAt: l.lastContactAt, stageChangedAt: l.stageChangedAt, finalizadoAt: l.finalizadoAt, createdAt: l.createdAt,
     });
     col.total += 1;
     col.valorCents += l.valorEstimadoCents;
