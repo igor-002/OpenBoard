@@ -59,6 +59,12 @@ export function AuthForm({ mode, action }: { mode: "login" | "register"; action:
           <button className="btn btn-primary btn-block" type="submit" disabled={pending}>
             {pending ? "Aguarde…" : isLogin ? "Entrar" : "Criar conta"}
           </button>
+
+          {isLogin && (
+            <Link href="/esqueci-senha" style={{ color: "var(--muted)", fontSize: 13, fontWeight: 600, textAlign: "center", marginTop: -4 }}>
+              Esqueci minha senha
+            </Link>
+          )}
         </form>
 
         <p className="page-sub" style={{ textAlign: "center", marginTop: 20 }}>

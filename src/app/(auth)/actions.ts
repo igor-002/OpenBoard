@@ -7,6 +7,7 @@ import { db } from "@/lib/db";
 import { hashPassword, verifyPassword } from "@/lib/password";
 import { setSession, clearSession } from "@/lib/auth";
 import { checkRateLimit, registerFailure, resetRateLimit } from "@/lib/rate-limit";
+import { createResetLink, deliverResetLink, findUserByResetToken } from "@/server/password-reset";
 
 async function clientIp(): Promise<string> {
   const h = await headers();
@@ -94,4 +95,61 @@ export async function registerAction(_prev: AuthState, formData: FormData): Prom
 export async function logoutAction() {
   await clearSession();
   redirect("/login");
+}
+
+// ── Esqueci minha senha ──────────────────────────────────────────────────────
+export type ForgotState = { ok?: boolean; error?: string };
+
+const forgotSchema = z.object({ email: z.string().email("E-mail inválido") });
+
+export async function forgotPasswordAction(_prev: ForgotState, formData: FormData): Promise<ForgotState> {
+  const parsed = forgotSchema.safeParse({ email: formData.get("email") });
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+
+  // mesmo rate limit do login — evita spam de pedidos
+  const key = `reset:${await clientIp()}:${parsed.data.email}`;
+  const limit = checkRateLimit(key);
+  if (!limit.ok) {
+    const min = Math.ceil((limit.retryAfterSec ?? 60) / 60);
+    return { error: `Muitas tentativas. Tente novamente em ~${min} min.` };
+  }
+  registerFailure(key); // conta todo pedido, não só falha
+
+  // Base do link: APP_URL (prod, com basePath) > host da request (dev).
+  const h = await headers();
+  const base = process.env.APP_URL || `http://${h.get("host") ?? "localhost:3000"}`;
+  const link = await createResetLink(parsed.data.email, base);
+  if (link) await deliverResetLink(parsed.data.email, link);
+  // resposta idêntica com ou sem usuário — não revela se o e-mail existe
+  return { ok: true };
+}
+
+const resetSchema = z.object({
+  token: z.string().min(20, "Link inválido"),
+  password: z.string().min(8, "Senha precisa de ao menos 8 caracteres"),
+  confirm: z.string(),
+});
+
+export async function resetPasswordAction(_prev: ForgotState, formData: FormData): Promise<ForgotState> {
+  const parsed = resetSchema.safeParse({
+    token: formData.get("token"),
+    password: formData.get("password"),
+    confirm: formData.get("confirm"),
+  });
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+  if (parsed.data.password !== parsed.data.confirm) return { error: "As senhas não conferem." };
+
+  const user = await findUserByResetToken(parsed.data.token);
+  if (!user) return { error: "Link inválido ou expirado. Peça um novo em Esqueci minha senha." };
+
+  await db.user.update({
+    where: { id: user.id },
+    data: {
+      passwordHash: await hashPassword(parsed.data.password),
+      resetTokenHash: null,
+      resetTokenExpiresAt: null,
+      mustChangePassword: false,
+    },
+  });
+  return { ok: true };
 }

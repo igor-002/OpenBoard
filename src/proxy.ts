@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { verifyToken, SESSION_COOKIE } from "@/lib/jwt";
 
-const AUTH_PAGES = ["/login", "/register"];
+const AUTH_PAGES = ["/login", "/register", "/esqueci-senha", "/redefinir-senha"];
 // Rotas públicas com gate próprio por token (painel de TV, webhook de leads).
 // Não exigem sessão — a própria rota valida o token.
 const PUBLIC_PAGES = ["/tv", "/api/tv", "/api/comercial/leads"];
