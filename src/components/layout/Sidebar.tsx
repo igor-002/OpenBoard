@@ -64,6 +64,14 @@ export function Sidebar({
         <Icon name="briefcase" />
         <span className="sb-label">Comercial</span>
       </Link>
+      <Link
+        href="/marketing"
+        className={`sb-item ${pathname.startsWith("/marketing") ? "active" : ""}`}
+        title="Marketing"
+      >
+        <Icon name="share" />
+        <span className="sb-label">Marketing</span>
+      </Link>
 
       <Link href="/settings/account" className="sb-user" title="Minha conta">
         <Avatar user={user} size={38} />

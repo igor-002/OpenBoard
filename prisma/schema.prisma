@@ -458,3 +458,96 @@ model RelatorioDiario {
   @@unique([vendedorIxcId, data])
   @@index([data])
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MARKETING — portado de github.com/igor-002/openmarketing
+// (ver docs/HANDOFF-OPENBOARD.md). Duas áreas independentes:
+//  - Redes Sociais: métricas mensais de contas Instagram agrupadas por empresa,
+//    coletadas via job de sync (Instagram Graph API).
+//  - Gestão da Equipe: produção por funcionário via tarefas (CRUD manual hoje;
+//    GLPI é integração futura — Task.source distingue a origem).
+// Sem RBAC — qualquer usuário logado vê e edita tudo (igual ao app de origem).
+// ─────────────────────────────────────────────────────────────────────────────
+
+model MarketingCompany {
+  id       String             @id @default(cuid())
+  name     String
+  slug     String             @unique // "todas" é reservado p/ visão agregada — não usar em empresa real
+  accounts InstagramAccount[]
+}
+
+model InstagramAccount {
+  id             String                  @id @default(cuid())
+  companyId      String
+  company        MarketingCompany        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  username       String                  @unique
+  displayName    String
+  active         Boolean                 @default(true)
+  // Credenciais da Instagram API ficam AQUI (não em env): a renovação automática
+  // troca o token a cada ciclo (~60 dias). Sem token = conta ainda não conectada,
+  // o sync pula.
+  igUserId       String?                 @unique
+  accessToken    String?
+  tokenExpiresAt DateTime?
+  lastSyncAt     DateTime?
+  accountMetrics AccountMetricsHistory[]
+  mediaMetrics   MediaTypeStats[]
+}
+
+// Snapshot mensal de métricas por conta. metricName é string livre (inclui
+// chaves dinâmicas com prefixo views_follow:* / views_media:* — não virar enum,
+// a Meta adiciona categorias).
+model AccountMetricsHistory {
+  id          String           @id @default(cuid())
+  accountId   String
+  account     InstagramAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  metricName  String
+  value       Int
+  period      String // "YYYY-MM"
+  collectedAt DateTime         @default(now())
+
+  @@unique([accountId, metricName, period])
+  @@index([period])
+}
+
+// Distribuição de tipos de mídia publicada por mês (donut de formatos).
+model MediaTypeStats {
+  id        String           @id @default(cuid())
+  accountId String
+  account   InstagramAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  mediaType String // IMAGE | VIDEO | CAROUSEL_ALBUM (vocabulário da mídia, diferente do breakdown de views)
+  count     Int
+  period    String
+
+  @@unique([accountId, mediaType, period])
+}
+
+model Employee {
+  id          String          @id @default(cuid())
+  name        String
+  slug        String          @unique
+  role        String
+  avatarColor String
+  // User local vinculado (opcional, sem FK — mesmo padrão de Vendedor.userId).
+  userId      String?
+  tasks       MarketingTask[]
+
+  @@index([userId])
+}
+
+// Nome MarketingTask (não Task) — já existe model Task pro kanban de projetos.
+model MarketingTask {
+  id          String    @id @default(cuid())
+  employeeId  String
+  employee    Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  title       String
+  description String    @default("")
+  status      String    @default("pendente") // pendente | em_andamento | concluida ("atrasada" é derivada, nunca gravada)
+  priority    String    @default("media") // baixa | media | alta
+  source      String    @default("manual") // manual | glpi (integração futura)
+  createdAt   DateTime  @default(now())
+  dueDate     DateTime?
+  completedAt DateTime?
+
+  @@index([employeeId, status])
+}

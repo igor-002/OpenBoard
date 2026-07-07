@@ -7,5 +7,8 @@ export async function register() {
     // Alertas proativos (leads parados, prazos de projeto) → sininho.
     const { startAlertsScheduler } = await import("@/server/alerts");
     startAlertsScheduler();
+    // Sync de métricas do Instagram (módulo Marketing).
+    const { startMarketingSyncScheduler } = await import("@/server/marketing/scheduler");
+    startMarketingSyncScheduler();
   }
 }
