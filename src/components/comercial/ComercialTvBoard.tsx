@@ -64,15 +64,14 @@ function SlidePanorama({ d }: { d: ComercialTvData }) {
   const k = d.kpis;
   const totalPipe = k.ativadosMes + k.pipeline;
   const conversao = totalPipe > 0 ? Math.round((k.ativadosMes / totalPipe) * 100) : 0;
-  const ticketCents = k.ativadosMes > 0 ? Math.round(k.mrrAtivadosMesCents / k.ativadosMes) : 0;
   const maxMrr = Math.max(1, ...d.ranking.map((r) => r.mrrCents));
   return (
     <div className="tv-grid" style={{ gridTemplateRows: "210px 1fr" }}>
       <div className="tv-grid" style={{ gridTemplateColumns: "repeat(4,1fr)", gridTemplateRows: "none" }}>
-        <KPI icon="checkCircle" color="var(--ok)" label="Ativados no mês" value={k.ativadosMes} foot={`${brl(k.mrrAtivadosMesCents)} em MRR novo`} />
+        <KPI icon="briefcase" color="var(--tv-accent)" label="Vendas no mês" value={k.vendasMes} foot="contratos vendidos (cadastro)" />
+        <KPI icon="checkCircle" color="var(--ok)" label="Ativações no mês" value={k.ativadosMes} foot={`${brl(k.mrrAtivadosMesCents)} em MRR novo${k.ativacoesOutroMes > 0 ? ` · ${k.ativacoesOutroMes} de outro mês` : ""}`} />
         <KPI icon="target" color="var(--info)" label="Pipeline (aguardando)" value={k.pipeline} foot={`${brl(k.mrrPipelineCents)} em potencial`} />
-        <KPI icon="trendUp" color="var(--tv-accent)" label="Taxa de conversão" value={`${conversao}%`} foot="ativados / pipeline do mês" />
-        <KPI icon="wallet" color="var(--viol)" label="Ticket médio" value={brl(ticketCents)} foot="MRR por contrato ativado" />
+        <KPI icon="wallet" color="var(--viol)" label="Ticket médio" value={brl(k.ticketMedioCents)} foot={`MRR por contrato · ${conversao}% conv.`} />
       </div>
       <Panel icon="trendUp" title="Ranking de vendedores" sub="MRR novo e contratos ativados no mês" right={`${d.ranking.length} no mês`}>
         <div style={{ display: "flex", flexDirection: "column", flex: 1, justifyContent: "space-evenly", minHeight: 0 }}>
@@ -131,7 +130,9 @@ function SlideMeta({ d }: { d: ComercialTvData }) {
                 </div>
                 <Bar value={du.total > 0 ? (du.passados / du.total) * 100 : 0} color="var(--info)" h={13} />
               </div>
-              <div style={{ fontSize: 17, color: "var(--tv-ink-2)", fontWeight: 600 }}>Hoje: <b>{brl(d.kpis.mrrAtivadosMesCents)}</b> em MRR ativado</div>
+              <div style={{ fontSize: 17, color: "var(--tv-ink-2)", fontWeight: 600 }}>
+                Hoje: <b>{brl(d.kpis.mrrAtivadosMesCents)}</b> em {d.kpis.ativadosMes} ativações{d.forecastAtivacoes != null ? ` · ritmo projeta ${d.forecastAtivacoes} contratos` : ""}
+              </div>
             </div>
           ) : <div style={{ color: "var(--tv-muted)", fontSize: 18, display: "grid", placeItems: "center", flex: 1 }}>—</div>}
         </Panel>

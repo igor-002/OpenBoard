@@ -5,6 +5,7 @@ import { requireUser } from "@/lib/auth";
 import { getChurnStats } from "@/server/comercial/queries";
 import { Card } from "@/components/ui/Card";
 import { StatCard } from "@/components/ui/Stat";
+import { PairBars } from "@/components/comercial/RelatorioCharts";
 import { brl } from "@/lib/format";
 import { AutoRefresh } from "@/components/common/AutoRefresh";
 
@@ -49,26 +50,14 @@ export default async function ChurnPage() {
           {s.meses.every((m) => m.novosMrrCents === 0 && m.perdidosMrrCents === 0) ? (
             <div className="muted" style={{ padding: 20, textAlign: "center" }}>Sem movimentações no período.</div>
           ) : (
-            <>
-              <div style={{ display: "flex", alignItems: "flex-end", gap: 14, height: 200, padding: "8px 4px 0" }}>
-                {(() => {
-                  const max = Math.max(...s.meses.map((m) => Math.max(m.novosMrrCents, m.perdidosMrrCents)), 1);
-                  return s.meses.map((m) => (
-                    <div key={m.label} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 6, height: "100%" }}>
-                      <div style={{ flex: 1, width: "100%", display: "flex", alignItems: "flex-end", justifyContent: "center", gap: 5 }}>
-                        <div title={`Novo: ${brl(m.novosMrrCents)} (${m.novos})`} style={{ width: 16, height: `${(m.novosMrrCents / max) * 100}%`, background: "var(--st-done)", borderRadius: "5px 5px 0 0", minHeight: m.novosMrrCents ? 4 : 0 }} />
-                        <div title={`Perdido: ${brl(m.perdidosMrrCents)} (${m.perdidos})`} style={{ width: 16, height: `${(m.perdidosMrrCents / max) * 100}%`, background: "var(--st-risk)", borderRadius: "5px 5px 0 0", minHeight: m.perdidosMrrCents ? 4 : 0 }} />
-                      </div>
-                      <span style={{ fontSize: 11, color: "var(--muted)", fontWeight: 600 }}>{m.label}</span>
-                    </div>
-                  ));
-                })()}
-              </div>
-              <div className="row gap12" style={{ justifyContent: "center", marginTop: 8, fontSize: 12 }}>
-                <span className="row gap8" style={{ alignItems: "center" }}><span style={{ width: 10, height: 10, borderRadius: 3, background: "var(--st-done)" }} /> MRR novo</span>
-                <span className="row gap8" style={{ alignItems: "center" }}><span style={{ width: 10, height: 10, borderRadius: 3, background: "var(--st-risk)" }} /> MRR perdido</span>
-              </div>
-            </>
+            <PairBars
+              data={s.meses.map((m) => ({ label: m.label, a: m.novosMrrCents, b: m.perdidosMrrCents }))}
+              serieA="MRR novo"
+              serieB="MRR perdido"
+              corA="var(--st-done)"
+              corB="var(--st-risk)"
+              money
+            />
           )}
         </Card>
 

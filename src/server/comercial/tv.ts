@@ -14,11 +14,15 @@ export type ComercialTvData = {
   configured: boolean;
   generatedAt: string;
   mesLabel: string;
+  // Único valor escondido: MRR ativo da CARTEIRA (base toda) — decisão 2026-07-08.
+  // MRR do mês, pipeline e forecast são normais.
   kpis: {
-    mrrCarteiraCents: number;
     contratosAtivosCarteira: number;
+    vendasMes: number; // vendidos no mês (data de cadastro)
     ativadosMes: number;
+    ativacoesOutroMes: number; // ativações de vendas de meses anteriores
     mrrAtivadosMesCents: number;
+    ticketMedioCents: number;
     pipeline: number;
     mrrPipelineCents: number;
     canceladosMes: number;
@@ -27,6 +31,7 @@ export type ComercialTvData = {
   evolucao: { label: string; ativos: number; aguardando: number; mrrCents: number }[];
   meta: { metaContratos: number; ativos: number; pct: number | null } | null;
   forecastCents: number | null;
+  forecastAtivacoes: number | null;
   diasUteis: { passados: number; total: number };
   tempoAtivacao: { mediaDias: number; melhorDias: number; piorDias: number; n: number } | null;
   carteira: { ativos: number; pipeline: number; bloqueados: number; cancelados: number; inativosD: number };
@@ -53,7 +58,9 @@ export async function getComercialTvData(): Promise<ComercialTvData> {
 
   const du = diasUteis(mes, ano);
   const metaContratos = metaTime?.metaContratos ?? 0;
+  // Forecast pelo ritmo de dias úteis: MRR + ativações projetadas.
   const forecastCents = du.passados > 0 ? Math.round((d.valorAtivosCents / du.passados) * du.total) : null;
+  const forecastAtivacoes = du.passados > 0 ? Math.round((d.ativos / du.passados) * du.total) : null;
 
   // achata as colunas de pipeline em cards ordenados por dias parado (mais críticos no topo)
   const pipelineCards = pipelineCols.flatMap((c) => c.cards).sort((a, b) => b.dias - a.dias).slice(0, 12);
@@ -63,10 +70,12 @@ export async function getComercialTvData(): Promise<ComercialTvData> {
     generatedAt: new Date().toISOString(),
     mesLabel: `${MESES[mes - 1]} ${ano}`,
     kpis: {
-      mrrCarteiraCents: overview.mrrAtivoCents,
       contratosAtivosCarteira: overview.ativos,
+      vendasMes: d.vendas,
       ativadosMes: d.ativos,
+      ativacoesOutroMes: d.ativacoesOutroPeriodo,
       mrrAtivadosMesCents: d.valorAtivosCents,
+      ticketMedioCents: d.ativos > 0 ? Math.round(d.valorAtivosCents / d.ativos) : 0,
       pipeline: d.aguardando,
       mrrPipelineCents: d.valorAguardandoCents,
       canceladosMes: d.cancelados,
@@ -75,6 +84,7 @@ export async function getComercialTvData(): Promise<ComercialTvData> {
     evolucao,
     meta: metaContratos > 0 ? { metaContratos, ativos: d.ativos, pct: Math.round((d.ativos / metaContratos) * 100) } : null,
     forecastCents,
+    forecastAtivacoes,
     diasUteis: { passados: du.passados, total: du.total },
     tempoAtivacao: tempoAtiv,
     carteira: { ativos: carteira.ativos, pipeline: carteira.pipeline, bloqueados: carteira.bloqueados, cancelados: carteira.cancelados, inativosD: carteira.inativosD },

@@ -526,7 +526,7 @@ function SlideComercial({ d }: { d: TvData; now: Date }) {
   return (
     <div className="tv-grid" style={{ gridTemplateRows: "188px 1fr" }}>
       <div className="tv-grid" style={{ gridTemplateColumns: "repeat(4,1fr)", gridTemplateRows: "none" }}>
-        <KPI icon="wallet" color="var(--ok)" label="MRR ativo (carteira)" value={brl(c.mrrAtivoCents)} foot="receita recorrente" />
+        <KPI icon="briefcase" color="var(--ok)" label="Contratos ativos (carteira)" value={c.ativosCarteira} foot="base ativa no IXC" />
         <KPI icon="checkCircle" color="var(--tv-accent)" label="Ativados no mês" value={c.ativadosMes} foot={`${brl(c.mrrAtivadosMesCents)} em MRR`} />
         <KPI icon="target" color="var(--info)" label="Pipeline (aguardando)" value={c.pipeline} foot={`${brl(c.mrrPipelineCents)} em potencial`} />
         <KPI icon="users" color="var(--viol)" label="Vendedores no ranking" value={c.ranking.length} foot="com contratos no mês" />

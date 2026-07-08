@@ -20,12 +20,13 @@ function Barra({ atual, meta }: { atual: number; meta: number }) {
   );
 }
 
+// O MRR ativo da CARTEIRA (base toda) não aparece aqui (decisão 2026-07-08) —
+// os demais valores (MRR do mês, metas, projeções) são normais.
 export function MetasManager({
   isAdmin,
   mes,
   ano,
   mesLabel,
-  mrrAtivoCents,
   ativosTotal,
   metaContratos,
   metaMrrCents,
@@ -38,7 +39,6 @@ export function MetasManager({
   mes: number;
   ano: number;
   mesLabel: string;
-  mrrAtivoCents: number;
   ativosTotal: number;
   metaContratos: number;
   metaMrrCents: number;
@@ -74,13 +74,13 @@ export function MetasManager({
       <div className="page-head">
         <div>
           <h1 className="page-title">MRR & Metas</h1>
-          <p className="page-sub">{mesLabel} {ano} · MRR ativo {brl(mrrAtivoCents)} · {ativosTotal} contratos ativos</p>
+          <p className="page-sub">{mesLabel} {ano} · {ativosTotal} contratos ativados no mês</p>
         </div>
         {msg && <span className="muted" style={{ fontSize: 12 }}>{msg}</span>}
       </div>
 
       {/* Meta do time */}
-      <Card title="Meta do time" sub={`Contratos ativos e MRR alvo em ${mesLabel}`} pad>
+      <Card title="Meta do time" sub={`Contratos ativados e MRR alvo em ${mesLabel} — ativação conta pra meta, mesmo de venda antiga`} pad>
         <div className="row gap12" style={{ flexWrap: "wrap", alignItems: "flex-end" }}>
           <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 12, color: "var(--muted)" }}>
             Meta de contratos ativos

@@ -63,7 +63,8 @@ export default async function DashboardPage() {
             action={<Link className="btn btn-ghost" href="/comercial">Abrir Comercial <Icon name="chevRight" size={15} /></Link>}
           >
             <div className="grid" style={{ gridTemplateColumns: "repeat(4,1fr)" }}>
-              <StatCard icon="wallet" label="MRR ativo (carteira)" value={brl(comercial.mrrAtivoCents)} foot={`${comercial.ativos} contratos ativos`} accent="var(--st-done)" />
+              {/* MRR da carteira não aparece em tela (decisão 2026-07-08) — só a contagem. */}
+              <StatCard icon="briefcase" label="Contratos ativos (carteira)" value={comercial.ativos} foot="base ativa no IXC" accent="var(--st-done)" />
               <StatCard icon="checkCircle" label="Ativados no mês" value={comercialMes.ativos} foot={`${brl(comercialMes.valorAtivosCents)} em MRR`} accent="var(--primary)" />
               <StatCard icon="target" label="Pipeline (aguardando)" value={comercialMes.aguardando} foot={`${brl(comercialMes.valorAguardandoCents)}${comercialMes.parados30d ? ` · ${comercialMes.parados30d} parados +30d` : ""}`} accent="var(--st-progress)" />
               <StatCard icon="alert" label="Cancelados no mês" value={comercialMes.cancelados} foot="contratos cancelados" accent="var(--st-risk)" />

@@ -2,6 +2,7 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
+import { PRESETS, presetRange, activePreset } from "./periodo-presets";
 
 const PERIODOS = ["Mês atual", "Mês anterior", "2 meses atrás"];
 
@@ -47,6 +48,20 @@ export function DashboardFilterBar({
   return (
     <div className="card card-pad row gap12" style={{ flexWrap: "wrap", alignItems: "center" }}>
       <div className="row gap8" style={{ background: "var(--surface-3)", border: "1px solid var(--line-2)", borderRadius: "var(--r-pill)", padding: 4 }}>
+        {PRESETS.map((p) => (
+          <button
+            key={p.key}
+            onClick={() => { const r = presetRange(p.key); apply({ ini: r.ini, fim: r.fim, periodo: "" }); }}
+            className="btn"
+            style={
+              custom && activePreset(urlIni, urlFim) === p.key
+                ? { background: "var(--primary)", color: "#fff", padding: "5px 14px", fontSize: 12, borderRadius: "var(--r-pill)" }
+                : { background: "transparent", color: "var(--muted)", padding: "5px 14px", fontSize: 12, borderRadius: "var(--r-pill)" }
+            }
+          >
+            {p.label}
+          </button>
+        ))}
         {PERIODOS.map((label, i) => (
           <button
             key={i}

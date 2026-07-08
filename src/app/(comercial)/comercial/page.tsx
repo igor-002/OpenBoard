@@ -66,20 +66,22 @@ export default async function ComercialOverviewPage({
 
       <DashboardFilterBar vendedores={opcoes.vendedores} filiais={opcoes.filiais} />
 
-      {/* KPIs escopados pelo período + filtros */}
+      {/* KPIs escopados pelo período + filtros. Venda = data de cadastro (quando
+          vendeu); Ativação = data de ativação (conta pra meta) — ativações de
+          vendas antigas aparecem destacadas pra ninguém ler como venda nova. */}
       <div className="grid" style={{ gridTemplateColumns: "repeat(5,1fr)", marginTop: "var(--gap)" }}>
         <StatCard
           icon="briefcase"
-          label="Total de vendas"
-          value={d.ativos + d.aguardando}
-          foot={`${brl(d.valorAtivosCents + d.valorAguardandoCents)}/mês em MRR · fechados + pipeline`}
+          label="Vendas no período"
+          value={d.vendas}
+          foot={`${brl(contratos.mrrFechadosCents)} · por data de cadastro`}
           accent="var(--primary)"
         />
         <StatCard
           icon="checkCircle"
-          label="Ativados no período"
+          label="Ativações no período"
           value={d.ativos}
-          foot={`${brl(d.valorAtivosCents)} em MRR`}
+          foot={`${brl(d.valorAtivosCents)} em MRR${d.ativacoesOutroPeriodo > 0 ? ` · ${d.ativacoesOutroPeriodo} de venda anterior` : ""}`}
           accent="var(--st-done)"
         />
         <StatCard
@@ -100,7 +102,7 @@ export default async function ComercialOverviewPage({
           icon="pause"
           label="Bloqueados no período"
           value={d.bloqueados}
-          foot="contratos bloqueados"
+          foot="bloqueados + financeiro em atraso"
           accent="var(--pr-med)"
         />
       </div>
@@ -139,7 +141,7 @@ export default async function ComercialOverviewPage({
           <div className="grid" style={{ gridTemplateColumns: "repeat(5,1fr)", gap: "var(--gap)" }}>
             <div>
               <div style={{ fontSize: 26, fontWeight: 800, color: "var(--st-done)" }}>{carteira.ativos}</div>
-              <div className="muted" style={{ fontSize: 13 }}>Ativos · {brl(carteira.mrrAtivoCents)}/mês</div>
+              <div className="muted" style={{ fontSize: 13 }}>Ativos</div>
             </div>
             <div>
               <div style={{ fontSize: 26, fontWeight: 800, color: "var(--st-progress)" }}>{carteira.pipeline}</div>

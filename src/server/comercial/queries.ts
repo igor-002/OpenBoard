@@ -57,13 +57,21 @@ export function getRecentSyncRuns(take = 10) {
 const ST_ATIVO = ["A"];
 const ST_AGUARD = ["AA", "P"];
 const ST_CANCEL = ["C", "CN", "CA"];
-const ST_BLOQ = ["B", "CM"];
+// FA (financeiro em atraso) conta como bloqueado — regra de negócio herdada do
+// SalesTracker: FA/CM nunca são "ativos" nem somam receita.
+const ST_BLOQ = ["B", "CM", "FA"];
 
 export type StatusMes = {
   mes: number;
   ano: number;
   label: string;
+  // Venda = quando VENDEU (dataCadastro no período, qualquer status atual).
+  vendas: number;
+  // Ativação = quando o contrato LIGOU (dataAtivacao no período) — é o que conta pra meta.
   ativos: number;
+  // Das ativações do período, quantas são de vendas feitas ANTES do período
+  // (mostrar destacado: "ativando agora, venda de outro mês").
+  ativacoesOutroPeriodo: number;
   valorAtivosCents: number;
   aguardando: number;
   valorAguardandoCents: number;
@@ -113,9 +121,11 @@ async function statusCore(inicio: Date, fim: Date, label: string, mes: number, a
   const trintaDias = new Date(Date.now() - 30 * 86400000);
   const x = await resolveWhere(extra);
 
-  const [ativos, valAtivos, aguardando, valAguard, cancelados, bloqueados, parados30d] =
+  const [vendas, ativos, ativacoesOutroPeriodo, valAtivos, aguardando, valAguard, cancelados, bloqueados, parados30d] =
     await Promise.all([
+      db.contrato.count({ where: { ...x, dataCadastro: { gte: inicio, lt: fim } } }),
       db.contrato.count({ where: { ...x, status: { in: ST_ATIVO }, dataAtivacao: { gte: inicio, lt: fim } } }),
+      db.contrato.count({ where: { ...x, status: { in: ST_ATIVO }, dataAtivacao: { gte: inicio, lt: fim }, dataCadastro: { lt: inicio } } }),
       db.contrato.aggregate({ _sum: { mrrCents: true }, where: { ...x, status: { in: ST_ATIVO }, dataAtivacao: { gte: inicio, lt: fim } } }),
       db.contrato.count({ where: { ...x, status: { in: ST_AGUARD }, dataCadastro: { gte: inicio, lt: fim } } }),
       db.contrato.aggregate({ _sum: { mrrCents: true }, where: { ...x, status: { in: ST_AGUARD }, dataCadastro: { gte: inicio, lt: fim } } }),
@@ -128,6 +138,8 @@ async function statusCore(inicio: Date, fim: Date, label: string, mes: number, a
     mes,
     ano,
     label,
+    vendas,
+    ativacoesOutroPeriodo,
     ativos,
     valorAtivosCents: valAtivos._sum.mrrCents ?? 0,
     aguardando,
@@ -432,6 +444,7 @@ export async function getDashboard(periodo: number, extra: ExtraWhere = {}, ini?
 export type RankingRow = {
   vendedorIxcId: string;
   nome: string;
+  vendas: number; // contratos VENDIDOS no período (dataCadastro, qualquer status)
   cadastrados: number;
   ativos: number;
   aguardando: number;
@@ -449,7 +462,12 @@ export async function getRelatorioRanking(periodo: number, filial?: string, ini?
   const ativoIds = await activeVendedorIxcIds(); // gate: só vendedores ativos
   const base = { ...fil, vendedorIxcId: { in: ativoIds } };
 
-  const [ativosG, aguardG, cancelG, vendedores] = await Promise.all([
+  const [vendasG, ativosG, aguardG, cancelG, vendedores] = await Promise.all([
+    db.contrato.groupBy({
+      by: ["vendedorIxcId"],
+      where: { ...base, dataCadastro: { gte: inicio, lt: fim } },
+      _count: { _all: true },
+    }),
     db.contrato.groupBy({
       by: ["vendedorIxcId"],
       where: { ...base, status: { in: ST_ATIVO }, dataAtivacao: { gte: inicio, lt: fim } },
@@ -488,8 +506,9 @@ export async function getRelatorioRanking(periodo: number, filial?: string, ini?
   const nomeMap = new Map(vendedores.map((v) => [v.ixcId, v.nome]));
   const map = new Map<string, RankingRow>();
   const row = (id: string): RankingRow =>
-    map.get(id) ?? { vendedorIxcId: id, nome: nomeMap.get(id) ?? `#${id}`, cadastrados: 0, ativos: 0, aguardando: 0, cancelados: 0, mrrCents: 0, mrrAguardCents: 0, ticketCents: 0, conversao: 0, tempoMedioDias: null };
+    map.get(id) ?? { vendedorIxcId: id, nome: nomeMap.get(id) ?? `#${id}`, vendas: 0, cadastrados: 0, ativos: 0, aguardando: 0, cancelados: 0, mrrCents: 0, mrrAguardCents: 0, ticketCents: 0, conversao: 0, tempoMedioDias: null };
 
+  for (const g of vendasG) { const id = g.vendedorIxcId as string; const x = row(id); x.vendas = g._count._all; map.set(id, x); }
   for (const g of ativosG) { const id = g.vendedorIxcId as string; const x = row(id); x.ativos = g._count._all; x.mrrCents = g._sum.mrrCents ?? 0; map.set(id, x); }
   for (const g of aguardG) { const id = g.vendedorIxcId as string; const x = row(id); x.aguardando = g._count._all; x.mrrAguardCents = g._sum.mrrCents ?? 0; map.set(id, x); }
   for (const g of cancelG) { const id = g.vendedorIxcId as string; const x = row(id); x.cancelados = g._count._all; map.set(id, x); }
@@ -518,6 +537,7 @@ export type ContratoLinha = {
   dataCadastro: Date | null;
   dataAtivacao: Date | null;
   diasAtivacao: number | null; // ativação − cadastro
+  vendaOutroPeriodo: boolean; // ativou no período mas a venda (cadastro) é anterior a ele
 };
 export type ContratosPeriodo = {
   ativados: ContratoLinha[];
@@ -555,6 +575,7 @@ export async function getContratosDoPeriodo(periodo: number, extra: ExtraWhere =
     dataCadastro: c.dataCadastro,
     dataAtivacao: c.dataAtivacao,
     diasAtivacao: c.dataAtivacao && c.dataCadastro ? Math.max(0, Math.round((+c.dataAtivacao - +c.dataCadastro) / 86400000)) : null,
+    vendaOutroPeriodo: !!c.dataCadastro && c.dataCadastro < inicio,
   });
 
   const ativados = ativadosRaw.map(toLinha);

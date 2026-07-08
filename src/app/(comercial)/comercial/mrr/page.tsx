@@ -1,6 +1,5 @@
 import { requireUser } from "@/lib/auth";
 import {
-  getComercialOverview,
   getRelatorioRanking,
   getMetaTime,
   getMetasVendedorMap,
@@ -15,8 +14,7 @@ const MESES = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julh
 export default async function MrrMetasPage() {
   const user = await requireUser();
   const { mes, ano } = periodoMesAno(0); // mês atual
-  const [overview, ranking, metaTime, metasVend, vendedores] = await Promise.all([
-    getComercialOverview(),
+  const [ranking, metaTime, metasVend, vendedores] = await Promise.all([
     getRelatorioRanking(0),
     getMetaTime(mes, ano),
     getMetasVendedorMap(mes, ano),
@@ -39,7 +37,6 @@ export default async function MrrMetasPage() {
       mes={mes}
       ano={ano}
       mesLabel={MESES[mes - 1]}
-      mrrAtivoCents={overview.mrrAtivoCents}
       ativosTotal={ativosTotalMes}
       metaContratos={metaTime?.metaContratos ?? 0}
       metaMrrCents={metaTime?.metaMrrCents ?? 0}

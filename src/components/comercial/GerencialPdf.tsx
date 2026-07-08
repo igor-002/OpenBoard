@@ -19,9 +19,9 @@ function imprimir() {
 }
 
 export type GerencialKpis = {
-  totalVendas: number;
-  mrrTotalCents: number;
-  ativos: number;
+  vendas: number; // vendidos no período (dataCadastro)
+  ativos: number; // ativados no período (meta)
+  ativacoesOutroPeriodo: number;
   mrrAtivosCents: number;
   aguardando: number;
   mrrAguardCents: number;
@@ -77,8 +77,8 @@ export function GerencialPdf({
 
         {/* KPIs */}
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
-          {kpi("Total de vendas", String(kpis.totalVendas), `${brl(kpis.mrrTotalCents)}/mês MRR`, "#fdece0")}
-          {kpi("Ativados", String(kpis.ativos), `${brl(kpis.mrrAtivosCents)} MRR`, "#e7f6ec")}
+          {kpi("Vendas no período", String(kpis.vendas), "por data de cadastro", "#fdece0")}
+          {kpi("Ativações", String(kpis.ativos), `${brl(kpis.mrrAtivosCents)} MRR${kpis.ativacoesOutroPeriodo > 0 ? ` · ${kpis.ativacoesOutroPeriodo} de venda anterior` : ""}`, "#e7f6ec")}
           {kpi("Aguardando", String(kpis.aguardando), brl(kpis.mrrAguardCents), "#eaf1fe")}
           {kpi("Ticket médio", brl(kpis.ticketCents), "MRR por ativo", "#f0ecfc")}
           {kpi("Conversão", `${kpis.conversao}%`, "ativos / pipeline", "#fdf2de")}
@@ -149,7 +149,7 @@ export function GerencialPdf({
 
         {/* Fechados no período */}
         <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 6 }}>
-          Fechados no período ({contratos.fechados.length} · {brl(contratos.mrrFechadosCents)})
+          Vendas no período ({contratos.fechados.length} · {brl(contratos.mrrFechadosCents)})
         </div>
         {contratos.fechados.length === 0 ? (
           <div style={{ fontSize: 12, color: "#666" }}>Nenhum contrato cadastrado no período.</div>

@@ -197,9 +197,11 @@ async function VisaoGeral({ periodo, vendedor, filial, ini, fim, escopo = "" }: 
   const ticket = d.ativos > 0 ? Math.round(d.valorAtivosCents / d.ativos) : 0;
   const conversao = totalPipeline > 0 ? Math.round((d.ativos / totalPipeline) * 100) : 0;
 
-  // Forecast (SalesTracker): MRR projetado fim do mês por dias úteis. Só no mês atual.
+  // Forecast pelo ritmo de dias úteis (só no mês atual): MRR + ativações projetadas.
   const du = diasUteis(mes, ano);
-  const forecastCents = periodo === 0 && !custom && du.passados > 0 ? Math.round((d.valorAtivosCents / du.passados) * du.total) : null;
+  const noMesAtual = periodo === 0 && !custom && du.passados > 0;
+  const forecastCents = noMesAtual ? Math.round((d.valorAtivosCents / du.passados) * du.total) : null;
+  const forecastAtivacoes = noMesAtual ? Math.round((d.ativos / du.passados) * du.total) : null;
   const metaContratos = metaTime?.metaContratos ?? 0;
   const atingMeta = metaContratos > 0 ? Math.round((d.ativos / metaContratos) * 100) : null;
 
@@ -214,9 +216,9 @@ async function VisaoGeral({ periodo, vendedor, filial, ini, fim, escopo = "" }: 
           periodoLabel={custom ? d.label : `${MESES[d.mes - 1]} ${d.ano}`}
           escopo={escopo}
           kpis={{
-            totalVendas: d.ativos + d.aguardando,
-            mrrTotalCents: d.valorAtivosCents + d.valorAguardandoCents,
+            vendas: d.vendas,
             ativos: d.ativos,
+            ativacoesOutroPeriodo: d.ativacoesOutroPeriodo,
             mrrAtivosCents: d.valorAtivosCents,
             aguardando: d.aguardando,
             mrrAguardCents: d.valorAguardandoCents,
@@ -236,9 +238,9 @@ async function VisaoGeral({ periodo, vendedor, filial, ini, fim, escopo = "" }: 
 
       {/* KPIs */}
       <div className="grid" style={{ gridTemplateColumns: "repeat(5,1fr)", gap: "var(--gap)" }}>
-        <StatCard icon="briefcase" label="Total de vendas" value={d.ativos + d.aguardando} foot={`${brl(d.valorAtivosCents + d.valorAguardandoCents)}/mês em MRR · fechados + pipeline`} accent="var(--primary)" />
-        <StatCard icon="checkCircle" label="Ativados no período" value={d.ativos} foot={`${brl(d.valorAtivosCents)} MRR`} accent="var(--st-done)" />
-        <StatCard icon="target" label="Aguardando" value={d.aguardando} foot={`${brl(d.valorAguardandoCents)}`} accent="var(--st-progress)" />
+        <StatCard icon="briefcase" label="Vendas no período" value={d.vendas} foot={`${brl(contratos.mrrFechadosCents)} · por data de cadastro`} accent="var(--primary)" />
+        <StatCard icon="checkCircle" label="Ativações no período" value={d.ativos} foot={`${brl(d.valorAtivosCents)} MRR${d.ativacoesOutroPeriodo > 0 ? ` · ${d.ativacoesOutroPeriodo} de venda anterior` : ""}`} accent="var(--st-done)" />
+        <StatCard icon="target" label="Aguardando" value={d.aguardando} foot={brl(d.valorAguardandoCents)} accent="var(--st-progress)" />
         <StatCard icon="wallet" label="Ticket médio (ativos)" value={brl(ticket)} foot="MRR por contrato ativo" accent="var(--st-review)" />
         <StatCard icon="trendUp" label="Taxa de conversão" value={`${conversao}%`} foot="ativos / (ativos + aguardando)" accent="var(--primary)" />
       </div>
@@ -264,7 +266,9 @@ async function VisaoGeral({ periodo, vendedor, filial, ini, fim, escopo = "" }: 
           {forecastCents != null ? (
             <div style={{ marginTop: 4 }}>
               <span style={{ fontSize: 28, fontWeight: 800, color: "var(--primary)" }}>{brl(forecastCents)}</span>
-              <div className="muted" style={{ fontSize: 13, marginTop: 4 }}>Hoje: {brl(d.valorAtivosCents)} ativados · ritmo projeta {brl(forecastCents)}</div>
+              <div className="muted" style={{ fontSize: 13, marginTop: 4 }}>
+                Hoje: {brl(d.valorAtivosCents)} em {d.ativos} ativações · ritmo projeta {forecastAtivacoes} contratos{metaContratos > 0 ? ` (meta ${metaContratos})` : ""}
+              </div>
             </div>
           ) : (
             <div className="muted" style={{ padding: "12px 0" }}>Selecione &quot;Mês atual&quot; pra ver a projeção por dias úteis.</div>
@@ -324,20 +328,72 @@ async function VisaoGeral({ periodo, vendedor, filial, ini, fim, escopo = "" }: 
 }
 
 // ── Ranking / Performance por Vendedor ────────────────────────────────────────
+// Medalhas + estrelas + destaques (portado do SalesTracker): quem vendeu mais,
+// quem ativou mais, maior ticket médio. Sem totais de R$ (só valores por vendedor).
+const MEDALHAS = ["🥇", "🥈", "🥉"];
+
+function Estrelas({ n }: { n: number }) {
+  return (
+    <span title={`${n} de 5 estrelas`} style={{ letterSpacing: 1, whiteSpace: "nowrap" }}>
+      <span style={{ color: "var(--pr-med)" }}>{"★".repeat(n)}</span>
+      <span style={{ color: "var(--line-2)" }}>{"☆".repeat(5 - n)}</span>
+    </span>
+  );
+}
+
+function Destaque({ emoji, titulo, nome, info, accent }: { emoji: string; titulo: string; nome: string; info: string; accent: string }) {
+  return (
+    <div className="card card-pad" style={{ borderLeft: `3px solid ${accent}`, display: "flex", gap: 12, alignItems: "center" }}>
+      <span style={{ fontSize: 30 }}>{emoji}</span>
+      <div style={{ minWidth: 0 }}>
+        <div className="muted" style={{ fontSize: 11.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.4 }}>{titulo}</div>
+        <div style={{ fontWeight: 800, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{nome}</div>
+        <div className="muted" style={{ fontSize: 12.5 }}>{info}</div>
+      </div>
+    </div>
+  );
+}
+
 async function Ranking({ periodo, filial, ini, fim }: { periodo: number; filial?: string; ini?: string; fim?: string }) {
   const { mes, ano } = periodoMesAno(periodo);
   const [rows, metasVend] = await Promise.all([getRelatorioRanking(periodo, filial, ini, fim), getMetasVendedorMap(mes, ano)]);
   const tot = rows.reduce(
-    (a, r) => ({ cadastrados: a.cadastrados + r.cadastrados, ativos: a.ativos + r.ativos, aguardando: a.aguardando + r.aguardando, cancelados: a.cancelados + r.cancelados, mrrCents: a.mrrCents + r.mrrCents }),
-    { cadastrados: 0, ativos: 0, aguardando: 0, cancelados: 0, mrrCents: 0 },
+    (a, r) => ({ vendas: a.vendas + r.vendas, ativos: a.ativos + r.ativos, aguardando: a.aguardando + r.aguardando, cancelados: a.cancelados + r.cancelados, mrrCents: a.mrrCents + r.mrrCents }),
+    { vendas: 0, ativos: 0, aguardando: 0, cancelados: 0, mrrCents: 0 },
   );
   const ticketTime = tot.ativos > 0 ? Math.round(tot.mrrCents / tot.ativos) : 0;
   const convTime = tot.ativos + tot.aguardando > 0 ? Math.round((tot.ativos / (tot.ativos + tot.aguardando)) * 100) : 0;
-  const donutMrr = rows.slice(0, 6).map((r) => ({ label: r.nome, value: r.mrrCents, money: true }));
+
+  // Estrelas (1–5): pelo atingimento da meta quando há meta; senão relativo ao líder em ativações.
+  const liderAtivos = Math.max(...rows.map((r) => r.ativos), 1);
+  const estrelas = (r: (typeof rows)[number]): number => {
+    const meta = metasVend.get(r.vendedorIxcId) ?? 0;
+    const pct = meta > 0 ? r.ativos / meta : r.ativos / liderAtivos;
+    return Math.max(0, Math.min(5, Math.round(pct * 5)));
+  };
+
+  // Destaques do período (só com dado real; some se ninguém pontuou).
+  const maisVendas = [...rows].sort((a, b) => b.vendas - a.vendas)[0];
+  const maisAtivacoes = [...rows].sort((a, b) => b.ativos - a.ativos)[0];
+  const maiorTicket = [...rows].filter((r) => r.ativos > 0).sort((a, b) => b.ticketCents - a.ticketCents)[0];
 
   return (
     <>
-      <Card title="Performance por Vendedor" sub="Resultado real do IXC no período" pad={false}>
+      {rows.length > 0 && (
+        <div className="grid" style={{ gridTemplateColumns: "repeat(3,1fr)", gap: "var(--gap)", marginBottom: "var(--gap)" }}>
+          {maisVendas && maisVendas.vendas > 0 && (
+            <Destaque emoji="🏆" titulo="Quem mais vendeu" nome={maisVendas.nome} info={`${maisVendas.vendas} contratos vendidos no período`} accent="var(--primary)" />
+          )}
+          {maisAtivacoes && maisAtivacoes.ativos > 0 && (
+            <Destaque emoji="⚡" titulo="Quem mais ativou" nome={maisAtivacoes.nome} info={`${maisAtivacoes.ativos} ativações · contam pra meta`} accent="var(--st-done)" />
+          )}
+          {maiorTicket && (
+            <Destaque emoji="💎" titulo="Maior ticket médio" nome={maiorTicket.nome} info={`${brl(maiorTicket.ticketCents)} por contrato ativado`} accent="var(--st-review)" />
+          )}
+        </div>
+      )}
+
+      <Card title="Performance por Vendedor" sub="Resultado real do IXC no período · estrelas = atingimento da meta (ou % do líder, sem meta)" pad={false}>
         {rows.length === 0 ? (
           <div className="card-pad muted">Sem contratos no período.</div>
         ) : (
@@ -346,8 +402,9 @@ async function Ranking({ periodo, filial, ini, fim }: { periodo: number; filial?
               <tr>
                 <th style={{ textAlign: "left" }}>#</th>
                 <th style={{ textAlign: "left" }}>Vendedor</th>
-                <th style={{ textAlign: "right" }}>Cadastr.</th>
-                <th style={{ textAlign: "right" }}>Ativos</th>
+                <th style={{ textAlign: "left" }}>Nível</th>
+                <th style={{ textAlign: "right" }} title="Contratos vendidos no período (data de cadastro, qualquer status)">Vendas</th>
+                <th style={{ textAlign: "right" }} title="Contratos ativados no período — contam pra meta">Ativações</th>
                 <th style={{ textAlign: "right" }}>Aguard.</th>
                 <th style={{ textAlign: "right" }}>Cancel.</th>
                 <th style={{ textAlign: "right" }}>MRR</th>
@@ -364,9 +421,10 @@ async function Ranking({ periodo, filial, ini, fim }: { periodo: number; filial?
                 const ating = meta > 0 ? Math.round((r.ativos / meta) * 100) : null;
                 return (
                 <tr key={r.vendedorIxcId}>
-                  <td className="muted" style={{ fontWeight: 700 }}>{i + 1}º</td>
+                  <td className="muted" style={{ fontWeight: 700, whiteSpace: "nowrap" }}>{MEDALHAS[i] ?? `${i + 1}º`}</td>
                   <td style={{ fontWeight: 700 }}>{r.nome}</td>
-                  <td style={{ textAlign: "right" }} className="muted">{r.cadastrados}</td>
+                  <td><Estrelas n={estrelas(r)} /></td>
+                  <td style={{ textAlign: "right", fontWeight: 700, color: "var(--primary)" }}>{r.vendas}</td>
                   <td style={{ textAlign: "right", fontWeight: 700, color: "var(--st-done)" }}>{r.ativos}</td>
                   <td style={{ textAlign: "right", color: "var(--st-progress)" }}>{r.aguardando}</td>
                   <td style={{ textAlign: "right", color: r.cancelados ? "var(--st-risk)" : "var(--muted)" }}>{r.cancelados}</td>
@@ -382,7 +440,8 @@ async function Ranking({ periodo, filial, ini, fim }: { periodo: number; filial?
               <tr style={{ borderTop: "2px solid var(--line-2)", fontWeight: 800 }}>
                 <td />
                 <td>Total do Time</td>
-                <td style={{ textAlign: "right" }}>{tot.cadastrados}</td>
+                <td />
+                <td style={{ textAlign: "right", color: "var(--primary)" }}>{tot.vendas}</td>
                 <td style={{ textAlign: "right", color: "var(--st-done)" }}>{tot.ativos}</td>
                 <td style={{ textAlign: "right", color: "var(--st-progress)" }}>{tot.aguardando}</td>
                 <td style={{ textAlign: "right", color: tot.cancelados ? "var(--st-risk)" : "var(--muted)" }}>{tot.cancelados}</td>
@@ -399,9 +458,9 @@ async function Ranking({ periodo, filial, ini, fim }: { periodo: number; filial?
       </Card>
 
       <div className="grid" style={{ gridTemplateColumns: "repeat(3,1fr)", gap: "var(--gap)", marginTop: "var(--gap)" }}>
-        <DonutCard title="MRR por vendedor" sub="Participação no MRR ativado" items={donutMrr} />
-        <DonutCard title="Contratos ativos por vendedor" items={rows.slice(0, 6).map((r) => ({ label: r.nome, value: r.ativos }))} />
-        <DonutCard title="Aguardando por vendedor" sub="MRR parado no pipeline (AA/P)" items={[...rows].sort((a, b) => b.mrrAguardCents - a.mrrAguardCents).filter((r) => r.mrrAguardCents > 0).slice(0, 6).map((r) => ({ label: r.nome, value: r.mrrAguardCents, money: true }))} />
+        <DonutCard title="Vendas por vendedor" sub="Contratos vendidos no período" items={[...rows].sort((a, b) => b.vendas - a.vendas).slice(0, 6).map((r) => ({ label: r.nome, value: r.vendas }))} />
+        <DonutCard title="Ativações por vendedor" items={rows.slice(0, 6).map((r) => ({ label: r.nome, value: r.ativos }))} />
+        <DonutCard title="MRR por vendedor" sub="Participação no MRR ativado" items={rows.slice(0, 6).map((r) => ({ label: r.nome, value: r.mrrCents, money: true }))} />
       </div>
     </>
   );

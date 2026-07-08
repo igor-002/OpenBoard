@@ -98,8 +98,9 @@ export type TvFeatured = {
 export type TvNote = { id: string; kind: "note" | "comment"; author: AvatarUser; body: string; context: string; at: string };
 
 // C4 — painel comercial (IXC). Global, não escopado a workspace.
+// MRR da CARTEIRA não sai daqui (decisão 2026-07-08) — só a contagem de ativos.
 export type TvComercial = {
-  mrrAtivoCents: number;        // carteira ativa total
+  ativosCarteira: number;       // contagem da carteira ativa (sem R$)
   ativadosMes: number;
   mrrAtivadosMesCents: number;
   pipeline: number;             // aguardando no mês
@@ -115,7 +116,7 @@ async function buildComercial(): Promise<TvComercial | null> {
     getRelatorioRanking(0),
   ]);
   return {
-    mrrAtivoCents: overview.mrrAtivoCents,
+    ativosCarteira: overview.ativos,
     ativadosMes: mes.ativos,
     mrrAtivadosMesCents: mes.valorAtivosCents,
     pipeline: mes.aguardando,

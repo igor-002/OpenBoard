@@ -34,7 +34,7 @@ export function ContratosPeriodoCards({ data }: { data: ContratosPeriodo }) {
     <div className="grid" style={{ gridTemplateColumns: "1fr 1fr", gap: "var(--gap)", marginTop: "var(--gap)" }}>
       <Card
         title="Clientes ativados no período"
-        sub={`${data.ativados.length} contratos · ${brl(data.mrrAtivadosCents)} MRR · "de qual data eram" = cadastro`}
+        sub={`${data.ativados.length} contratos · ${brl(data.mrrAtivadosCents)} MRR · "venda anterior" = vendido em outro período`}
         pad={false}
       >
         {data.ativados.length === 0 ? (
@@ -55,7 +55,14 @@ export function ContratosPeriodoCards({ data }: { data: ContratosPeriodo }) {
                 {data.ativados.map((l) => (
                   <tr key={l.ixcId}>
                     <ClienteCell l={l} />
-                    <td className="muted" style={{ padding: "10px 14px", whiteSpace: "nowrap" }}>{l.dataCadastro ? dayLabel(new Date(l.dataCadastro)) : "—"}</td>
+                    <td className="muted" style={{ padding: "10px 14px", whiteSpace: "nowrap" }}>
+                      {l.dataCadastro ? dayLabel(new Date(l.dataCadastro)) : "—"}
+                      {l.vendaOutroPeriodo && (
+                        <span className="badge" style={{ marginLeft: 6, color: "var(--pr-med)", background: "var(--pr-med-bg)" }} title="Contrato vendido antes do período filtrado — ativação conta pra meta, mas a venda é antiga">
+                          venda anterior
+                        </span>
+                      )}
+                    </td>
                     <td style={{ padding: "10px 14px", whiteSpace: "nowrap", fontWeight: 700, color: "var(--st-done)" }}>{l.dataAtivacao ? dayLabel(new Date(l.dataAtivacao)) : "—"}</td>
                     <td className="muted" style={{ padding: "10px 14px", textAlign: "right" }}>{l.diasAtivacao != null ? `${l.diasAtivacao}d` : "—"}</td>
                     <td style={{ padding: "10px 14px", textAlign: "right", fontWeight: 700 }}>{l.mrrCents ? brl(l.mrrCents) : "—"}</td>
@@ -68,8 +75,8 @@ export function ContratosPeriodoCards({ data }: { data: ContratosPeriodo }) {
       </Card>
 
       <Card
-        title="Fechados no período"
-        sub={`${data.fechados.length} contratos assinados (por data de cadastro) · ${brl(data.mrrFechadosCents)}`}
+        title="Vendas no período"
+        sub={`${data.fechados.length} contratos vendidos (por data de cadastro) · ${brl(data.mrrFechadosCents)}`}
         pad={false}
       >
         {data.fechados.length === 0 ? (
