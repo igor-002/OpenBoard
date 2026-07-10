@@ -11,12 +11,19 @@ import { SignJWT, jwtVerify } from "jose";
 
 export type TvScope = "projetos" | "comercial";
 
-// Mesmo segredo da sessão (já obrigatório e forte — ver jwt.ts). Falha-fechado.
-const rawSecret = process.env.AUTH_SECRET;
-if (!rawSecret || rawSecret.length < 32) {
-  throw new Error("AUTH_SECRET ausente ou muito curto (necessário p/ assinar token de TV).");
+// Mesmo segredo da sessão (já obrigatório e forte — ver jwt.ts). Checagem LAZY
+// (dentro da função) p/ não quebrar o `next build`, que avalia os módulos das rotas
+// antes de existir AUTH_SECRET (env de runtime).
+let cachedSecret: Uint8Array | null = null;
+function getSecret(): Uint8Array {
+  if (cachedSecret) return cachedSecret;
+  const raw = process.env.AUTH_SECRET;
+  if (!raw || raw.length < 32) {
+    throw new Error("AUTH_SECRET ausente ou muito curto (necessário p/ assinar token de TV).");
+  }
+  cachedSecret = new TextEncoder().encode(raw);
+  return cachedSecret;
 }
-const secret = new TextEncoder().encode(rawSecret);
 
 const TV_TOKEN_TTL = "90d"; // aparelho fixo: link de longa duração
 
@@ -33,12 +40,12 @@ export async function signTvToken(scope: TvScope): Promise<string> {
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime(TV_TOKEN_TTL)
-    .sign(secret);
+    .sign(getSecret());
 }
 
 async function verifyTvJwt(token: string, scope: TvScope): Promise<boolean> {
   try {
-    const { payload } = await jwtVerify(token, secret, { algorithms: ["HS256"] });
+    const { payload } = await jwtVerify(token, getSecret(), { algorithms: ["HS256"] });
     // typ:"tv" impede reusar cookie de sessão como token de TV e vice-versa.
     return payload.typ === "tv" && payload.scope === scope;
   } catch {
