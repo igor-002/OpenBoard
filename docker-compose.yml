@@ -10,7 +10,8 @@ services:
       POSTGRES_PASSWORD: openboard
       POSTGRES_DB: openboard
     ports:
-      - "5432:5432"
+      # Só localhost — não expõe o Postgres de dev à rede/LAN. (Antes 5432:5432 = 0.0.0.0.)
+      - "127.0.0.1:5432:5432"
     volumes:
       - openboard_pgdata:/var/lib/postgresql/data
     healthcheck:

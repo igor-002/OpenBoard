@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireUser } from "@/lib/auth";
+import { requireModuleUser } from "@/lib/permissions";
 import { db } from "@/lib/db";
 import { diaUTC, type Produto } from "@/server/comercial/queries";
 
@@ -12,7 +12,7 @@ export async function upsertDiario(
   dataISO: string,
   campos: { leads: number; contatos: number; callsReunioes: number; vendas: number; valorCents: number; observacoes: string; produtos?: Produto[] },
 ): Promise<DiarioActionState> {
-  await requireUser(); // qualquer usuário logado pode apontar
+  await requireModuleUser("comercial"); // exige acesso ao módulo comercial
   const data = diaUTC(dataISO);
 
   // Sanitiza produtos e, se houver, o valor total passa a ser a soma deles (SalesTracker §6).

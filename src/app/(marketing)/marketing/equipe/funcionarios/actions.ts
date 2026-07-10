@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireUser } from "@/lib/auth";
+import { requireModuleUser } from "@/lib/permissions";
 import { db } from "@/lib/db";
 
 export type EmployeeActionState = { ok?: boolean; error?: string };
@@ -23,7 +23,7 @@ export async function createEmployeeAction(
   role: string,
   userId: string | null,
 ): Promise<EmployeeActionState> {
-  await requireUser();
+  await requireModuleUser("marketing");
   const trimmed = name.trim();
   if (!trimmed) return { ok: false, error: "Nome obrigatório." };
   const slug = slugify(trimmed);
@@ -49,7 +49,7 @@ export async function updateEmployeeAction(
   id: string,
   input: { name?: string; role?: string; userId?: string | null },
 ): Promise<EmployeeActionState> {
-  await requireUser();
+  await requireModuleUser("marketing");
   await db.employee.update({
     where: { id },
     data: {
@@ -64,7 +64,7 @@ export async function updateEmployeeAction(
 }
 
 export async function deleteEmployeeAction(id: string): Promise<EmployeeActionState> {
-  await requireUser();
+  await requireModuleUser("marketing");
   await db.employee.delete({ where: { id } });
   revalidatePath("/marketing/equipe/funcionarios");
   revalidatePath("/marketing/equipe");

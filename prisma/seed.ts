@@ -106,7 +106,10 @@ async function main() {
 
   const ws = await db.workspace.create({ data: { name: "Vërtex", slug: "vertex" } });
 
-  const passwordHash = await bcrypt.hash("openboard123", 10);
+  // Senha dos usuários de seed. Configurável via SEED_PASSWORD (recomendado); default
+  // fraco só p/ conveniência de dev — nunca rode seed contra banco de produção.
+  const seedPassword = process.env.SEED_PASSWORD || "openboard123";
+  const passwordHash = await bcrypt.hash(seedPassword, 10);
   const userId: Record<string, string> = {};
   for (const u of TEAM) {
     const created = await db.user.create({
@@ -195,7 +198,7 @@ async function main() {
   }
 
   console.log(`Seed OK: ${TEAM.length} usuários, ${PROJECTS.length} projetos, ${TASKS.length} tarefas.`);
-  console.log("Login de teste: marina@openboard.dev / openboard123");
+  console.log(`Login de teste: marina@openboard.dev / ${seedPassword}`);
 }
 
 main()

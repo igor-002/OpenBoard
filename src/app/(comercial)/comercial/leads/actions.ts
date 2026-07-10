@@ -1,7 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireUser, requireAdmin } from "@/lib/auth";
+import { requireAdmin } from "@/lib/auth";
+import { requireModuleUser } from "@/lib/permissions";
 import { db } from "@/lib/db";
 import { ingestLead, changeLeadStage } from "@/server/comercial/leads";
 import { analisarConversaLead } from "@/server/comercial/analise";
@@ -11,7 +12,7 @@ export type LeadActionState = { ok?: boolean; error?: string; id?: string; creat
 
 // Criação manual de lead pela UI — passa pelo mesmo ingest (com dedup) do webhook.
 export async function createLeadManual(_prev: LeadActionState, formData: FormData): Promise<LeadActionState> {
-  await requireUser();
+  await requireModuleUser("leads");
   const nome = String(formData.get("nome") ?? "").trim();
   if (nome.length < 2) return { error: "Informe o nome do lead." };
   const valorStr = String(formData.get("valor") ?? "").replace(",", ".");
@@ -32,7 +33,7 @@ export async function createLeadManual(_prev: LeadActionState, formData: FormDat
 // Move um lead para outro estágio (drag no Kanban) — registra histórico p/ relatórios.
 // motivoPerda obrigatório na UI ao mover pra "perdido" (relatório de motivos).
 export async function moveLeadStage(id: string, stage: string, motivoPerda?: string): Promise<LeadActionState> {
-  const user = await requireUser();
+  const user = await requireModuleUser("leads");
   if (!isLeadStage(stage)) return { error: "Estágio inválido." };
   await changeLeadStage(id, stage, user.id, motivoPerda ?? null);
   revalidatePath("/comercial/leads");
@@ -42,7 +43,7 @@ export async function moveLeadStage(id: string, stage: string, motivoPerda?: str
 // Atualiza o valor estimado (R$) — AtendAI não manda valor, então o time
 // preenche na mão ao qualificar o lead.
 export async function updateLeadValor(id: string, valorReais: number): Promise<LeadActionState> {
-  await requireUser();
+  await requireModuleUser("leads");
   if (!Number.isFinite(valorReais) || valorReais < 0) return { error: "Valor inválido." };
   await db.lead.update({ where: { id }, data: { valorEstimadoCents: Math.round(valorReais * 100) } });
   revalidatePath("/comercial/leads");
@@ -51,7 +52,7 @@ export async function updateLeadValor(id: string, valorReais: number): Promise<L
 
 // Define o responsável do lead.
 export async function assignLead(id: string, userId: string | null): Promise<LeadActionState> {
-  await requireUser();
+  await requireModuleUser("leads");
   await db.lead.update({ where: { id }, data: { assignedUserId: userId || null } });
   revalidatePath("/comercial/leads");
   return { ok: true };
@@ -69,7 +70,7 @@ export async function deleteLead(id: string): Promise<LeadActionState> {
 
 // Roda a análise IA da conversa do lead (sob demanda, pela página de detalhe).
 export async function analisarLead(id: string): Promise<LeadActionState> {
-  await requireUser();
+  await requireModuleUser("leads");
   const r = await analisarConversaLead(id);
   if (!r.ok) return { error: r.error };
   revalidatePath(`/comercial/leads/${id}`);

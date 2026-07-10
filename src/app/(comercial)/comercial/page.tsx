@@ -6,6 +6,7 @@ import { Icon } from "@/components/ui/Icon";
 import { DashboardFilterBar } from "@/components/comercial/DashboardFilterBar";
 import { ContratosPeriodoCards } from "@/components/comercial/ContratosPeriodo";
 import { AutoRefresh } from "@/components/common/AutoRefresh";
+import { AbrirTvButton } from "@/components/tv/AbrirTvButton";
 import { brl, fullLabel } from "@/lib/format";
 
 const MESES = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
@@ -45,9 +46,7 @@ export default async function ComercialOverviewPage({
           </p>
         </div>
         <div className="row gap12">
-          <Link className="btn btn-ghost" href="/tv/comercial" target="_blank" rel="noopener noreferrer" title="Painel de TV (kiosk)">
-            <Icon name="sidebar" size={15} /> TV
-          </Link>
+          <AbrirTvButton scope="comercial" label="TV" />
           <Link className="btn btn-primary" href="/comercial/sync">
             <Icon name="zap" size={15} /> Sincronização
           </Link>

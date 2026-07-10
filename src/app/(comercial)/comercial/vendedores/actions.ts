@@ -41,11 +41,12 @@ function normNome(s: string): string {
 }
 
 // Auto-vincula vendedores sem User por igualdade de nome normalizado. Retorna nº de vínculos feitos.
-export async function autoVincularVendedores(workspaceId: string): Promise<VendedorActionState & { vinculados?: number }> {
-  await requireAdmin();
+export async function autoVincularVendedores(): Promise<VendedorActionState & { vinculados?: number }> {
+  // Isolamento de tenant: usa sempre o workspace do admin logado (nunca um id do cliente).
+  const admin = await requireAdmin();
   const [vendedores, users] = await Promise.all([
     db.vendedor.findMany({ where: { userId: null }, select: { id: true, nome: true } }),
-    db.user.findMany({ where: { workspaceId }, select: { id: true, name: true } }),
+    db.user.findMany({ where: { workspaceId: admin.workspaceId }, select: { id: true, name: true } }),
   ]);
   const userByNome = new Map(users.map((u) => [normNome(u.name), u.id]));
   let vinculados = 0;

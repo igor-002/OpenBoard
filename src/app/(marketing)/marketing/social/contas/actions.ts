@@ -1,15 +1,16 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireUser } from "@/lib/auth";
+import { requireModuleUser } from "@/lib/permissions";
 import { db } from "@/lib/db";
 import { fetchProfile, InstagramApiError } from "@/lib/marketing/instagram-client";
+import { encryptToken } from "@/lib/marketing/token-crypto";
 import { syncInstagramAccounts } from "@/server/marketing/instagram-sync";
 
 export type MarketingActionState = { ok?: boolean; error?: string };
 
-// Sem RBAC no módulo Marketing: qualquer usuário logado pode gerenciar
-// empresas/contas (ver comentário no schema). requireUser só garante sessão.
+// Acesso ao módulo Marketing é controlado por User.modules ("marketing").
+// requireModuleUser garante sessão + permissão em toda ação.
 
 function slugify(s: string): string {
   return s
@@ -22,7 +23,7 @@ function slugify(s: string): string {
 }
 
 export async function createCompanyAction(name: string): Promise<MarketingActionState> {
-  await requireUser();
+  await requireModuleUser("marketing");
   const trimmed = name.trim();
   if (!trimmed) return { ok: false, error: "Nome obrigatório." };
   const slug = slugify(trimmed);
@@ -36,7 +37,7 @@ export async function createCompanyAction(name: string): Promise<MarketingAction
 }
 
 export async function deleteCompanyAction(id: string): Promise<MarketingActionState> {
-  await requireUser();
+  await requireModuleUser("marketing");
   await db.marketingCompany.delete({ where: { id } });
   revalidatePath("/marketing/social/contas");
   revalidatePath("/marketing/social");
@@ -48,7 +49,7 @@ export async function createAccountAction(
   username: string,
   displayName: string,
 ): Promise<MarketingActionState> {
-  await requireUser();
+  await requireModuleUser("marketing");
   const uname = username.trim().replace(/^@/, "");
   const dname = displayName.trim() || uname;
   if (!uname) return { ok: false, error: "Usuário obrigatório." };
@@ -63,7 +64,7 @@ export async function createAccountAction(
 }
 
 export async function deleteAccountAction(id: string): Promise<MarketingActionState> {
-  await requireUser();
+  await requireModuleUser("marketing");
   await db.instagramAccount.delete({ where: { id } });
   revalidatePath("/marketing/social/contas");
   revalidatePath("/marketing/social");
@@ -71,7 +72,7 @@ export async function deleteAccountAction(id: string): Promise<MarketingActionSt
 }
 
 export async function setAccountActiveAction(id: string, active: boolean): Promise<MarketingActionState> {
-  await requireUser();
+  await requireModuleUser("marketing");
   await db.instagramAccount.update({ where: { id }, data: { active } });
   revalidatePath("/marketing/social/contas");
   revalidatePath("/marketing/social");
@@ -86,7 +87,7 @@ export async function connectAccountTokenAction(
   id: string,
   accessToken: string,
 ): Promise<MarketingActionState & { usernameMismatch?: string }> {
-  await requireUser();
+  await requireModuleUser("marketing");
   const token = accessToken.trim();
   if (!token) return { ok: false, error: "Token obrigatório." };
   let usernameMismatch: string | undefined;
@@ -101,7 +102,7 @@ export async function connectAccountTokenAction(
       where: { id },
       data: {
         igUserId: profile.igUserId,
-        accessToken: token,
+        accessToken: encryptToken(token),
         tokenExpiresAt: new Date(Date.now() + LONG_LIVED_TOKEN_DAYS * 86400000),
       },
     });
@@ -115,7 +116,7 @@ export async function connectAccountTokenAction(
 }
 
 export async function renameAccountAction(id: string, username: string): Promise<MarketingActionState> {
-  await requireUser();
+  await requireModuleUser("marketing");
   const uname = username.trim().replace(/^@/, "");
   if (!uname) return { ok: false, error: "Usuário obrigatório." };
   const exists = await db.instagramAccount.findUnique({ where: { username: uname } });
@@ -129,7 +130,7 @@ export async function renameAccountAction(id: string, username: string): Promise
 export async function runManualMarketingSyncAction(): Promise<
   MarketingActionState & { resultados?: { username: string; status: string; erro?: string }[] }
 > {
-  await requireUser();
+  await requireModuleUser("marketing");
   const resultados = await syncInstagramAccounts();
   revalidatePath("/marketing/social/contas");
   revalidatePath("/marketing/social", "layout");

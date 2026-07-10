@@ -70,6 +70,10 @@ model User {
   initials     String
   color        String
   hourlyCostCents Int   @default(0) // custo/hora p/ margem real (D1)
+  // Controle de acesso por módulo. Admin ignora (vê tudo). Para gerente/membro,
+  // só entra nos módulos listados aqui. Chaves válidas: gestao, comercial, leads,
+  // margem, marketing (ver src/lib/permissions.ts). Vazio = sem acesso a módulos gated.
+  modules      String[] @default([])
   mustChangePassword Boolean @default(false)
   // "Esqueci minha senha": guarda só o SHA-256 do token (nunca o token cru).
   resetTokenHash      String?

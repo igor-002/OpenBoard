@@ -25,7 +25,7 @@ function Toggle({ on, disabled, onChange }: { on: boolean; disabled?: boolean; o
   );
 }
 
-export function VendedoresManager({ rows, userOpts, workspaceId, isAdmin }: { rows: VendedorRow[]; userOpts: UserOpt[]; workspaceId: string; isAdmin: boolean }) {
+export function VendedoresManager({ rows, userOpts, isAdmin }: { rows: VendedorRow[]; userOpts: UserOpt[]; workspaceId: string; isAdmin: boolean }) {
   const [list, setList] = useState(rows);
   const [busca, setBusca] = useState("");
   const [pending, start] = useTransition();
@@ -55,7 +55,7 @@ export function VendedoresManager({ rows, userOpts, workspaceId, isAdmin }: { ro
   function autoVincular() {
     setMsg(null);
     start(async () => {
-      const r = await autoVincularVendedores(workspaceId);
+      const r = await autoVincularVendedores();
       setMsg(r.ok ? `${r.vinculados ?? 0} vendedor(es) vinculados por nome. Recarregue.` : r.error ?? "Erro");
     });
   }

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { requireUser } from "@/lib/auth";
+import { requireModule } from "@/lib/permissions";
 import { getMargem } from "@/server/comercial/queries";
 import { Card } from "@/components/ui/Card";
 import { StatCard } from "@/components/ui/Stat";
@@ -7,7 +7,7 @@ import { Icon } from "@/components/ui/Icon";
 import { brl } from "@/lib/format";
 
 export default async function MargemPage() {
-  const user = await requireUser();
+  const user = await requireModule("margem"); // dado sensível: gate extra além do comercial
   const { rows, semCusto } = await getMargem(user.workspaceId);
 
   const totReceita = rows.reduce((a, r) => a + r.mrrAtivoCents, 0);

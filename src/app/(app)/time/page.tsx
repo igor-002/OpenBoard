@@ -1,4 +1,4 @@
-import { requireUser } from "@/lib/auth";
+import { requireModule } from "@/lib/permissions";
 import { getTimeData } from "@/server/time";
 import { Card } from "@/components/ui/Card";
 import { StatCard } from "@/components/ui/Stat";
@@ -9,7 +9,7 @@ import { hms } from "@/lib/format";
 const PROJ_COLORS = ["var(--primary)", "var(--st-review)", "var(--st-progress)", "var(--st-done)"];
 
 export default async function TimePage() {
-  const user = await requireUser();
+  const user = await requireModule("gestao");
   const d = await getTimeData(user.workspaceId, user.id);
   const hours = Math.round(d.totalSec / 3600);
 

@@ -4,14 +4,20 @@ import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { hashPassword, verifyPassword } from "@/lib/password";
+import { hashPassword, verifyPassword, DUMMY_PASSWORD_HASH } from "@/lib/password";
 import { setSession, clearSession } from "@/lib/auth";
 import { checkRateLimit, registerFailure, resetRateLimit } from "@/lib/rate-limit";
 import { createResetLink, deliverResetLink, findUserByResetToken } from "@/server/password-reset";
 
 async function clientIp(): Promise<string> {
   const h = await headers();
-  return (h.get("x-forwarded-for")?.split(",")[0].trim()) || h.get("x-real-ip") || "local";
+  // nginx confiável define x-real-ip com o IP real do cliente → usa ele primeiro.
+  // Fallback: ÚLTIMO hop do x-forwarded-for (o que o proxy adicionou), nunca o 1º —
+  // o cliente pode forjar entradas iniciais no XFF e furar o rate limit.
+  const realIp = h.get("x-real-ip");
+  if (realIp?.trim()) return realIp.trim();
+  const parts = (h.get("x-forwarded-for") ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+  return parts.length ? parts[parts.length - 1] : "local";
 }
 
 export type AuthState = { error?: string };
@@ -50,7 +56,10 @@ export async function loginAction(_prev: AuthState, formData: FormData): Promise
   }
 
   const user = await db.user.findUnique({ where: { email: parsed.data.email } });
-  if (!user || !(await verifyPassword(parsed.data.password, user.passwordHash))) {
+  // Constant-time: roda bcrypt sempre (contra hash isca se o usuário não existe),
+  // pra não vazar por tempo se o e-mail existe. O `!user` decide o resultado.
+  const passwordOk = await verifyPassword(parsed.data.password, user?.passwordHash ?? DUMMY_PASSWORD_HASH);
+  if (!user || !passwordOk) {
     registerFailure(key);
     return { error: "E-mail ou senha incorretos." };
   }

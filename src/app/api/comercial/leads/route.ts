@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { createHash, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 import { ingestLead, type LeadInput } from "@/server/comercial/leads";
 
@@ -44,7 +45,6 @@ function fromAtendAI(body: unknown): LeadInput | null {
   // Cobre variações do nome (FINALIZACAO_ATENDIMENTO, ATENDIMENTO_FINALIZADO, ENCERRAMENTO…).
   const evento = typeof env.evento === "string" ? env.evento : null;
   const finalizado = !!evento && /FINALIZ|ENCERR|CONCLU|\bFIM\b|FINISH|CLOSE/i.test(evento);
-  console.log("[leads-ingest] evento:", evento, "finalizado:", finalizado); // TEMP: confirmar nome do evento de finalização
 
   const contato = d.whatsappid != null ? String(d.whatsappid) : null;
   const fila = (d.filaPersonalizada as Record<string, unknown> | null)?.nome_fila;
@@ -99,13 +99,23 @@ function fromAtendAI(body: unknown): LeadInput | null {
   };
 }
 
+// Comparação em tempo constante (hash de tamanho fixo evita vazar comprimento/bytes).
+function tokenMatch(provided: string, expected: string): boolean {
+  const a = createHash("sha256").update(provided).digest();
+  const b = createHash("sha256").update(expected).digest();
+  return timingSafeEqual(a, b);
+}
+
 function authorized(request: Request, url: URL): boolean {
   const expected = process.env.LEADS_INGEST_TOKEN;
   if (!expected) return false; // sem token configurado, rejeita
   const auth = request.headers.get("authorization") ?? "";
   const bearer = auth.toLowerCase().startsWith("bearer ") ? auth.slice(7).trim() : null;
+  // Preferir sempre o header Authorization. O ?key= segue aceito só por compat com o
+  // chat de atendimento atual (token em URL vaza em logs) — migrar p/ header e remover.
   const key = bearer ?? url.searchParams.get("key");
-  return key === expected;
+  if (!key) return false;
+  return tokenMatch(key, expected);
 }
 
 export async function POST(request: Request) {

@@ -325,7 +325,7 @@ const SLIDES = [
 const INTERVAL = 15000;
 const REFRESH_MS = 30000;
 
-export function ComercialTvBoard({ initial }: { initial: ComercialTvData }) {
+export function ComercialTvBoard({ initial, tvKey }: { initial: ComercialTvData; tvKey: string }) {
   const [data, setData] = useState<ComercialTvData>(initial);
   const [idx, setIdx] = useState(0);
   const [paused, setPaused] = useState(false);
@@ -362,10 +362,10 @@ export function ComercialTvBoard({ initial }: { initial: ComercialTvData }) {
 
   const refetch = useCallback(async () => {
     try {
-      const r = await fetch(`/api/tv/comercial`, { cache: "no-store" });
+      const r = await fetch(`/api/tv/comercial?key=${encodeURIComponent(tvKey)}`, { cache: "no-store" });
       if (r.ok) setData(await r.json());
     } catch { /* mantém dados atuais */ }
-  }, []);
+  }, [tvKey]);
   useEffect(() => { const t = setInterval(refetch, REFRESH_MS); return () => clearInterval(t); }, [refetch]);
 
   useEffect(() => { pausedRef.current = paused; if (paused && countRef.current) countRef.current.textContent = "pausado"; }, [paused]);
