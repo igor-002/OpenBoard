@@ -1,11 +1,11 @@
-import { requireUser } from "@/lib/auth";
+import { requireModule } from "@/lib/permissions";
 import { getNotifications } from "@/server/notifications";
 import { MarketingShell } from "@/components/marketing/MarketingShell";
 
-// Terceiro sistema (Marketing). Reusa a sessão do OpenBoard — mesmos
-// usuários. Sem RBAC — qualquer usuário logado entra e edita tudo.
+// Terceiro sistema (Marketing). Reusa a sessão do OpenBoard. Acesso exige o
+// módulo "marketing" (admin sempre). Ações também revalidam a permissão.
 export default async function MarketingLayout({ children }: { children: React.ReactNode }) {
-  const user = await requireUser();
+  const user = await requireModule("marketing");
   const notifications = await getNotifications(user.id);
   return (
     <MarketingShell

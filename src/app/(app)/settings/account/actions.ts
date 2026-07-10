@@ -46,6 +46,9 @@ const initialSchema = z
 // Define nova senha no 1º acesso (já autenticado, não pede a atual) e limpa a flag.
 export async function setMyPassword(_prev: PasswordState, formData: FormData): Promise<PasswordState> {
   const user = await requireUser();
+  // Só vale no 1º acesso (flag ligada). Depois disso, trocar senha exige a senha
+  // atual via changePassword — impede que uma sessão sequestrada troque sem re-auth.
+  if (!user.mustChangePassword) return { error: "Use a troca de senha normal (pede a senha atual)." };
   const parsed = initialSchema.safeParse({ next: formData.get("next"), confirm: formData.get("confirm") });
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   await db.user.update({

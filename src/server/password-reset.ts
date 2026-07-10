@@ -52,6 +52,12 @@ export async function deliverResetLink(email: string, link: string): Promise<"em
     if (res.ok) return "email";
     console.error(`[reset-senha] falha ao enviar e-mail (${res.status}) — caindo pro log.`);
   }
-  console.log(`[reset-senha] link para ${email} (válido 1h): ${link}`);
+  // Em produção NUNCA logar o link (contém o token de reset). Só avisa que a entrega
+  // falhou — quem tem acesso ao log não pode sequestrar o reset. Em dev, loga p/ testar.
+  if (process.env.NODE_ENV === "production") {
+    console.error(`[reset-senha] entrega não configurada (Resend) — link de ${email} NÃO enviado. Configure RESEND_API_KEY/RESET_EMAIL_FROM.`);
+  } else {
+    console.log(`[reset-senha] link para ${email} (válido 1h): ${link}`);
+  }
   return "log";
 }

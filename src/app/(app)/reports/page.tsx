@@ -1,4 +1,4 @@
-import { requireUser } from "@/lib/auth";
+import { requireModule } from "@/lib/permissions";
 import { getReportsData } from "@/server/reports";
 import { Card } from "@/components/ui/Card";
 import { StatCard } from "@/components/ui/Stat";
@@ -14,7 +14,7 @@ const COL_LABEL: Record<string, string> = { todo: "A fazer", doing: "Em andament
 const AREA_COLORS = ["var(--c1)", "var(--c3)", "var(--c4)", "var(--c5)", "var(--c6)"];
 
 export default async function ReportsPage() {
-  const user = await requireUser();
+  const user = await requireModule("gestao");
   const d = await getReportsData(user.workspaceId);
 
   return (

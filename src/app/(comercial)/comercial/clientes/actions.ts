@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireUser } from "@/lib/auth";
+import { requireModuleUser } from "@/lib/permissions";
 import { db } from "@/lib/db";
 import { notify } from "@/server/notifications";
 import { emitAppEvent } from "@/server/events";
@@ -11,7 +11,7 @@ export type CrossActionState = { ok?: boolean; error?: string; id?: string };
 // B1 ⭐ — cria projeto de implantação (onboarding) a partir de um cliente IXC.
 // Lead = User vinculado ao vendedor do contrato mais recente (se houver). Idempotente.
 export async function createOnboardingProject(clienteIxcId: string): Promise<CrossActionState> {
-  const user = await requireUser();
+  const user = await requireModuleUser("comercial");
   const cliente = await db.ixcCliente.findUnique({ where: { ixcId: clienteIxcId }, select: { razao: true } });
   if (!cliente) return { error: "Cliente não encontrado." };
 
@@ -56,7 +56,7 @@ export async function createOnboardingProject(clienteIxcId: string): Promise<Cro
 
 // A2 — vincula/desvincula um projeto existente do workspace a um cliente IXC.
 export async function linkProjectToCliente(projectId: string, clienteIxcId: string | null): Promise<CrossActionState> {
-  const user = await requireUser();
+  const user = await requireModuleUser("comercial");
   const p = await db.project.findFirst({ where: { id: projectId, workspaceId: user.workspaceId }, select: { id: true } });
   if (!p) return { error: "Projeto não encontrado." };
   await db.project.update({ where: { id: projectId }, data: { ixcClienteId: clienteIxcId } });
@@ -67,7 +67,7 @@ export async function linkProjectToCliente(projectId: string, clienteIxcId: stri
 
 // B2/B3 — cria tarefa de cobrança/retenção num projeto vinculado ao cliente.
 export async function criarTarefaCobranca(projectId: string, titulo: string): Promise<CrossActionState> {
-  const user = await requireUser();
+  const user = await requireModuleUser("comercial");
   const p = await db.project.findFirst({ where: { id: projectId, workspaceId: user.workspaceId }, select: { id: true, name: true, ixcClienteId: true } });
   if (!p) return { error: "Projeto não encontrado." };
   const t = titulo.trim();

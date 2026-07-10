@@ -1,11 +1,12 @@
-import { requireUser } from "@/lib/auth";
+import { requireModule } from "@/lib/permissions";
 import { getProjectsList } from "@/server/projects";
 import { getUsers } from "@/server/users";
 import { ProjectsList } from "@/components/project/ProjectsList";
 import { NewProjectButton } from "@/components/project/NewProjectButton";
+import { AbrirTvButton } from "@/components/tv/AbrirTvButton";
 
 export default async function ProjectsPage() {
-  const user = await requireUser();
+  const user = await requireModule("gestao");
   const [projects, users] = await Promise.all([
     getProjectsList(user.workspaceId),
     getUsers(user.workspaceId),
@@ -25,6 +26,7 @@ export default async function ProjectsPage() {
           </p>
         </div>
         <div className="row gap12">
+          <AbrirTvButton scope="projetos" />
           <NewProjectButton users={memberOpts} />
         </div>
       </div>

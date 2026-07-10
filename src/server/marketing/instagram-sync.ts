@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { currentPeriod } from "@/lib/marketing/format";
+import { encryptToken, decryptToken } from "@/lib/marketing/token-crypto";
 import {
   fetchAccountMetricSum,
   fetchMediaSince,
@@ -116,7 +117,7 @@ async function syncAccount(
   const account = await db.instagramAccount.findUniqueOrThrow({
     where: { id: accountId },
   });
-  let token = account.accessToken!;
+  let token = decryptToken(account.accessToken!); // em repouso vem criptografado (AES-GCM)
   let tokenRenovado = false;
 
   // Renovação automática: token de longa duração vale 60 dias.
@@ -129,7 +130,7 @@ async function syncAccount(
     tokenRenovado = true;
     await db.instagramAccount.update({
       where: { id: account.id },
-      data: { accessToken: token, tokenExpiresAt: renewed.expiresAt },
+      data: { accessToken: encryptToken(token), tokenExpiresAt: renewed.expiresAt },
     });
   }
 

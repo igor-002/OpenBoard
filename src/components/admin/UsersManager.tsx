@@ -7,9 +7,10 @@ import { Avatar } from "@/components/ui/Avatar";
 import { Card } from "@/components/ui/Card";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { useOverlayClose } from "@/components/ui/useOverlayClose";
-import { createUser, updateUserRole, deleteUser, resetUserPassword, updateUserHourlyCost } from "@/app/(app)/settings/users/actions";
+import { createUser, updateUserRole, deleteUser, resetUserPassword, updateUserHourlyCost, updateUserModules } from "@/app/(app)/settings/users/actions";
 import type { UserRow } from "@/server/users";
 import type { Role } from "@/lib/types";
+import { MODULES, MODULE_LABELS } from "@/lib/modules";
 
 export function UsersManager({ users, currentUserId }: { users: UserRow[]; currentUserId: string }) {
   const router = useRouter();
@@ -18,6 +19,7 @@ export function UsersManager({ users, currentUserId }: { users: UserRow[]; curre
   const [pendingDel, start] = useTransition();
   const [confirmUser, setConfirmUser] = useState<{ id: string; name: string } | null>(null);
   const [resetUser, setResetUser] = useState<{ id: string; name: string } | null>(null);
+  const [modUser, setModUser] = useState<{ id: string; name: string; modules: string[] } | null>(null);
   // papéis em estado local (otimista) — o select reflete na hora; servidor confirma.
   const [roles, setRoles] = useState<Record<string, Role>>(() => Object.fromEntries(users.map((u) => [u.id, u.role])));
   useEffect(() => {
@@ -97,6 +99,18 @@ export function UsersManager({ users, currentUserId }: { users: UserRow[]; curre
                   </td>
                   <td style={{ textAlign: "right" }}>
                     <div className="row gap8" style={{ justifyContent: "flex-end" }}>
+                      {(roles[u.id] ?? u.role) === "admin" ? (
+                        <span className="muted" style={{ fontSize: 12 }} title="Admin acessa todos os módulos">acesso total</span>
+                      ) : (
+                        <button
+                          className="icon-btn"
+                          style={{ width: 34, height: 34, border: "none", background: "none", color: "var(--ink-2)" }}
+                          title="Módulos que este usuário acessa"
+                          onClick={() => setModUser({ id: u.id, name: u.name, modules: u.modules })}
+                        >
+                          <Icon name="grid" size={16} />
+                        </button>
+                      )}
                       <button
                         className="icon-btn"
                         style={{ width: 34, height: 34, border: "none", background: "none", color: "var(--ink-2)" }}
@@ -136,7 +150,51 @@ export function UsersManager({ users, currentUserId }: { users: UserRow[]; curre
         />
       )}
       {resetUser && <ResetModal user={resetUser} onClose={() => { setResetUser(null); router.refresh(); }} />}
+      {modUser && <ModulesModal user={modUser} onClose={() => { setModUser(null); router.refresh(); }} />}
     </>
+  );
+}
+
+// Escolhe quais módulos um usuário (não-admin) pode acessar.
+function ModulesModal({ user, onClose }: { user: { id: string; name: string; modules: string[] }; onClose: () => void }) {
+  const [sel, setSel] = useState<string[]>(user.modules);
+  const [err, setErr] = useState<string | null>(null);
+  const [pending, start] = useTransition();
+
+  function toggle(key: string) {
+    setSel((p) => (p.includes(key) ? p.filter((k) => k !== key) : [...p, key]));
+  }
+  function save() {
+    setErr(null);
+    start(async () => {
+      const r = await updateUserModules(user.id, sel);
+      if (r.error) { setErr(r.error); return; }
+      onClose();
+    });
+  }
+
+  return (
+    <div {...useOverlayClose(onClose)} style={{ position: "fixed", inset: 0, background: "rgba(16,24,40,.45)", zIndex: 60, display: "grid", placeItems: "center", padding: 24 }}>
+      <div className="card" style={{ width: "100%", maxWidth: 440, padding: 24, boxShadow: "var(--sh-lg)" }}>
+        <h3 className="card-title" style={{ fontSize: 18, marginBottom: 8 }}>Acesso de {user.name}</h3>
+        <p className="page-sub" style={{ margin: "0 0 16px" }}>
+          Marque as áreas que este usuário pode ver e usar. Admins acessam tudo automaticamente.
+        </p>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {MODULES.map((key) => (
+            <label key={key} className="row gap12" style={{ alignItems: "flex-start", cursor: "pointer" }}>
+              <input type="checkbox" checked={sel.includes(key)} onChange={() => toggle(key)} style={{ marginTop: 3 }} />
+              <span style={{ fontSize: 14 }}>{MODULE_LABELS[key]}</span>
+            </label>
+          ))}
+        </div>
+        {err && <div className="form-error" style={{ marginTop: 12 }}>{err}</div>}
+        <div className="row gap12" style={{ justifyContent: "flex-end", marginTop: 18 }}>
+          <button className="btn" onClick={onClose} disabled={pending}>Cancelar</button>
+          <button className="btn btn-primary" onClick={save} disabled={pending}>{pending ? "Salvando…" : "Salvar acesso"}</button>
+        </div>
+      </div>
+    </div>
   );
 }
 

@@ -5,6 +5,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth";
 import { hashPassword } from "@/lib/password";
+import { isModuleKey } from "@/lib/permissions";
 import type { Role } from "@/lib/types";
 
 export type UserActionState = { ok?: boolean; error?: string };
@@ -81,6 +82,18 @@ export async function updateUserRole(userId: string, role: Role): Promise<UserAc
   }
 
   await db.user.update({ where: { id: userId }, data: { role } });
+  revalidatePath("/settings/users");
+  return { ok: true };
+}
+
+// Define os módulos que um usuário (não-admin) pode acessar. Admin ignora a lista
+// (vê tudo). Filtra pra chaves válidas — nunca confia no que veio do cliente.
+export async function updateUserModules(userId: string, modules: string[]): Promise<UserActionState> {
+  const admin = await requireAdmin();
+  const target = await db.user.findFirst({ where: { id: userId, workspaceId: admin.workspaceId }, select: { id: true } });
+  if (!target) return { error: "Usuário não encontrado." };
+  const clean = Array.isArray(modules) ? [...new Set(modules.filter(isModuleKey))] : [];
+  await db.user.update({ where: { id: userId }, data: { modules: clean } });
   revalidatePath("/settings/users");
   return { ok: true };
 }
