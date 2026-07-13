@@ -10,7 +10,7 @@ import {
 import { Icon } from "@/components/ui/Icon";
 import { useOverlayClose } from "@/components/ui/useOverlayClose";
 import { brl } from "@/lib/format";
-import { LEAD_STAGES, LEAD_MOTIVOS_PERDA, type LeadStage } from "@/lib/leads";
+import { LEAD_STAGES, type LeadStage } from "@/lib/leads";
 import type { LeadsBoard as LeadsBoardData, LeadCard } from "@/server/comercial/leads";
 import { createLeadManual, moveLeadStage, assignLead, deleteLead, updateLeadValor } from "@/app/(comercial)/comercial/leads/actions";
 
@@ -65,7 +65,6 @@ export function LeadsBoard({ board, userOpts, isAdmin }: { board: LeadsBoardData
   const [activeId, setActiveId] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [detail, setDetail] = useState<LeadCard | null>(null);
-  const [lossCard, setLossCard] = useState<LeadCard | null>(null); // aguardando motivo de perda
   const [view, setView] = useState<View>("kanban");
   const [dense, setDense] = useState(false);
   const [q, setQ] = useState("");
@@ -107,8 +106,6 @@ export function LeadsBoard({ board, userOpts, isAdmin }: { board: LeadsBoardData
     if (!dest) return;
     const card = allCards.find((c) => c.id === id);
     if (!card || card.stage === dest) return;
-    // perda exige motivo — segura o move até o modal confirmar
-    if (dest === "perdido") { setLossCard(card); return; }
     // otimista: tira da origem, põe no destino
     setCardsByStage((prev) => {
       const next: Record<string, LeadCard[]> = {};
@@ -117,19 +114,6 @@ export function LeadsBoard({ board, userOpts, isAdmin }: { board: LeadsBoardData
       return next;
     });
     startMove(async () => { await moveLeadStage(id, dest); router.refresh(); });
-  }
-
-  function confirmLoss(motivo: string) {
-    const card = lossCard;
-    if (!card) return;
-    setLossCard(null);
-    setCardsByStage((prev) => {
-      const next: Record<string, LeadCard[]> = {};
-      for (const [k, list] of Object.entries(prev)) next[k] = list.filter((c) => c.id !== card.id);
-      next["perdido"] = [...(next["perdido"] ?? []), { ...card, stage: "perdido", motivoPerda: motivo }];
-      return next;
-    });
-    startMove(async () => { await moveLeadStage(card.id, "perdido", motivo); router.refresh(); });
   }
 
   return (
@@ -198,7 +182,6 @@ export function LeadsBoard({ board, userOpts, isAdmin }: { board: LeadsBoardData
 
       {open && <NewLeadModal onClose={() => { setOpen(false); router.refresh(); }} />}
       {detail && <LeadDetailModal lead={detail} userOpts={userOpts} isAdmin={isAdmin} onClose={() => { setDetail(null); router.refresh(); }} />}
-      {lossCard && <MotivoPerdaModal nome={lossCard.nome} onConfirm={confirmLoss} onClose={() => setLossCard(null)} />}
     </>
   );
 }
@@ -231,7 +214,7 @@ function FunnelSummary({ cards }: { cards: LeadCard[] }) {
       <div className="row" style={{ gap: 24, flexWrap: "wrap" }}>
         <MiniStat label="Em aberto" value={brl(valorAberto)} c="var(--ink)" />
         <MiniStat label="Ativos" value={String(ativos.length)} c="var(--st-progress)" />
-        <MiniStat label="Ganhos" value={String(ganhos)} c="var(--st-done)" />
+        <MiniStat label="Aprovados" value={String(ganhos)} c="var(--st-done)" />
         <MiniStat label="Parados +7d" value={String(parados)} c={parados > 0 ? "var(--st-risk)" : "var(--muted)"} />
       </div>
     </div>
@@ -486,38 +469,6 @@ function CardBody({ c, color, dense }: { c: LeadCard; color: string; dense?: boo
   );
 }
 
-// Modal de motivo de perda — obrigatório ao mover um lead pra "perdido".
-function MotivoPerdaModal({ nome, onConfirm, onClose }: { nome: string; onConfirm: (motivo: string) => void; onClose: () => void }) {
-  const [sel, setSel] = useState<string>(LEAD_MOTIVOS_PERDA[0]);
-  const [outro, setOutro] = useState("");
-  const motivo = sel === "Outro" ? outro.trim() : sel;
-  return (
-    <div {...useOverlayClose(onClose)} style={{ position: "fixed", inset: 0, background: "rgba(16,24,40,.45)", zIndex: 70, display: "grid", placeItems: "center", padding: 24 }}>
-      <div className="card" style={{ width: "100%", maxWidth: 420, padding: 24, boxShadow: "var(--sh-lg)" }}>
-        <h3 className="card-title" style={{ fontSize: 17, marginBottom: 4 }}>Marcar como perdido</h3>
-        <p className="muted" style={{ fontSize: 13, marginBottom: 16 }}>Por que <b style={{ color: "var(--ink)" }}>{nome}</b> não fechou? Alimenta o relatório de motivos de perda.</p>
-        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14 }}>
-          {LEAD_MOTIVOS_PERDA.map((m) => (
-            <label key={m} className="row gap8" style={{ alignItems: "center", cursor: "pointer", fontSize: 13.5, fontWeight: sel === m ? 700 : 500, padding: "8px 12px", borderRadius: "var(--r-sm)", border: `1px solid ${sel === m ? "var(--st-risk)" : "var(--line)"}`, background: sel === m ? "var(--st-risk-bg)" : "transparent" }}>
-              <input type="radio" name="motivo-perda" checked={sel === m} onChange={() => setSel(m)} style={{ accentColor: "var(--st-risk)" }} />
-              {m}
-            </label>
-          ))}
-        </div>
-        {sel === "Outro" && (
-          <div className="field" style={{ marginBottom: 14 }}>
-            <input className="input" autoFocus value={outro} onChange={(e) => setOutro(e.target.value)} placeholder="Descreva o motivo…" onKeyDown={(e) => { if (e.key === "Enter" && motivo) onConfirm(motivo); }} />
-          </div>
-        )}
-        <div className="row gap12" style={{ justifyContent: "flex-end" }}>
-          <button className="btn" onClick={onClose}>Cancelar</button>
-          <button className="btn" style={{ color: "#fff", background: "var(--st-risk)", borderColor: "var(--st-risk)" }} disabled={!motivo} onClick={() => onConfirm(motivo)}>Confirmar perda</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function NewLeadModal({ onClose }: { onClose: () => void }) {
   const [state, formAction, pending] = useActionState(createLeadManual, {});
   useEffect(() => { if (state.ok) onClose(); }, [state.ok, onClose]);
@@ -559,17 +510,10 @@ function LeadDetailModal({ lead, userOpts, isAdmin, onClose }: { lead: LeadCard;
   const [stage, setStage] = useState<LeadStage>(lead.stage);
   const [valor, setValor] = useState(lead.valorEstimadoCents > 0 ? String(lead.valorEstimadoCents / 100) : "");
   const [valorSalvo, setValorSalvo] = useState(false);
-  const [lossOpen, setLossOpen] = useState(false);
   function changeAssign(v: string) { setAssigned(v); start(async () => { await assignLead(lead.id, v || null); router.refresh(); }); }
   function changeStage(v: string) {
-    if (v === "perdido") { setLossOpen(true); return; } // motivo primeiro
     setStage(v as LeadStage);
     start(async () => { await moveLeadStage(lead.id, v); router.refresh(); });
-  }
-  function confirmLoss(motivo: string) {
-    setLossOpen(false);
-    setStage("perdido");
-    start(async () => { await moveLeadStage(lead.id, "perdido", motivo); router.refresh(); });
   }
   function saveValor() {
     const n = parseFloat(valor.replace(",", ".")) || 0;
@@ -600,7 +544,6 @@ function LeadDetailModal({ lead, userOpts, isAdmin, onClose }: { lead: LeadCard;
             {" "}há <b style={{ color: stageAge(lead).fg }}>{stageAge(lead).label}</b>
           </span>
           <span className="muted">Último contato</span><span>{new Date(lead.lastContactAt).toLocaleString("pt-BR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
-          {lead.stage === "perdido" && lead.motivoPerda && <><span className="muted">Motivo da perda</span><span style={{ color: "var(--st-risk)", fontWeight: 700 }}>{lead.motivoPerda}</span></>}
         </div>
         <Link href={`/comercial/leads/${lead.id}`} className="btn btn-primary" style={{ marginBottom: 14, width: "100%", justifyContent: "center" }}>Abrir conversa e análise IA <Icon name="chevRight" size={14} /></Link>
         {lead.ixcClienteId && <Link href={`/comercial/clientes/${lead.ixcClienteId}`} className="btn btn-ghost" style={{ marginBottom: 14 }}>Ver cliente 360 <Icon name="chevRight" size={14} /></Link>}
@@ -643,7 +586,6 @@ function LeadDetailModal({ lead, userOpts, isAdmin, onClose }: { lead: LeadCard;
           <button className="btn btn-primary" onClick={onClose}>Fechar</button>
         </div>
       </div>
-      {lossOpen && <MotivoPerdaModal nome={lead.nome} onConfirm={confirmLoss} onClose={() => setLossOpen(false)} />}
     </div>
   );
 }

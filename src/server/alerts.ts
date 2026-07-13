@@ -9,7 +9,7 @@ import { notify } from "@/server/notifications";
 const DAY = 86400000;
 const JANELA_DEDUP_DIAS = 7; // não repete o mesmo alerta dentro desta janela
 
-const LEAD_ATIVOS = ["novo", "contato", "qualificado", "proposta"];
+const LEAD_ATIVOS = ["contato", "proposta"];
 
 // Já existe notificação equivalente recente? (dedup por type+link)
 async function jaAlertado(type: string, link: string): Promise<boolean> {

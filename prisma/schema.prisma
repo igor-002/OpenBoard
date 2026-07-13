@@ -360,9 +360,8 @@ model Lead {
   externalId         String?  @unique // id do lead no sistema externo — dedup forte
   valorEstimadoCents Int      @default(0)
   observacoes        String?
-  stage              String   @default("novo") // ver LEAD_STAGES
+  stage              String   @default("contato") // ver LEAD_STAGES (funil de 4 estágios)
   stageChangedAt     DateTime @default(now()) // quando entrou no estágio atual (tempo em fila)
-  motivoPerda        String?  // preenchido ao mover pra "perdido" (ver LEAD_MOTIVOS_PERDA)
   order              Int      @default(0)
   ixcClienteId       String?  // casado a um cliente IXC (por doc), se houver
   assignedUserId     String?  // responsável OpenBoard

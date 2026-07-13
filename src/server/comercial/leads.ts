@@ -17,7 +17,6 @@ export type LeadCard = {
   valorEstimadoCents: number;
   observacoes: string | null;
   stage: LeadStage;
-  motivoPerda: string | null;
   ixcClienteId: string | null;
   assignedUserId: string | null;
   assignedUserName: string | null;
@@ -37,11 +36,11 @@ export async function getLeadsBoard(): Promise<LeadsBoard> {
 
   const cols = new Map<LeadStage, LeadStageCol>(LEAD_STAGES.map((s) => [s.id, { id: s.id, label: s.label, c: s.c, cards: [], total: 0, valorCents: 0 }]));
   for (const l of leads) {
-    const stage: LeadStage = isLeadStage(l.stage) ? l.stage : "novo";
+    const stage: LeadStage = isLeadStage(l.stage) ? l.stage : "contato";
     const col = cols.get(stage)!;
     col.cards.push({
       id: l.id, nome: l.nome, empresa: l.empresa, cnpjCpf: l.cnpjCpf, contato: l.contato, email: l.email,
-      origem: l.origem, valorEstimadoCents: l.valorEstimadoCents, observacoes: l.observacoes, stage, motivoPerda: l.motivoPerda,
+      origem: l.origem, valorEstimadoCents: l.valorEstimadoCents, observacoes: l.observacoes, stage,
       ixcClienteId: l.ixcClienteId, assignedUserId: l.assignedUserId, assignedUserName: l.assignedUserId ? uMap.get(l.assignedUserId) ?? null : null,
       lastContactAt: l.lastContactAt, stageChangedAt: l.stageChangedAt, finalizadoAt: l.finalizadoAt, createdAt: l.createdAt,
     });
@@ -219,7 +218,7 @@ export async function ingestLead(input: LeadInput): Promise<IngestResult> {
 
   const doc = normDoc(input.cnpjCpf);
   const ixcClienteId = await matchIxcClienteByDoc(doc);
-  const max = await db.lead.aggregate({ where: { stage: "novo" }, _max: { order: true } });
+  const max = await db.lead.aggregate({ where: { stage: "contato" }, _max: { order: true } });
 
   const lead = await db.lead.create({
     data: {
@@ -235,7 +234,7 @@ export async function ingestLead(input: LeadInput): Promise<IngestResult> {
       externalId: input.externalId?.trim() || null,
       valorEstimadoCents: Math.max(0, Math.round(input.valorEstimadoCents ?? 0)),
       observacoes: input.observacoes?.trim() || null,
-      stage: "novo",
+      stage: "contato",
       order: (max._max.order ?? 0) + 1,
       ixcClienteId,
       assignedUserId: assignedUserId || null,
@@ -246,19 +245,17 @@ export async function ingestLead(input: LeadInput): Promise<IngestResult> {
   });
   await upsertMensagens(lead.id, input.mensagens);
   // histórico: entrada no funil (base dos relatórios de tempo em fila)
-  await db.leadStageEvent.create({ data: { leadId: lead.id, fromStage: null, toStage: "novo" } });
+  await db.leadStageEvent.create({ data: { leadId: lead.id, fromStage: null, toStage: "contato" } });
   return { created: true, id: lead.id, matchedBy: null };
 }
 
 // Move o lead de estágio registrando o histórico (única forma correta de mudar stage).
-// motivoPerda: gravado ao entrar em "perdido"; limpo ao sair (lead reaberto).
-export async function changeLeadStage(id: string, stage: LeadStage, movedByUserId?: string | null, motivoPerda?: string | null): Promise<void> {
+export async function changeLeadStage(id: string, stage: LeadStage, movedByUserId?: string | null): Promise<void> {
   const lead = await db.lead.findUnique({ where: { id }, select: { stage: true } });
   if (!lead || lead.stage === stage) return;
   const max = await db.lead.aggregate({ where: { stage }, _max: { order: true } });
-  const motivo = stage === "perdido" ? (motivoPerda?.trim() || null) : null;
   await db.$transaction([
-    db.lead.update({ where: { id }, data: { stage, stageChangedAt: new Date(), order: (max._max.order ?? 0) + 1, motivoPerda: motivo } }),
+    db.lead.update({ where: { id }, data: { stage, stageChangedAt: new Date(), order: (max._max.order ?? 0) + 1 } }),
     db.leadStageEvent.create({ data: { leadId: id, fromStage: lead.stage, toStage: stage, movedByUserId: movedByUserId ?? null } }),
   ]);
 }

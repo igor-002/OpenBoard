@@ -11,8 +11,7 @@ function fmtClock(d: Date) { return d.toLocaleTimeString("pt-BR", { hour: "2-dig
 function fmtDate(d: Date) { const s = d.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long" }); return s.charAt(0).toUpperCase() + s.slice(1); }
 
 const LEAD_COR: Record<string, string> = {
-  novo: "var(--info)", contato: "var(--warn)", qualificado: "var(--viol)",
-  proposta: "var(--tv-accent)", ganho: "var(--ok)", perdido: "var(--crit)",
+  contato: "var(--warn)", proposta: "var(--tv-accent)", ganho: "var(--ok)", perdido: "var(--crit)",
 };
 
 function Panel({ icon, color = "var(--tv-accent)", title, sub, right, children, style }: {
@@ -292,7 +291,7 @@ function SlideLeads({ d }: { d: ComercialTvData }) {
       <div className="tv-grid" style={{ gridTemplateColumns: "repeat(3,1fr)", gridTemplateRows: "none" }}>
         <KPI icon="target" color="var(--info)" label="Leads no funil" value={d.leadsTotal} foot="vindos do chat de atendimento" />
         <KPI icon="wallet" color="var(--tv-accent)" label="Valor estimado" value={brl(valorTotal)} foot="potencial em negociação" />
-        <KPI icon="checkCircle" color="var(--ok)" label="Ganhos" value={ganhos} foot="convertidos" />
+        <KPI icon="checkCircle" color="var(--ok)" label="Aprovados" value={ganhos} foot="convertidos" />
       </div>
       <Panel icon="target" title="Funil de Leads" sub="Cards no Kanban comercial (vêm do chat de atendimento)" right={`${d.leadsTotal} leads`}>
         <div style={{ display: "flex", flexDirection: "column", flex: 1, justifyContent: "space-evenly", minHeight: 0 }}>

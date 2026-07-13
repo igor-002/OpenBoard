@@ -38,8 +38,8 @@ export default async function LeadsRelatoriosPage() {
       <div className="grid" style={{ gridTemplateColumns: "repeat(5,1fr)", gap: "var(--gap)" }}>
         <StatCard icon="target" label="Leads ativos" value={s.kpis.ativos} foot={`${brl(s.kpis.valorAbertoCents)} em aberto`} accent="var(--st-progress)" />
         <StatCard icon="wallet" label="Previsão ponderada" value={brl(s.kpis.forecastCents)} foot="valor em aberto × prob. do estágio" accent="var(--st-review)" />
-        <StatCard icon="check" label="Ganhos (30d)" value={s.kpis.ganhos30d} foot={`${brl(s.kpis.valorGanho30dCents)} · ${s.kpis.perdidos30d} perdidos`} accent="var(--st-done)" />
-        <StatCard icon="trendUp" label="Taxa de conversão" value={s.kpis.taxaConversao != null ? `${s.kpis.taxaConversao}%` : "—"} foot={s.kpis.cicloMedioDias != null ? `ciclo médio ${fmtDias(s.kpis.cicloMedioDias)} até ganho` : "sem leads fechados ainda"} accent="var(--primary)" />
+        <StatCard icon="check" label="Aprovados (30d)" value={s.kpis.ganhos30d} foot={`${brl(s.kpis.valorGanho30dCents)} · ${s.kpis.perdidos30d} sem resposta`} accent="var(--st-done)" />
+        <StatCard icon="trendUp" label="Taxa de conversão" value={s.kpis.taxaConversao != null ? `${s.kpis.taxaConversao}%` : "—"} foot={s.kpis.cicloMedioDias != null ? `ciclo médio ${fmtDias(s.kpis.cicloMedioDias)} até aprovar` : "sem leads fechados ainda"} accent="var(--primary)" />
         <StatCard icon="alert" label="Parados há +7 dias" value={s.kpis.paradosMais7d} foot="ativos sem mudar de fila" accent="var(--st-risk)" />
       </div>
 
@@ -168,7 +168,7 @@ export default async function LeadsRelatoriosPage() {
           )}
         </Card>
 
-        <Card title="Entrada de leads por semana" sub="Novos leads × ganhos nas últimas 8 semanas" pad>
+        <Card title="Entrada de leads por semana" sub="Novos leads × aprovados nas últimas 8 semanas" pad>
           {s.entradaSemanas.every((w) => w.novos === 0 && w.ganhos === 0) ? (
             <div className="muted" style={{ padding: 20, textAlign: "center" }}>Sem leads no período.</div>
           ) : (
@@ -180,7 +180,7 @@ export default async function LeadsRelatoriosPage() {
                     <div key={w.label} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 6, height: "100%" }}>
                       <div style={{ flex: 1, width: "100%", display: "flex", alignItems: "flex-end", justifyContent: "center", gap: 4 }}>
                         <div title={`Novos: ${w.novos}`} style={{ width: 13, height: `${(w.novos / max) * 100}%`, background: "var(--st-progress)", borderRadius: "4px 4px 0 0", minHeight: w.novos ? 4 : 0 }} />
-                        <div title={`Ganhos: ${w.ganhos}`} style={{ width: 13, height: `${(w.ganhos / max) * 100}%`, background: "var(--st-done)", borderRadius: "4px 4px 0 0", minHeight: w.ganhos ? 4 : 0 }} />
+                        <div title={`Aprovados: ${w.ganhos}`} style={{ width: 13, height: `${(w.ganhos / max) * 100}%`, background: "var(--st-done)", borderRadius: "4px 4px 0 0", minHeight: w.ganhos ? 4 : 0 }} />
                       </div>
                       <span style={{ fontSize: 10.5, color: "var(--muted)" }}>{w.label}</span>
                     </div>
@@ -189,7 +189,7 @@ export default async function LeadsRelatoriosPage() {
               </div>
               <div className="row gap12" style={{ justifyContent: "center", marginTop: 8, fontSize: 12 }}>
                 <span className="row gap8" style={{ alignItems: "center" }}><span style={{ width: 10, height: 10, borderRadius: 3, background: "var(--st-progress)" }} /> Novos</span>
-                <span className="row gap8" style={{ alignItems: "center" }}><span style={{ width: 10, height: 10, borderRadius: 3, background: "var(--st-done)" }} /> Ganhos</span>
+                <span className="row gap8" style={{ alignItems: "center" }}><span style={{ width: 10, height: 10, borderRadius: 3, background: "var(--st-done)" }} /> Aprovados</span>
               </div>
             </>
           )}
@@ -209,8 +209,8 @@ export default async function LeadsRelatoriosPage() {
                     <th style={th}>Responsável</th>
                     <th style={{ ...th, textAlign: "right" }}>Ativos</th>
                     <th style={{ ...th, textAlign: "right" }}>Em aberto</th>
-                    <th style={{ ...th, textAlign: "right" }}>Ganhos</th>
-                    <th style={{ ...th, textAlign: "right" }}>Perdidos</th>
+                    <th style={{ ...th, textAlign: "right" }}>Aprovados</th>
+                    <th style={{ ...th, textAlign: "right" }}>Sem resposta</th>
                     <th style={{ ...th, textAlign: "right" }}>Conversão</th>
                   </tr>
                 </thead>
@@ -242,9 +242,9 @@ export default async function LeadsRelatoriosPage() {
                     <th style={th}>Origem</th>
                     <th style={{ ...th, textAlign: "right" }}>Total</th>
                     <th style={{ ...th, textAlign: "right" }}>Ativos</th>
-                    <th style={{ ...th, textAlign: "right" }}>Ganhos</th>
+                    <th style={{ ...th, textAlign: "right" }}>Aprovados</th>
                     <th style={{ ...th, textAlign: "right" }}>Conversão</th>
-                    <th style={{ ...th, textAlign: "right" }}>Valor ganho</th>
+                    <th style={{ ...th, textAlign: "right" }}>Valor aprovado</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -265,32 +265,6 @@ export default async function LeadsRelatoriosPage() {
         </Card>
       </div>
 
-      {/* Motivos de perda */}
-      <div style={{ marginTop: "var(--gap)" }}>
-        <Card title="Motivos de perda" sub="Por que os leads não fecham — onde o funil vaza" pad>
-          {s.motivosPerda.length === 0 ? (
-            <div className="muted" style={{ padding: 20, textAlign: "center" }}>Nenhum lead perdido ainda. Ao mover um lead para “Perdido”, o motivo é registrado e aparece aqui.</div>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              {(() => {
-                const max = Math.max(...s.motivosPerda.map((m) => m.count), 1);
-                return s.motivosPerda.map((m) => (
-                  <div key={m.motivo} className="row gap12" style={{ alignItems: "center" }}>
-                    <span style={{ width: 220, fontSize: 13, color: "var(--muted)", flexShrink: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={m.motivo}>{m.motivo}</span>
-                    <div style={{ flex: 1, background: "var(--surface-3)", borderRadius: "var(--r-pill)", height: 24, position: "relative", overflow: "hidden" }}>
-                      <div style={{ width: `${(m.count / max) * 100}%`, background: "var(--st-risk)", height: "100%", borderRadius: "var(--r-pill)", minWidth: 24, opacity: 0.85 }} />
-                    </div>
-                    <span style={{ width: 150, textAlign: "right", fontWeight: 800, fontSize: 13, flexShrink: 0 }}>
-                      {m.count}
-                      {m.valorCents > 0 && <span className="muted" style={{ fontWeight: 600, fontSize: 11.5, marginLeft: 6 }}>{brl(m.valorCents)}</span>}
-                    </span>
-                  </div>
-                ));
-              })()}
-            </div>
-          )}
-        </Card>
-      </div>
     </div>
   );
 }

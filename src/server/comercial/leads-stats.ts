@@ -6,9 +6,9 @@ import { db } from "@/lib/db";
 import { LEAD_STAGES, LEAD_STAGE_PROB, type LeadStage } from "@/lib/leads";
 
 const DAY = 86_400_000;
-const ATIVOS: LeadStage[] = ["novo", "contato", "qualificado", "proposta"];
+const ATIVOS: LeadStage[] = ["contato", "proposta"];
 // funil de conversão (perdido fica fora — é saída, não etapa)
-const FUNIL: LeadStage[] = ["novo", "contato", "qualificado", "proposta", "ganho"];
+const FUNIL: LeadStage[] = ["contato", "proposta", "ganho"];
 
 export type LeadsStats = {
   kpis: {
@@ -29,7 +29,6 @@ export type LeadsStats = {
   porResponsavel: { name: string; ativos: number; ganhos: number; perdidos: number; valorAbertoCents: number; conversao: number | null }[];
   porOrigem: { origem: string; total: number; ativos: number; ganhos: number; perdidos: number; valorGanhoCents: number; conversao: number | null }[];
   entradaSemanas: { label: string; novos: number; ganhos: number }[];
-  motivosPerda: { motivo: string; count: number; valorCents: number }[];
 };
 
 const round1 = (n: number) => Math.round(n * 10) / 10;
@@ -44,7 +43,7 @@ export async function getLeadsStats(): Promise<LeadsStats> {
   const users = uids.length ? await db.user.findMany({ where: { id: { in: uids } }, select: { id: true, name: true } }) : [];
   const uMap = new Map(users.map((u) => [u.id, u.name]));
 
-  const stageOf = (s: string): LeadStage => (LEAD_STAGES.some((x) => x.id === s) ? (s as LeadStage) : "novo");
+  const stageOf = (s: string): LeadStage => (LEAD_STAGES.some((x) => x.id === s) ? (s as LeadStage) : "contato");
   const isAtivo = (s: string) => (ATIVOS as string[]).includes(s);
 
   // ── KPIs ────────────────────────────────────────────────────────────────────
@@ -88,10 +87,10 @@ export async function getLeadsStats(): Promise<LeadsStats> {
     reachedSet.get(s)?.add(e.leadId);
   }
   for (const l of leads) {
-    reachedSet.get("novo")?.add(l.id); // todo lead entra por "novo"
+    reachedSet.get("contato")?.add(l.id); // todo lead entra por "contato"
     reachedSet.get(stageOf(l.stage))?.add(l.id); // cobre leads sem histórico completo
   }
-  const base = reachedSet.get("novo")!.size || 1;
+  const base = reachedSet.get("contato")!.size || 1;
   const funil = FUNIL.map((id) => {
     const meta = LEAD_STAGES.find((s) => s.id === id)!;
     const reached = reachedSet.get(id)!.size;
@@ -163,17 +162,6 @@ export async function getLeadsStats(): Promise<LeadsStats> {
     .map((r) => ({ ...r, conversao: r.ganhos + r.perdidos > 0 ? Math.round((r.ganhos / (r.ganhos + r.perdidos)) * 100) : null }))
     .sort((a, b) => b.total - a.total);
 
-  // ── Motivos de perda ─────────────────────────────────────────────────────────
-  const motivosMap = new Map<string, { motivo: string; count: number; valorCents: number }>();
-  for (const l of perdidos) {
-    const key = l.motivoPerda?.trim() || "Sem motivo registrado";
-    const r = motivosMap.get(key) ?? { motivo: key, count: 0, valorCents: 0 };
-    r.count++;
-    r.valorCents += l.valorEstimadoCents;
-    motivosMap.set(key, r);
-  }
-  const motivosPerda = [...motivosMap.values()].sort((a, b) => b.count - a.count);
-
   // ── Entrada por semana (últimas 8) ──────────────────────────────────────────
   const weekStart = (t: number) => {
     const d = new Date(t);
@@ -205,6 +193,6 @@ export async function getLeadsStats(): Promise<LeadsStats> {
       paradosMais7d: ativos.filter((l) => now - l.stageChangedAt.getTime() > 7 * DAY).length,
       forecastCents: Math.round(ativos.reduce((a, l) => a + l.valorEstimadoCents * (LEAD_STAGE_PROB[stageOf(l.stage)] ?? 0), 0)),
     },
-    porEstagio, funil, tempoMedioEstagio, aging, porResponsavel, porOrigem, entradaSemanas, motivosPerda,
+    porEstagio, funil, tempoMedioEstagio, aging, porResponsavel, porOrigem, entradaSemanas,
   };
 }

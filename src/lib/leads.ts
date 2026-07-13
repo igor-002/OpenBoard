@@ -1,13 +1,14 @@
 // Estágios do funil de Leads (Kanban comercial) + normalizadores de dedup.
 // Client-safe (sem server-only): usado tanto na UI quanto no backend de ingest.
 
+// Funil enxuto de 4 estágios (2026-07-13). Ids "ganho"/"perdido" mantidos por
+// compatibilidade com stats/forecast/histórico — só o label mudou:
+// ganho = Aprovado (conversão), perdido = Sem resposta (saída do funil).
 export const LEAD_STAGES = [
-  { id: "novo", label: "Novo", c: "var(--st-progress)" },
   { id: "contato", label: "Em contato", c: "var(--pr-med)" },
-  { id: "qualificado", label: "Qualificado", c: "var(--st-review)" },
   { id: "proposta", label: "Proposta", c: "var(--primary)" },
-  { id: "ganho", label: "Ganho", c: "var(--st-done)" },
-  { id: "perdido", label: "Perdido", c: "var(--st-risk)" },
+  { id: "ganho", label: "Aprovado", c: "var(--st-done)" },
+  { id: "perdido", label: "Sem resposta", c: "var(--st-risk)" },
 ] as const;
 
 export type LeadStage = (typeof LEAD_STAGES)[number]["id"];
@@ -19,23 +20,10 @@ export function leadStageMeta(id: string) {
   return LEAD_STAGES.find((s) => s.id === id) ?? { id, label: id, c: "var(--muted)" };
 }
 
-// Motivos de perda (obrigatório ao mover pra "perdido" — alimenta o relatório
-// de onde o funil vaza). "Outro" libera texto livre.
-export const LEAD_MOTIVOS_PERDA = [
-  "Preço",
-  "Sem retorno / contato perdido",
-  "Fechou com concorrente",
-  "Sem interesse",
-  "Fora da área de cobertura",
-  "Outro",
-] as const;
-
 // Probabilidade de fechamento por estágio — base do forecast ponderado
 // (Σ valorEstimado × prob dos leads ativos). Calibrar conforme o funil madurar.
 export const LEAD_STAGE_PROB: Record<LeadStage, number> = {
-  novo: 0.1,
   contato: 0.25,
-  qualificado: 0.5,
   proposta: 0.75,
   ganho: 1,
   perdido: 0,
