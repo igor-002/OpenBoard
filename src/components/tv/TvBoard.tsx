@@ -5,6 +5,7 @@ import { Icon, type IconName } from "@/components/ui/Icon";
 import type { TvData, TvProject, TvTaskDue, TvMilestone, TvActivity, TvRisk, TvAssignee, TvFeatured, TvNote, TvGanttBar } from "@/server/tv";
 import type { ProjectStatus, Priority, AvatarUser } from "@/lib/types";
 import { brl } from "@/lib/format";
+import { withBasePath } from "@/lib/basePath";
 
 /* ---------- mapas de cor (tokens --tv-*) ---------- */
 const STATUS: Record<ProjectStatus, { label: string; c: string; bg: string }> = {
@@ -619,7 +620,7 @@ export function TvBoard({ initial, tvKey }: { initial: TvData; tvKey: string }) 
   // refetch periódico
   const refetch = useCallback(async () => {
     try {
-      const r = await fetch(`/api/tv/data?key=${encodeURIComponent(tvKey)}`, { cache: "no-store" });
+      const r = await fetch(withBasePath(`/api/tv/data?key=${encodeURIComponent(tvKey)}`), { cache: "no-store" });
       if (r.ok) setData(await r.json());
     } catch { /* mantém dados atuais */ }
   }, [tvKey]);

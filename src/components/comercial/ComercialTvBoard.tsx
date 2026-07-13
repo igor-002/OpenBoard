@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { Icon, type IconName } from "@/components/ui/Icon";
 import { brl } from "@/lib/format";
 import type { ComercialTvData } from "@/server/comercial/tv";
+import { withBasePath } from "@/lib/basePath";
 
 /* ---------- helpers visuais (mesma linguagem do /tv) ---------- */
 function fmtClock(d: Date) { return d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", second: "2-digit" }); }
@@ -362,7 +363,7 @@ export function ComercialTvBoard({ initial, tvKey }: { initial: ComercialTvData;
 
   const refetch = useCallback(async () => {
     try {
-      const r = await fetch(`/api/tv/comercial?key=${encodeURIComponent(tvKey)}`, { cache: "no-store" });
+      const r = await fetch(withBasePath(`/api/tv/comercial?key=${encodeURIComponent(tvKey)}`), { cache: "no-store" });
       if (r.ok) setData(await r.json());
     } catch { /* mantém dados atuais */ }
   }, [tvKey]);

@@ -11,6 +11,7 @@ import { PeriodPicker } from "@/components/reports/PeriodPicker";
 import { DailyBars, OrigemDonut, TipoBars, EstRealBars } from "@/components/reports/ProdCharts";
 import { ORIGEM_META } from "@/lib/meta";
 import { fullLabel, minLabel } from "@/lib/format";
+import { withBasePath } from "@/lib/basePath";
 
 const COL_LABEL: Record<string, string> = { todo: "A fazer", doing: "Em andamento", review: "Revisão", done: "Concluída" };
 
@@ -31,8 +32,8 @@ export default async function ReportsPage({
     getReportsData(user.workspaceId),
   ]);
 
-  const pdfUrl = `/api/relatorios/produtividade?from=${iso(from)}&to=${iso(to)}`;
-  const resumoUrl = `/api/relatorios/resumo?from=${iso(from)}&to=${iso(to)}`;
+  const pdfUrl = withBasePath(`/api/relatorios/produtividade?from=${iso(from)}&to=${iso(to)}`);
+  const resumoUrl = withBasePath(`/api/relatorios/resumo?from=${iso(from)}&to=${iso(to)}`);
   const taxa = p.kpis.criadas > 0 ? Math.round((p.kpis.concluidas / p.kpis.criadas) * 100) : null;
   const desvio =
     p.kpis.estimadoTotalMin > 0

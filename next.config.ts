@@ -8,6 +8,9 @@ const nextConfig: NextConfig = {
   // Subcaminho quando atrás de proxy (ex.: IP/openboard). Vazio = raiz (dev local).
   // Definido no build via env BASE_PATH (Dockerfile usa /openboard).
   basePath: process.env.BASE_PATH || undefined,
+  // Espelha o basePath pro bundle client (inlined no build) — usado por
+  // src/lib/basePath.ts pra prefixar fetch/EventSource/<a href> montados à mão.
+  env: { NEXT_PUBLIC_BASE_PATH: process.env.BASE_PATH || "" },
   async headers() {
     const headers = [
       { key: "X-Frame-Options", value: "DENY" },

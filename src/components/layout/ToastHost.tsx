@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Icon, type IconName } from "@/components/ui/Icon";
+import { withBasePath } from "@/lib/basePath";
 
 type Toast = {
   id: number;
@@ -29,7 +30,7 @@ export function ToastHost() {
   }, []);
 
   useEffect(() => {
-    const es = new EventSource("/api/events");
+    const es = new EventSource(withBasePath("/api/events"));
 
     es.onmessage = (ev) => {
       let data: Partial<Toast> & { kind?: string };
