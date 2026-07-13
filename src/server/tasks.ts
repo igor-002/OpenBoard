@@ -1,6 +1,6 @@
 import "server-only";
 import { db } from "@/lib/db";
-import type { Priority, TaskColumn, ProjectStatus, AvatarUser } from "@/lib/types";
+import type { Priority, TaskColumn, ProjectStatus, AvatarUser, TaskOrigin } from "@/lib/types";
 
 export type SubtaskItem = { id: string; title: string; done: boolean };
 export type TaskCommentItem = { id: string; body: string; createdAt: Date; authorId: string; author: AvatarUser };
@@ -10,9 +10,10 @@ export type TaskCardData = {
   title: string;
   column: TaskColumn;
   priority: Priority;
-  projectId: string;
+  projectId: string | null; // null = atividade avulsa (sem projeto)
   projectName: string;
-  projectStatus: ProjectStatus;
+  projectStatus: ProjectStatus | null;
+  origem: TaskOrigin;
   tags: string[];
   subDone: number; // derivado
   subTotal: number; // derivado
@@ -34,7 +35,7 @@ export type KanbanData = {
 export async function getKanbanData(workspaceId: string): Promise<KanbanData> {
   const [tasks, projects, members] = await Promise.all([
     db.task.findMany({
-      where: { project: { workspaceId } },
+      where: { workspaceId },
       orderBy: [{ column: "asc" }, { order: "asc" }],
       include: {
         project: { select: { id: true, name: true, status: true } },
@@ -57,9 +58,10 @@ export async function getKanbanData(workspaceId: string): Promise<KanbanData> {
       title: t.title,
       column: t.column,
       priority: t.priority,
-      projectId: t.project.id,
-      projectName: t.project.name,
-      projectStatus: t.project.status,
+      projectId: t.project?.id ?? null,
+      projectName: t.project?.name ?? "Avulsa",
+      projectStatus: t.project?.status ?? null,
+      origem: t.origem,
       tags: t.tags.map((g) => g.label),
       subDone: t.subtasks.filter((s) => s.done).length,
       subTotal: t.subtasks.length,

@@ -880,7 +880,8 @@ export async function getCliente360(ixcId: string, workspaceId: string): Promise
   const vendMap = new Map(vendedores.map((v) => [v.ixcId, v.nome]));
 
   return {
-    cliente,
+    // Buscado por ixcId, então ixcId nunca é null aqui (o schema permite null só p/ cliente manual).
+    cliente: cliente ? { ...cliente, ixcId: cliente.ixcId ?? ixcId } : null,
     contratos: contratos.map((c) => ({ ixcId: c.ixcId, status: c.status, mrrCents: c.mrrCents, vendedorNome: c.vendedorIxcId ? vendMap.get(c.vendedorIxcId) ?? null : null, dataAtivacao: c.dataAtivacao, dataCadastro: c.dataCadastro })),
     mrrAtivoCents: contratos.filter((c) => ST_ATIVO.includes(c.status)).reduce((a, c) => a + c.mrrCents, 0),
     projetos: projetos.map((p) => {

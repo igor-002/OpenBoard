@@ -48,6 +48,14 @@ export function deadlineColor(tone: DeadlineTone): string {
   return tone === "overdue" ? "var(--st-risk)" : tone === "soon" ? "var(--pr-med)" : "var(--ink-2)";
 }
 
+// minutos -> "45min" | "2h30" | "2h"
+export function minLabel(min: number): string {
+  if (min < 60) return `${Math.round(min)}min`;
+  const h = Math.floor(min / 60);
+  const m = Math.round(min % 60);
+  return m ? `${h}h${String(m).padStart(2, "0")}` : `${h}h`;
+}
+
 // segundos -> "H:MM:SS"
 export function hms(totalSec: number): string {
   const h = Math.floor(totalSec / 3600);

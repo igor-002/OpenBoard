@@ -161,22 +161,22 @@ export async function getTvData(ws: TvWorkspace): Promise<TvData> {
     getDashboardData(ws.id),
     getTimelineData(ws.id),
     db.task.findMany({
-      where: { project: { workspaceId: ws.id }, column: { not: "done" }, dueDate: { not: null } },
+      where: { workspaceId: ws.id, column: { not: "done" }, dueDate: { not: null } },
       orderBy: { dueDate: "asc" },
       take: 8,
       include: { project: { select: { name: true } }, assignee: { select: { name: true, initials: true, color: true } } },
     }),
-    db.task.count({ where: { project: { workspaceId: ws.id }, column: { not: "done" }, dueDate: { lt: nowDate } } }),
+    db.task.count({ where: { workspaceId: ws.id, column: { not: "done" }, dueDate: { lt: nowDate } } }),
     db.milestone.findMany({
       where: { project: { workspaceId: ws.id }, state: { not: "done" } },
       orderBy: { date: "asc" },
       take: 6,
       include: { project: { select: { name: true } } },
     }),
-    db.task.groupBy({ by: ["column"], where: { project: { workspaceId: ws.id } }, _count: { _all: true } }),
+    db.task.groupBy({ by: ["column"], where: { workspaceId: ws.id }, _count: { _all: true } }),
     db.project.findMany({ where: { workspaceId: ws.id }, orderBy: { createdAt: "desc" }, take: 6, include: { creator: { select: { name: true } } } }),
-    db.task.findMany({ where: { project: { workspaceId: ws.id } }, orderBy: { createdAt: "desc" }, take: 6, include: { project: { select: { name: true } } } }),
-    db.task.groupBy({ by: ["assigneeId"], where: { project: { workspaceId: ws.id }, column: { not: "done" }, assigneeId: { not: null } }, _count: { _all: true } }),
+    db.task.findMany({ where: { workspaceId: ws.id }, orderBy: { createdAt: "desc" }, take: 6, include: { project: { select: { name: true } } } }),
+    db.task.groupBy({ by: ["assigneeId"], where: { workspaceId: ws.id, column: { not: "done" }, assigneeId: { not: null } }, _count: { _all: true } }),
     db.user.findMany({ where: { workspaceId: ws.id }, select: { id: true, name: true, initials: true, color: true, jobTitle: true } }),
     db.project.findMany({
       where: { workspaceId: ws.id, status: { not: "done" } },
@@ -195,7 +195,7 @@ export async function getTvData(ws: TvWorkspace): Promise<TvData> {
       include: { author: { select: { name: true, initials: true, color: true } }, project: { select: { name: true } } },
     }),
     db.taskComment.findMany({
-      where: { task: { project: { workspaceId: ws.id } } },
+      where: { task: { workspaceId: ws.id } },
       orderBy: { createdAt: "desc" },
       take: 6,
       include: { author: { select: { name: true, initials: true, color: true } }, task: { select: { title: true } } },
@@ -232,7 +232,7 @@ export async function getTvData(ws: TvWorkspace): Promise<TvData> {
     .map(toTvProject);
 
   const tasksByDue: TvTaskDue[] = dueRaw.map((t) => ({
-    id: t.id, title: t.title, project: t.project.name, priority: t.priority as Priority,
+    id: t.id, title: t.title, project: t.project?.name ?? "Avulsa", priority: t.priority as Priority,
     assignee: t.assignee, dueDate: t.dueDate!.toISOString(), daysLeft: daysBetween(+t.dueDate!, now),
   }));
 
@@ -262,7 +262,7 @@ export async function getTvData(ws: TvWorkspace): Promise<TvData> {
 
   const recent: TvActivity[] = [
     ...recentProjects.map((p) => ({ id: "p" + p.id, kind: "project" as const, text: `Novo projeto: ${p.name}`, actor: p.creator?.name ?? null, at: p.createdAt.toISOString() })),
-    ...recentTasks.map((t) => ({ id: "t" + t.id, kind: "task" as const, text: `Nova tarefa: ${t.title} · ${t.project.name}`, actor: null, at: t.createdAt.toISOString() })),
+    ...recentTasks.map((t) => ({ id: "t" + t.id, kind: "task" as const, text: `Nova tarefa: ${t.title} · ${t.project?.name ?? "Avulsa"}`, actor: null, at: t.createdAt.toISOString() })),
   ].sort((a, b) => +new Date(b.at) - +new Date(a.at)).slice(0, 8);
 
   // Cronograma (Gantt) — descarta Datas (não usadas no render).

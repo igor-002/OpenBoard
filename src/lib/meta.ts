@@ -1,7 +1,7 @@
 // Metadados de apresentação (rótulos + cores via CSS vars).
 // Portado de data.jsx do protótipo.
 
-import type { ProjectStatus, Priority, TaskColumn } from "./types";
+import type { ProjectStatus, Priority, TaskColumn, TaskOrigin } from "./types";
 
 export const STATUS_META: Record<
   ProjectStatus,
@@ -17,6 +17,12 @@ export const PRIORITY_META: Record<Priority, { label: string; c: string; bg: str
   high: { label: "Alta", c: "var(--pr-high)", bg: "var(--pr-high-bg)" },
   med: { label: "Média", c: "var(--pr-med)", bg: "var(--pr-med-bg)" },
   low: { label: "Baixa", c: "var(--pr-low)", bg: "var(--pr-low-bg)" },
+};
+
+export const ORIGEM_META: Record<TaskOrigin, { label: string; c: string; bg: string }> = {
+  planejada: { label: "Planejada", c: "var(--st-planned)", bg: "var(--st-planned-bg)" },
+  avulsa: { label: "Avulsa", c: "var(--st-review)", bg: "var(--st-review-bg)" },
+  presencial: { label: "Presencial", c: "var(--st-progress)", bg: "var(--st-progress-bg)" },
 };
 
 export const KANBAN_COLS: { id: TaskColumn; label: string; c: string }[] = [

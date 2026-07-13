@@ -49,6 +49,7 @@ export async function createTask(_prev: TaskActionState, formData: FormData): Pr
 
   await db.task.create({
     data: {
+      workspaceId: user.workspaceId,
       projectId: parsed.data.projectId,
       title: parsed.data.title,
       priority: parsed.data.priority,
@@ -95,6 +96,7 @@ export async function createTask(_prev: TaskActionState, formData: FormData): Pr
   });
 
   revalidatePath("/kanban");
+  revalidatePath("/atividades");
   revalidatePath("/dashboard");
   return { ok: true };
 }
@@ -112,8 +114,8 @@ const updateSchema = z.object({
 export async function updateTask(taskId: string, _prev: TaskActionState, formData: FormData): Promise<TaskActionState> {
   const user = await requireUser();
   const task = await db.task.findFirst({
-    where: { id: taskId, project: { workspaceId: user.workspaceId } },
-    select: { id: true, assigneeId: true, column: true, doneAt: true },
+    where: { id: taskId, workspaceId: user.workspaceId },
+    select: { id: true, assigneeId: true, column: true, doneAt: true, startedAt: true },
   });
   if (!task) return { error: "Tarefa não encontrada." };
 
@@ -146,6 +148,8 @@ export async function updateTask(taskId: string, _prev: TaskActionState, formDat
         column: d.column,
         // Carimba a conclusão ao entrar em "done"; limpa se sair de lá.
         doneAt: d.column === "done" ? (task.column === "done" ? task.doneAt : new Date()) : null,
+        // Carimba o início na 1ª entrada em "doing" (duração real das atividades).
+        startedAt: task.startedAt ?? (d.column === "doing" ? new Date() : null),
         assigneeId,
         dueDate: d.dueDate ? new Date(d.dueDate + "T12:00:00") : null,
         tags: tags.length ? { create: tags.map((label) => ({ label })) } : undefined,
@@ -164,6 +168,7 @@ export async function updateTask(taskId: string, _prev: TaskActionState, formDat
   }
 
   revalidatePath("/kanban");
+  revalidatePath("/atividades");
   revalidatePath("/dashboard");
   return { ok: true };
 }
@@ -172,12 +177,13 @@ export async function updateTask(taskId: string, _prev: TaskActionState, formDat
 export async function deleteTask(taskId: string): Promise<TaskActionState> {
   const user = await requireUser();
   const task = await db.task.findFirst({
-    where: { id: taskId, project: { workspaceId: user.workspaceId } },
+    where: { id: taskId, workspaceId: user.workspaceId },
     select: { id: true },
   });
   if (!task) return { error: "Tarefa não encontrada." };
   await db.task.delete({ where: { id: taskId } });
   revalidatePath("/kanban");
+  revalidatePath("/atividades");
   revalidatePath("/dashboard");
   return { ok: true };
 }
@@ -188,24 +194,30 @@ export async function moveTask(taskId: string, column: TaskColumn): Promise<Task
   if (!COLUMNS.includes(column)) return { error: "Coluna inválida." };
 
   const task = await db.task.findFirst({
-    where: { id: taskId, project: { workspaceId: user.workspaceId } },
-    select: { id: true, column: true, doneAt: true },
+    where: { id: taskId, workspaceId: user.workspaceId },
+    select: { id: true, column: true, doneAt: true, startedAt: true },
   });
   if (!task) return { error: "Tarefa não encontrada." };
 
   await db.task.update({
     where: { id: taskId },
-    // Carimba a conclusão ao entrar em "done"; limpa se sair de lá.
-    data: { column, doneAt: column === "done" ? (task.column === "done" ? task.doneAt : new Date()) : null },
+    data: {
+      column,
+      // Carimba a conclusão ao entrar em "done"; limpa se sair de lá.
+      doneAt: column === "done" ? (task.column === "done" ? task.doneAt : new Date()) : null,
+      // Carimba o início na 1ª entrada em "doing" (duração real das atividades).
+      startedAt: task.startedAt ?? (column === "doing" ? new Date() : null),
+    },
   });
   revalidatePath("/kanban");
+  revalidatePath("/atividades");
   revalidatePath("/dashboard");
   return { ok: true };
 }
 
 // ---------- Subtarefas (checklist) ----------
 async function ownTask(taskId: string, workspaceId: string) {
-  return db.task.findFirst({ where: { id: taskId, project: { workspaceId } }, select: { id: true } });
+  return db.task.findFirst({ where: { id: taskId, workspaceId }, select: { id: true } });
 }
 
 export async function addSubtask(taskId: string, title: string): Promise<TaskActionState> {
@@ -216,24 +228,27 @@ export async function addSubtask(taskId: string, title: string): Promise<TaskAct
   const count = await db.subtask.count({ where: { taskId } });
   await db.subtask.create({ data: { taskId, title: t.slice(0, 200), order: count } });
   revalidatePath("/kanban");
+  revalidatePath("/atividades");
   return { ok: true };
 }
 
 export async function toggleSubtask(subtaskId: string): Promise<TaskActionState> {
   const user = await requireUser();
-  const s = await db.subtask.findFirst({ where: { id: subtaskId, task: { project: { workspaceId: user.workspaceId } } }, select: { id: true, done: true } });
+  const s = await db.subtask.findFirst({ where: { id: subtaskId, task: { workspaceId: user.workspaceId } }, select: { id: true, done: true } });
   if (!s) return { error: "Subtarefa não encontrada." };
   await db.subtask.update({ where: { id: subtaskId }, data: { done: !s.done } });
   revalidatePath("/kanban");
+  revalidatePath("/atividades");
   return { ok: true };
 }
 
 export async function deleteSubtask(subtaskId: string): Promise<TaskActionState> {
   const user = await requireUser();
-  const s = await db.subtask.findFirst({ where: { id: subtaskId, task: { project: { workspaceId: user.workspaceId } } }, select: { id: true } });
+  const s = await db.subtask.findFirst({ where: { id: subtaskId, task: { workspaceId: user.workspaceId } }, select: { id: true } });
   if (!s) return { error: "Subtarefa não encontrada." };
   await db.subtask.delete({ where: { id: subtaskId } });
   revalidatePath("/kanban");
+  revalidatePath("/atividades");
   return { ok: true };
 }
 
@@ -241,7 +256,7 @@ export async function deleteSubtask(subtaskId: string): Promise<TaskActionState>
 export async function addTaskComment(taskId: string, body: string): Promise<TaskActionState> {
   const user = await requireUser();
   const task = await db.task.findFirst({
-    where: { id: taskId, project: { workspaceId: user.workspaceId } },
+    where: { id: taskId, workspaceId: user.workspaceId },
     select: { id: true, title: true, assigneeId: true },
   });
   if (!task) return { error: "Tarefa não encontrada." };
@@ -253,18 +268,20 @@ export async function addTaskComment(taskId: string, body: string): Promise<Task
     await notify([task.assigneeId], { type: "note_added", title: `Comentário em: ${task.title}`, body: b.slice(0, 90), link: "/kanban" });
   }
   revalidatePath("/kanban");
+  revalidatePath("/atividades");
   return { ok: true };
 }
 
 export async function deleteTaskComment(commentId: string): Promise<TaskActionState> {
   const user = await requireUser();
   const c = await db.taskComment.findFirst({
-    where: { id: commentId, task: { project: { workspaceId: user.workspaceId } } },
+    where: { id: commentId, task: { workspaceId: user.workspaceId } },
     select: { id: true, authorId: true },
   });
   if (!c) return { error: "Comentário não encontrado." };
   if (c.authorId !== user.id && user.role !== "admin") return { error: "Sem permissão." };
   await db.taskComment.delete({ where: { id: commentId } });
   revalidatePath("/kanban");
+  revalidatePath("/atividades");
   return { ok: true };
 }

@@ -164,6 +164,7 @@ async function main() {
     }));
     await db.task.create({
       data: {
+        workspaceId: ws.id,
         projectId: projectId[t.proj],
         title: t.title,
         column: t.col,

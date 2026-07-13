@@ -3,6 +3,7 @@
 export type ProjectStatus = "progress" | "done" | "review" | "planned";
 export type Priority = "high" | "med" | "low";
 export type TaskColumn = "todo" | "doing" | "review" | "done";
+export type TaskOrigin = "planejada" | "avulsa" | "presencial";
 export type TimeLogStatus = "running" | "paused" | "done";
 export type Role = "admin" | "gerente" | "membro";
 

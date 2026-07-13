@@ -32,15 +32,11 @@ export async function getTeamData(workspaceId: string): Promise<TeamData> {
     },
   });
 
-  const projectIds = (
-    await db.project.findMany({ where: { workspaceId }, select: { id: true } })
-  ).map((p) => p.id);
-
-  // tarefas atribuídas (totais e concluídas) e abertas por pessoa.
+  // tarefas atribuídas (totais e concluídas) e abertas por pessoa — inclui avulsas.
   const [assigned, completed, open] = await Promise.all([
-    db.task.groupBy({ by: ["assigneeId"], where: { projectId: { in: projectIds }, assigneeId: { not: null } }, _count: { _all: true } }),
-    db.task.groupBy({ by: ["assigneeId"], where: { projectId: { in: projectIds }, assigneeId: { not: null }, column: "done" }, _count: { _all: true } }),
-    db.task.groupBy({ by: ["assigneeId"], where: { projectId: { in: projectIds }, assigneeId: { not: null }, column: { not: "done" } }, _count: { _all: true } }),
+    db.task.groupBy({ by: ["assigneeId"], where: { workspaceId, assigneeId: { not: null } }, _count: { _all: true } }),
+    db.task.groupBy({ by: ["assigneeId"], where: { workspaceId, assigneeId: { not: null }, column: "done" }, _count: { _all: true } }),
+    db.task.groupBy({ by: ["assigneeId"], where: { workspaceId, assigneeId: { not: null }, column: { not: "done" } }, _count: { _all: true } }),
   ]);
   const map = (rows: { assigneeId: string | null; _count: { _all: number } }[]) =>
     new Map(rows.map((r) => [r.assigneeId as string, r._count._all]));

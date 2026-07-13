@@ -13,7 +13,7 @@ export type CargaPessoa = {
 };
 
 export type TarefaVencida = {
-  id: string; title: string; projectId: string; projectName: string;
+  id: string; title: string; projectId: string | null; projectName: string;
   assigneeName: string | null; dueDate: Date; diasAtraso: number; column: string;
 };
 
@@ -50,23 +50,23 @@ export async function getReportsData(workspaceId: string): Promise<ReportsData> 
   const d28 = new Date(Date.now() - 28 * DAY);
 
   const [tasksDone, rows, tags, concluidas, criadasRaw, users, abertas, logs30, projAtivos] = await Promise.all([
-    db.task.count({ where: { project: { workspaceId }, column: "done" } }),
+    db.task.count({ where: { workspaceId, column: "done" } }),
     db.project.findMany({ where: { workspaceId }, select: { budgetCents: true, spentPct: true } }),
     db.taskTag.groupBy({
       by: ["label"],
-      where: { task: { project: { workspaceId } } },
+      where: { task: { workspaceId } },
       _count: { _all: true },
       orderBy: { _count: { label: "desc" } },
       take: 5,
     }),
     db.task.findMany({
-      where: { project: { workspaceId }, column: "done", doneAt: { not: null } },
+      where: { workspaceId, column: "done", doneAt: { not: null } },
       select: { createdAt: true, doneAt: true, dueDate: true },
     }),
-    db.task.findMany({ where: { project: { workspaceId } }, select: { createdAt: true } }),
+    db.task.findMany({ where: { workspaceId }, select: { createdAt: true } }),
     db.user.findMany({ where: { workspaceId }, select: { id: true, name: true, initials: true, color: true, jobTitle: true } }),
     db.task.findMany({
-      where: { project: { workspaceId }, column: { not: "done" } },
+      where: { workspaceId, column: { not: "done" } },
       select: { id: true, title: true, column: true, dueDate: true, assigneeId: true, projectId: true, assignee: { select: { name: true } }, project: { select: { name: true } } },
     }),
     db.timeLog.findMany({ where: { project: { workspaceId }, startedAt: { gte: d30 } }, select: { userId: true, durationSec: true } }),
@@ -121,7 +121,7 @@ export async function getReportsData(workspaceId: string): Promise<ReportsData> 
         abertas: minhas.length,
         vencidas: minhas.filter((t) => t.dueDate && t.dueDate < now).length,
         horas30d: Math.round((horasMap.get(u.id) ?? 0) * 10) / 10,
-        projetos: new Set(minhas.map((t) => t.projectId)).size,
+        projetos: new Set(minhas.map((t) => t.projectId).filter(Boolean)).size,
       };
     })
     .sort((a, b) => b.abertas - a.abertas || b.horas30d - a.horas30d);
@@ -130,7 +130,7 @@ export async function getReportsData(workspaceId: string): Promise<ReportsData> 
   const vencidas: TarefaVencida[] = abertas
     .filter((t) => t.dueDate && t.dueDate < now)
     .map((t) => ({
-      id: t.id, title: t.title, projectId: t.projectId, projectName: t.project.name,
+      id: t.id, title: t.title, projectId: t.projectId, projectName: t.project?.name ?? "Avulsa",
       assigneeName: t.assignee?.name ?? null, dueDate: t.dueDate!, column: t.column,
       diasAtraso: Math.floor((+now - +t.dueDate!) / DAY),
     }))

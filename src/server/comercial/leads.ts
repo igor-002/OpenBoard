@@ -183,7 +183,8 @@ export async function findDuplicateLead(input: { externalId?: string | null; cnp
 // formatado, então normaliza em JS (varredura — ok p/ volume baixo de ingest).
 async function matchIxcClienteByDoc(doc: string | null): Promise<string | null> {
   if (!doc) return null;
-  const clientes = await db.ixcCliente.findMany({ where: { cnpjCpf: { not: null } }, select: { ixcId: true, cnpjCpf: true } });
+  // ixcId not null: clientes manuais (criados em /atividades) ficam fora do match.
+  const clientes = await db.ixcCliente.findMany({ where: { cnpjCpf: { not: null }, ixcId: { not: null } }, select: { ixcId: true, cnpjCpf: true } });
   const hit = clientes.find((c) => (c.cnpjCpf ?? "").replace(/\D/g, "") === doc);
   return hit?.ixcId ?? null;
 }

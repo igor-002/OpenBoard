@@ -2,17 +2,19 @@
 import { Icon } from "@/components/ui/Icon";
 import { PriorityBadge } from "@/components/ui/Badge";
 import { Avatar } from "@/components/ui/Avatar";
-import { STATUS_META } from "@/lib/meta";
+import { STATUS_META, ORIGEM_META } from "@/lib/meta";
 import { dayLabel } from "@/lib/format";
 import type { TaskCardData } from "@/server/tasks";
 
 export function TaskCard({ t }: { t: TaskCardData }) {
-  const sm = STATUS_META[t.projectStatus];
+  // Sem projeto = atividade avulsa/presencial: badge de origem no lugar do projeto.
+  const sm = t.projectStatus ? STATUS_META[t.projectStatus] : ORIGEM_META[t.origem];
+  const tagLabel = t.projectStatus ? t.projectName.split("—")[0].trim() : ORIGEM_META[t.origem].label;
   return (
     <div className="card" style={{ padding: 14, boxShadow: "var(--sh-sm)" }}>
       <div className="row between" style={{ marginBottom: 10 }}>
         <span className="tag" style={{ fontSize: 11, padding: "3px 9px", color: sm.c, background: sm.bg, border: "none" }}>
-          {t.projectName.split("—")[0].trim()}
+          {tagLabel}
         </span>
         <PriorityBadge pr={t.priority} />
       </div>

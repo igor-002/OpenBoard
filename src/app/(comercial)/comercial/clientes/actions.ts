@@ -75,7 +75,7 @@ export async function criarTarefaCobranca(projectId: string, titulo: string): Pr
 
   const max = await db.task.aggregate({ where: { projectId, column: "todo" }, _max: { order: true } });
   await db.task.create({
-    data: { projectId, title: t, column: "todo", priority: "high", order: (max._max.order ?? 0) + 1 },
+    data: { workspaceId: user.workspaceId, projectId, title: t, column: "todo", priority: "high", order: (max._max.order ?? 0) + 1 },
   });
   if (p.ixcClienteId) revalidatePath(`/comercial/clientes/${p.ixcClienteId}`);
   revalidatePath(`/projects/${projectId}`);

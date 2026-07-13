@@ -49,6 +49,15 @@ enum MilestoneState {
   todo
 }
 
+// Origem da tarefa/atividade: planejada (atribuída de cima), avulsa (registrada
+// pelo próprio membro) ou presencial (solicitação na porta da sala). Base dos
+// relatórios de volume de demanda.
+enum TaskOrigin {
+  planejada
+  avulsa
+  presencial
+}
+
 model Workspace {
   id        String    @id @default(cuid())
   name      String
@@ -56,6 +65,7 @@ model Workspace {
   createdAt DateTime  @default(now())
   users     User[]
   projects  Project[]
+  tasks     Task[]
 }
 
 model User {
@@ -161,25 +171,54 @@ model ProjectMember {
 }
 
 model Task {
-  id         String     @id @default(cuid())
-  project    Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  projectId  String
-  title      String
-  column     TaskColumn @default(todo)
-  priority   Priority   @default(med)
-  dueDate    DateTime?
-  assignee   User?      @relation("TaskAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
-  assigneeId String?
-  order      Int        @default(0)
-  createdAt  DateTime   @default(now())
-  doneAt     DateTime?  // quando entrou na coluna "done" (métricas de entrega)
+  id          String     @id @default(cuid())
+  // workspaceId direto: permite tarefa SEM projeto (atividade avulsa/presencial).
+  workspace   Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspaceId String
+  project     Project?   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectId   String?
+  title       String
+  column      TaskColumn @default(todo)
+  priority    Priority   @default(med)
+  dueDate     DateTime?
+  assignee    User?      @relation("TaskAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  assigneeId  String?
+  order       Int        @default(0)
+  createdAt   DateTime   @default(now())
+  doneAt      DateTime?  // quando entrou na coluna "done" (métricas de entrega)
+
+  // ── Atividades da Equipe ──
+  origem           TaskOrigin  @default(planejada)
+  tipo             TaskType?   @relation(fields: [tipoId], references: [id], onDelete: SetNull)
+  tipoId           String?
+  // FK real pelo cuid do IxcCliente (≠ Project.ixcClienteId, que é loose ref
+  // pelo ixcId do IXC) — clientes manuais não têm ixcId.
+  ixcCliente       IxcCliente? @relation(fields: [ixcClienteId], references: [id], onDelete: SetNull)
+  ixcClienteId     String?
+  startedAt        DateTime?   // 1ª entrada em "doing" (duração real = doneAt − startedAt)
+  estimatedMinutes Int?
+  report           String?     // relato final de execução (ao concluir)
 
   tags     TaskTag[]
   subtasks Subtask[]
   comments TaskComment[]
 
+  @@index([workspaceId])
   @@index([projectId])
   @@index([assigneeId])
+  @@index([tipoId])
+  @@index([ixcClienteId])
+}
+
+// Tipo/categoria de atividade (Suporte, Instalação, …). Extensível — seed
+// inicial via migration; admin pode adicionar depois.
+model TaskType {
+  id     String  @id @default(cuid())
+  name   String
+  slug   String  @unique
+  active Boolean @default(true)
+  order  Int     @default(0)
+  tasks  Task[]
 }
 
 model Subtask {
@@ -268,14 +307,17 @@ model Vendedor {
   @@index([userId])
 }
 
-// Cliente do IXC (tabela `cliente`).
+// Cliente do IXC (tabela `cliente`) OU cliente manual criado em /atividades
+// (manual=true, ixcId=null — fica fora do sync e das telas comerciais).
 model IxcCliente {
   id       String   @id @default(cuid())
-  ixcId    String   @unique // cliente.id
+  ixcId    String?  @unique // cliente.id no IXC; null = cliente manual
+  manual   Boolean  @default(false)
   razao    String
   cnpjCpf  String?
   uf       String?
   syncedAt DateTime @default(now())
+  tasks    Task[]
 }
 
 // Contrato do IXC (`cliente_contrato`) com MRR já calculado no sync (ver handoff).

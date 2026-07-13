@@ -72,10 +72,10 @@ export async function getDashboardData(workspaceId: string): Promise<DashboardDa
 
   const projectsActive = projects.filter((p) => p.status === "progress").length;
 
-  // Tarefas (totais e concluídas) do workspace.
+  // Tarefas (totais e concluídas) do workspace — inclui avulsas (sem projeto).
   const projectIds = projects.map((p) => p.id);
-  const tasksTotal = await db.task.count({ where: { projectId: { in: projectIds } } });
-  const tasksDone = await db.task.count({ where: { projectId: { in: projectIds }, column: "done" } });
+  const tasksTotal = await db.task.count({ where: { workspaceId } });
+  const tasksDone = await db.task.count({ where: { workspaceId, column: "done" } });
 
   // Horas: soma dos apontamentos do workspace.
   const timeAgg = await db.timeLog.aggregate({
@@ -97,7 +97,7 @@ export async function getDashboardData(workspaceId: string): Promise<DashboardDa
   });
   const openByUser = await db.task.groupBy({
     by: ["assigneeId"],
-    where: { projectId: { in: projectIds }, column: { not: "done" }, assigneeId: { not: null } },
+    where: { workspaceId, column: { not: "done" }, assigneeId: { not: null } },
     _count: { _all: true },
   });
   const openMap = new Map(openByUser.map((r) => [r.assigneeId as string, r._count._all]));
