@@ -42,9 +42,12 @@ services:
       DATABASE_URL: "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}?schema=public"
       AUTH_SECRET: ${AUTH_SECRET}
       NODE_ENV: production
-      # URL pública (com basePath, ex.: http://IP/openboard). Usada nos links de TV e
-      # de reset de senha. Sem isso cai no host da request (pode faltar o /openboard).
+      # URL pública (ex.: https://crm.opensuite.com.br). Usada nos links de TV e
+      # de reset de senha. Sem isso cai no host da request.
       APP_URL: ${APP_URL:-}
+      # Encurtador de links (aba Links & QR): base das URLs curtas + salt do hash de IP.
+      SHORT_BASE_URL: ${SHORT_BASE_URL:-}
+      SHORT_IP_SALT: ${SHORT_IP_SALT:-}
       # Cookie Secure só com HTTPS. Em HTTP (IP) deixe false, senão a sessão não persiste.
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
       # Chave AES p/ criptografar o token do Instagram em repouso (openssl rand -base64 32).
@@ -70,8 +73,8 @@ services:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
-    # Publica só na interface local (127.0.0.1) — o nginx da VPS faz o proxy de /openboard.
-    # App responde em http://127.0.0.1:${APP_PORT}/openboard
+    # Publica só na interface local (127.0.0.1) — o nginx da VPS faz o proxy
+    # (crm.opensuite.com.br → raiz). App responde em http://127.0.0.1:${APP_PORT}/
     ports:
       - "127.0.0.1:${APP_PORT:-3001}:3000"
 

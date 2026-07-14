@@ -16,8 +16,8 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-# Subcaminho do app atrás do proxy (IP/openboard). Mude aqui se usar outro prefixo.
-ENV BASE_PATH=/openboard
+# Subcaminho do app atrás do proxy. Vazio = raiz (domínio próprio crm.opensuite.com.br).
+ENV BASE_PATH=
 RUN npx prisma generate
 RUN npm run build
 
@@ -27,7 +27,7 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
-ENV BASE_PATH=/openboard
+ENV BASE_PATH=
 RUN apt-get update && apt-get install -y openssl ca-certificates && rm -rf /var/lib/apt/lists/*
 RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 nextjs
 # Saída standalone (já inclui node_modules tracejados + client Prisma gerado)

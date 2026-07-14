@@ -5,8 +5,8 @@ const nextConfig: NextConfig = {
   // @react-pdf/renderer não empacota bem (Turbopack: "CJS module can't be async")
   // — roda como dependência externa do Node no server.
   serverExternalPackages: ["@react-pdf/renderer"],
-  // Subcaminho quando atrás de proxy (ex.: IP/openboard). Vazio = raiz (dev local).
-  // Definido no build via env BASE_PATH (Dockerfile usa /openboard).
+  // Subcaminho quando atrás de proxy. Vazio = raiz (dev local e prod com domínio
+  // próprio — crm.opensuite.com.br). Definido no build via env BASE_PATH.
   basePath: process.env.BASE_PATH || undefined,
   // Espelha o basePath pro bundle client (inlined no build) — usado por
   // src/lib/basePath.ts pra prefixar fetch/EventSource/<a href> montados à mão.
