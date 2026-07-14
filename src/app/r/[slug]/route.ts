@@ -30,11 +30,15 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
     !link || !link.active || (link.expiresAt !== null && link.expiresAt.getTime() < Date.now());
   if (unavailable) {
     // Página amigável em vez de 404 seco (o QR no papel continua existindo).
-    // clone() do NextURL re-serializa com o basePath (prod roda sob /openboard).
-    const url = request.nextUrl.clone();
-    url.pathname = "/r/indisponivel";
-    url.search = "";
-    return NextResponse.redirect(url, 302);
+    // Host vem dos headers de proxy — nextUrl atrás do nginx aponta pro bind
+    // interno (0.0.0.0:3000) e o browser não chegaria lá.
+    const proto = request.headers.get("x-forwarded-proto") ?? "https";
+    const host =
+      request.headers.get("x-forwarded-host") ??
+      request.headers.get("host") ??
+      request.nextUrl.host;
+    const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
+    return NextResponse.redirect(`${proto}://${host}${basePath}/r/indisponivel`, 302);
   }
 
   // Captura ANTES do after — a request pode não ser legível depois da response.
