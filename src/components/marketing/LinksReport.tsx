@@ -129,7 +129,7 @@ export function LinksReport({
         )}
       </Card>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--gap)", marginBottom: "var(--gap)" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "var(--gap)", marginBottom: "var(--gap)", alignItems: "start" }}>
         <Card title="Origem do clique" sub="Referrer classificado — scan de QR não manda origem" pad>
           {report.byOrigin.length === 0 ? (
             <div className="muted" style={{ padding: 20, textAlign: "center" }}>Sem dados no período.</div>
@@ -144,17 +144,17 @@ export function LinksReport({
             <BarsList items={report.byCampaign.slice(0, 8)} />
           )}
         </Card>
-      </div>
-
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--gap)", marginBottom: "var(--gap)" }}>
         <SocialDonutCard
           title="Dispositivos"
           sub={periodLabel}
           items={report.byDevice.map((d) => ({ label: DEVICE_LABEL[d.label] ?? d.label, value: d.value }))}
         />
+      </div>
+
+      <div style={{ marginBottom: "var(--gap)" }}>
         <Card
           title="Localização"
-          sub="Via IP (aproximada)"
+          sub="Via IP (aproximada) — pontos por cidade, tamanho proporcional aos cliques"
           pad
           action={
             <div className="row gap8">
@@ -180,10 +180,10 @@ export function LinksReport({
               Sem geolocalização no período.
             </div>
           ) : (
-            <>
+            <div className="row gap12" style={{ alignItems: "flex-start", flexWrap: "wrap" }}>
               {report.mapPoints.length > 0 && (
-                <div style={{ marginBottom: 14 }}>
-                  <BrazilMap points={report.mapPoints} height={280} />
+                <div style={{ flex: "1 1 340px", minWidth: 280 }}>
+                  <BrazilMap points={report.mapPoints} height={330} />
                   {outsideMap > 0 && (
                     <p className="muted" style={{ fontSize: 11.5, marginTop: 4, textAlign: "center" }}>
                       +{outsideMap} clique(s) fora do Brasil (não plotados no mapa)
@@ -191,8 +191,10 @@ export function LinksReport({
                   )}
                 </div>
               )}
-              <BarsList items={geoItems.slice(0, 8)} />
-            </>
+              <div style={{ flex: "1 1 320px", minWidth: 280 }}>
+                <BarsList items={geoItems.slice(0, 10)} />
+              </div>
+            </div>
           )}
         </Card>
       </div>

@@ -146,7 +146,9 @@ export function VerticalBars({ data }: { data: { label: string; value: number }[
   );
 }
 
-// Barras horizontais (engajamento por conta).
+// Barras horizontais (engajamento por conta, geografia/origem dos links).
+// Valor fica FORA da pista, à direita — número sobre a barra colorida não
+// tinha contraste.
 export function BarsList({ items }: { items: { label: string; value: number }[] }) {
   const max = Math.max(...items.map((i) => i.value), 1);
   if (items.length === 0) return <div className="muted" style={{ padding: 8 }}>Sem contas.</div>;
@@ -155,10 +157,10 @@ export function BarsList({ items }: { items: { label: string; value: number }[] 
       {items.map((it) => (
         <div key={it.label} className="row gap12" style={{ alignItems: "center" }}>
           <span style={{ width: 120, fontSize: 13, color: "var(--muted)", flexShrink: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{it.label}</span>
-          <div style={{ flex: 1, background: "var(--surface-3)", borderRadius: "var(--r-pill)", height: 24, position: "relative", overflow: "hidden" }}>
-            <div style={{ width: `${(it.value / max) * 100}%`, background: "var(--c1)", height: "100%", borderRadius: "var(--r-pill)", minWidth: it.value > 0 ? 24 : 0, transition: "width .3s" }} />
-            <span style={{ position: "absolute", right: 10, top: 0, height: "100%", display: "flex", alignItems: "center", fontWeight: 800, fontSize: 12.5, color: "var(--ink)" }}>{fmtNumber(it.value)}</span>
+          <div style={{ flex: 1, background: "var(--surface-3)", borderRadius: "var(--r-pill)", height: 16, overflow: "hidden" }}>
+            <div style={{ width: `${(it.value / max) * 100}%`, background: "var(--c1)", height: "100%", borderRadius: "var(--r-pill)", minWidth: it.value > 0 ? 16 : 0, transition: "width .3s" }} />
           </div>
+          <span style={{ width: 52, textAlign: "right", fontWeight: 800, fontSize: 12.5, color: "var(--ink)", flexShrink: 0 }}>{fmtNumber(it.value)}</span>
         </div>
       ))}
     </div>

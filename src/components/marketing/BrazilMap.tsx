@@ -28,17 +28,40 @@ export function BrazilMap({ points, height = 300 }: { points: MapPoint[]; height
         <path
           key={s.name}
           d={s.d}
-          fill="var(--surface-3)"
-          stroke="var(--line-2)"
-          strokeWidth="0.6"
+          fill="color-mix(in srgb, var(--ink) 11%, var(--surface-3))"
+          stroke="color-mix(in srgb, var(--ink) 26%, transparent)"
+          strokeWidth="0.7"
         >
           <title>{s.name}</title>
         </path>
       ))}
       {plotted.map((p, i) => (
         <g key={i}>
-          <circle cx={p.x} cy={p.y} r={p.r} fill="var(--c1)" opacity="0.28" />
-          <circle cx={p.x} cy={p.y} r={Math.max(2, p.r * 0.45)} fill="var(--c1)">
+          {/* Halo pulsante (SMIL — sem JS/CSS extra) */}
+          <circle cx={p.x} cy={p.y} r={p.r} fill="var(--c1)" opacity="0.3">
+            <animate
+              attributeName="r"
+              values={`${p.r * 0.55};${p.r * 1.25};${p.r * 0.55}`}
+              dur="2.4s"
+              begin={`${(i % 6) * 0.35}s`}
+              repeatCount="indefinite"
+            />
+            <animate
+              attributeName="opacity"
+              values="0.45;0.12;0.45"
+              dur="2.4s"
+              begin={`${(i % 6) * 0.35}s`}
+              repeatCount="indefinite"
+            />
+          </circle>
+          <circle
+            cx={p.x}
+            cy={p.y}
+            r={Math.max(2.2, p.r * 0.45)}
+            fill="var(--c1)"
+            stroke="#fff"
+            strokeWidth="0.8"
+          >
             <title>{`${p.label} — ${p.count} clique(s)`}</title>
           </circle>
         </g>
