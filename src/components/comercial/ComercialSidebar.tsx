@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { Icon } from "@/components/ui/Icon";
 import { Avatar } from "@/components/ui/Avatar";
 import { COMERCIAL_NAV } from "./nav";
+import { activeNavHref } from "@/lib/nav-active";
 import type { AvatarUser } from "@/lib/types";
 
 // Sidebar do segundo sistema (Comercial). Mesma estrutura/tema da do OpenBoard,
@@ -35,8 +36,7 @@ export function ComercialSidebar({
 
       <div className="sb-section">Comercial</div>
       {COMERCIAL_NAV.map((n) => {
-        const active =
-          pathname === n.href || (n.href !== "/comercial" && pathname.startsWith(n.href));
+        const active = n.href === activeNavHref(pathname, COMERCIAL_NAV.map((x) => x.href));
         return (
           <Link key={n.href} href={n.href} className={`sb-item ${active ? "active" : ""}`} title={n.label}>
             <Icon name={n.icon} />

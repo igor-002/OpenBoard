@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { Icon } from "@/components/ui/Icon";
 import { Avatar } from "@/components/ui/Avatar";
 import { NAV_MAIN, NAV_ADMIN } from "./nav";
+import { activeNavHref } from "@/lib/nav-active";
 import type { AvatarUser } from "@/lib/types";
 
 export function Sidebar({
@@ -30,8 +31,7 @@ export function Sidebar({
       </div>
 
       {NAV_MAIN.map((n) => {
-        const active =
-          pathname === n.href || (n.href !== "/dashboard" && pathname.startsWith(n.href));
+        const active = n.href === activeNavHref(pathname, [...NAV_MAIN, ...NAV_ADMIN].map((x) => x.href));
         return (
           <Link key={n.href} href={n.href} className={`sb-item ${active ? "active" : ""}`} title={n.label}>
             <Icon name={n.icon} />
@@ -44,7 +44,7 @@ export function Sidebar({
         <>
           <div className="sb-section">Admin</div>
           {NAV_ADMIN.map((n) => {
-            const active = pathname.startsWith(n.href);
+            const active = n.href === activeNavHref(pathname, [...NAV_MAIN, ...NAV_ADMIN].map((x) => x.href));
             return (
               <Link key={n.href} href={n.href} className={`sb-item ${active ? "active" : ""}`} title={n.label}>
                 <Icon name={n.icon} />

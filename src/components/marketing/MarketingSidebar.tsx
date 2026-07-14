@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { Icon } from "@/components/ui/Icon";
 import { Avatar } from "@/components/ui/Avatar";
 import { MARKETING_NAV } from "./nav";
+import { activeNavHref } from "@/lib/nav-active";
 import type { AvatarUser } from "@/lib/types";
 
 // Sidebar do módulo Marketing (mesma estrutura/tema do Comercial), com
@@ -35,7 +36,7 @@ export function MarketingSidebar({
 
       <div className="sb-section">Marketing</div>
       {MARKETING_NAV.map((n) => {
-        const active = pathname === n.href || pathname.startsWith(`${n.href}/`);
+        const active = n.href === activeNavHref(pathname, MARKETING_NAV.map((x) => x.href));
         return (
           <Link key={n.href} href={n.href} className={`sb-item ${active ? "active" : ""}`} title={n.label}>
             <Icon name={n.icon} />
