@@ -102,6 +102,9 @@ export function LinksManager({
         <Link href="/marketing/links/campanhas" className="btn btn-ghost">
           <Icon name="folder" size={15} /> Campanhas
         </Link>
+        <Link href="/marketing/links/relatorios" className="btn btn-ghost">
+          <Icon name="chart" size={15} /> Relatório
+        </Link>
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
