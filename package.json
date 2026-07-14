@@ -10,7 +10,8 @@
     "db:up": "docker compose up -d",
     "db:migrate": "prisma migrate dev",
     "db:seed": "prisma db seed",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "geoip:update": "tsx scripts/geoip-update.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
@@ -21,6 +22,7 @@
     "@react-pdf/renderer": "^4.5.1",
     "bcryptjs": "^3.0.3",
     "jose": "^6.2.3",
+    "maxmind": "^5.0.6",
     "next": "16.2.7",
     "qrcode": "^1.5.4",
     "react": "19.2.4",

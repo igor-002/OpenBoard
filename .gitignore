@@ -49,3 +49,6 @@ next-env.d.ts
 /.playwright-mcp
 /*.png
 /backups
+
+# Banco MaxMind GeoLite2 (baixado via npm run geoip:update)
+geoip/

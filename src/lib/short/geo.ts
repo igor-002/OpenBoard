@@ -1,11 +1,56 @@
-// Geolocalização por IP via ip-api.com (free tier: HTTP, ~45 req/min).
-// Sempre chamada DEPOIS do redirect (dentro de after()) — falha é silenciosa.
+// Geolocalização por IP dos scans do encurtador. Fonte primária: MaxMind
+// GeoLite2 local (.mmdb — sem limite, sem chamada externa; baixar/atualizar
+// com `npm run geoip:update`). Fallback: ip-api.com (free, ~45 req/min) quando
+// o arquivo não existe. Sempre roda DEPOIS do redirect (after()) — falha é
+// silenciosa e nunca atrasa o scan.
+import { stat } from "node:fs/promises";
+import { open, type Reader, type CityResponse } from "maxmind";
 import { isPrivateIp } from "./ip";
 
 export type GeoResult = { country: string | null; region: string | null; city: string | null };
 
-// Token bucket ~40 req/min (margem sob o limite de 45) + memo por IP (TTL 1h):
-// o mesmo panfleto escaneado repetidas vezes pelo mesmo IP não gasta cota.
+// ── GeoLite2 local ───────────────────────────────────────────────────────────
+const DB_PATH = process.env.GEOIP_DB_PATH || "geoip/GeoLite2-City.mmdb";
+const RECHECK_MS = 60 * 60 * 1000; // revalida mtime 1x/h (update semanal sem restart)
+const MISSING_RETRY_MS = 5 * 60 * 1000; // arquivo ausente: não tenta stat a cada scan
+
+let reader: Reader<CityResponse> | null = null;
+let readerMtime = 0;
+let lastCheck = 0;
+let missingUntil = 0;
+
+async function getReader(): Promise<Reader<CityResponse> | null> {
+  const now = Date.now();
+  if (now < missingUntil) return null;
+  if (reader && now - lastCheck < RECHECK_MS) return reader;
+  try {
+    const st = await stat(DB_PATH);
+    if (!reader || st.mtimeMs !== readerMtime) {
+      reader = await open<CityResponse>(DB_PATH);
+      readerMtime = st.mtimeMs;
+    }
+    lastCheck = now;
+    return reader;
+  } catch {
+    reader = null;
+    missingUntil = now + MISSING_RETRY_MS;
+    return null;
+  }
+}
+
+type Names = Partial<Record<"pt-BR" | "en", string>> | undefined;
+const name = (n: Names) => n?.["pt-BR"] ?? n?.en ?? null;
+
+function lookupLocal(hit: CityResponse): GeoResult {
+  return {
+    country: name(hit.country?.names),
+    region: name(hit.subdivisions?.[0]?.names),
+    city: name(hit.city?.names),
+  };
+}
+
+// ── Fallback ip-api.com ──────────────────────────────────────────────────────
+// Token bucket ~40 req/min (margem sob o limite de 45) + memo por IP (TTL 1h).
 const RATE_LIMIT_PER_MIN = 40;
 let windowStart = 0;
 let windowCount = 0;
@@ -24,9 +69,7 @@ function takeToken(): boolean {
   return true;
 }
 
-export async function geoLookup(ip: string): Promise<GeoResult | null> {
-  if (!ip || isPrivateIp(ip)) return null;
-
+async function lookupIpApi(ip: string): Promise<GeoResult | null> {
   const cached = memo.get(ip);
   if (cached && Date.now() - cached.at < MEMO_TTL_MS) return cached.geo;
 
@@ -59,4 +102,20 @@ export async function geoLookup(ip: string): Promise<GeoResult | null> {
   } catch {
     return null; // timeout/rede — nunca propaga (não logar o IP)
   }
+}
+
+// ── API pública ──────────────────────────────────────────────────────────────
+export async function geoLookup(ip: string): Promise<GeoResult | null> {
+  if (!ip || isPrivateIp(ip)) return null;
+
+  const r = await getReader();
+  if (r) {
+    try {
+      const hit = r.get(ip);
+      return hit ? lookupLocal(hit) : null;
+    } catch {
+      return null;
+    }
+  }
+  return lookupIpApi(ip);
 }
