@@ -68,6 +68,10 @@ services:
       OPENAI_MODEL: ${OPENAI_MODEL:-}
       OPENAI_PRICE_IN_PER_1M: ${OPENAI_PRICE_IN_PER_1M:-}
       OPENAI_PRICE_OUT_PER_1M: ${OPENAI_PRICE_OUT_PER_1M:-}
+    # Banco GeoLite2 baixado no host (npm run geoip:update + cron semanal).
+    # O app lê geoip/GeoLite2-City.mmdb relativo ao cwd (/app) e recarrega por mtime.
+    volumes:
+      - ./geoip:/app/geoip:ro
     depends_on:
       db:
         condition: service_healthy
