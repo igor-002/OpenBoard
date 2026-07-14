@@ -596,3 +596,57 @@ model MarketingTask {
 
   @@index([employeeId, status])
 }
+
+// ── Encurtador de links + QR + analytics (aba "Links & QR" do Marketing) ─────
+// Visibilidade compartilhada do módulo (sem RBAC), igual ao resto do Marketing.
+// createdById é vínculo frouxo com User (sem FK), padrão Employee.userId.
+
+model LinkCampaign {
+  id        String      @id @default(cuid())
+  name      String      @unique
+  createdAt DateTime    @default(now())
+  links     ShortLink[]
+}
+
+model ShortLink {
+  id          String        @id @default(cuid())
+  slug        String        @unique // base62 6-7 chars ou personalizado
+  destination String // URL final SEMPRE materializada (o redirect só lê este campo)
+  title       String        @default("")
+  kind        String        @default("url") // url | whatsapp
+  waPhone     String? // só kind=whatsapp (dígitos com DDI)
+  waMessage   String? // só kind=whatsapp (texto cru, sem encode)
+  tags        String        @default("") // separadas por vírgula
+  active      Boolean       @default(true)
+  expiresAt   DateTime? // expiração checada on-read no redirect (nunca gravada como status)
+  campaignId  String?
+  campaign    LinkCampaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  createdById String? // User.id frouxo, sem FK
+  // Customização do QR persistida (pra re-baixar idêntico depois)
+  qrColor     String        @default("#111111")
+  qrBgColor   String        @default("#ffffff")
+  qrLogo      String?       @db.Text // data URI da logo central (limitado a ~64KB na action)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  clicks      LinkClick[]
+
+  @@index([campaignId])
+}
+
+model LinkClick {
+  id         Int       @id @default(autoincrement())
+  linkId     String
+  link       ShortLink @relation(fields: [linkId], references: [id], onDelete: Cascade)
+  createdAt  DateTime  @default(now())
+  ipHash     String? // sha256(ip + SHORT_IP_SALT) — LGPD: nunca IP puro
+  country    String?
+  region     String? // estado/UF
+  city       String?
+  deviceType String? // mobile | tablet | desktop
+  os         String?
+  browser    String?
+  referrer   String?
+  isBot      Boolean   @default(false) // bots de preview (WhatsApp/Telegram) ficam fora dos gráficos
+
+  @@index([linkId, createdAt])
+}

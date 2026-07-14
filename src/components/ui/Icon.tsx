@@ -8,7 +8,8 @@ export type IconName =
   | "chevRight" | "chevLeft" | "more" | "filter" | "share" | "calendar"
   | "check" | "checkCircle" | "circle" | "dashCircle" | "flag" | "msg"
   | "paperclip" | "wallet" | "zap" | "target" | "layers" | "play" | "pause"
-  | "download" | "star" | "sidebar" | "briefcase" | "alert" | "logout";
+  | "download" | "star" | "sidebar" | "briefcase" | "alert" | "logout"
+  | "link" | "qr" | "copy" | "edit" | "trash" | "externalLink";
 
 const ICONS: Record<IconName, ReactNode> = {
   dot: <circle cx="12" cy="12" r="3" />,
@@ -56,6 +57,12 @@ const ICONS: Record<IconName, ReactNode> = {
   briefcase: (<><rect x="3" y="7" width="18" height="13" rx="2" /><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M3 12h18" /></>),
   alert: (<><path d="M12 3 2 20h20z" /><path d="M12 9v5M12 17h.01" /></>),
   logout: (<><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><path d="M16 17l5-5-5-5M21 12H9" /></>),
+  link: (<><path d="M10 13a5 5 0 0 0 7.1.5l3-3a5 5 0 0 0-7.1-7.1l-1.7 1.7" /><path d="M14 11a5 5 0 0 0-7.1-.5l-3 3a5 5 0 0 0 7.1 7.1l1.7-1.7" /></>),
+  qr: (<><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><path d="M14 14h3v3h-3zM20 14h1M14 20h1M18 18h3v3h-3z" /></>),
+  copy: (<><rect x="9" y="9" width="12" height="12" rx="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></>),
+  edit: (<><path d="M17 3a2.8 2.8 0 0 1 4 4L7.5 20.5 2 22l1.5-5.5z" /></>),
+  trash: (<><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" /><path d="M10 11v6M14 11v6" /></>),
+  externalLink: (<><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><path d="M15 3h6v6M10 14 21 3" /></>),
 };
 
 export function Icon({
