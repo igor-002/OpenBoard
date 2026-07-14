@@ -29,14 +29,21 @@ async function main() {
     console.error("MAXMIND_LICENSE_KEY ausente — defina no .env (conta gratuita no maxmind.com).");
     process.exit(1);
   }
+  const accountId = envVar("MAXMIND_ACCOUNT_ID");
   const dest = envVar("GEOIP_DB_PATH") || "geoip/GeoLite2-City.mmdb";
   const tmp = join(dirname(dest), ".tmp-geolite2");
   mkdirSync(tmp, { recursive: true });
 
   console.log("Baixando GeoLite2-City…");
-  const res = await fetch(
-    `https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-City&license_key=${encodeURIComponent(key)}&suffix=tar.gz`,
-  );
+  // Endpoint novo (Basic auth com AccountID) quando disponível; senão o legado
+  // por query string (contas antigas).
+  const res = accountId
+    ? await fetch("https://download.maxmind.com/geoip/databases/GeoLite2-City/download?suffix=tar.gz", {
+        headers: { Authorization: `Basic ${Buffer.from(`${accountId}:${key}`).toString("base64")}` },
+      })
+    : await fetch(
+        `https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-City&license_key=${encodeURIComponent(key)}&suffix=tar.gz`,
+      );
   if (!res.ok) {
     console.error(`Download falhou: HTTP ${res.status} (chave inválida ou limite diário).`);
     process.exit(1);
