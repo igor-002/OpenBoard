@@ -7,6 +7,7 @@ import { Icon } from "@/components/ui/Icon";
 import { brl, hourLabel, fullLabel } from "@/lib/format";
 import { leadStageMeta } from "@/lib/leads";
 import { LeadAnalise, type AnalisePontos, type AnaliseView } from "@/components/comercial/LeadAnalise";
+import { LeadAnexos } from "@/components/comercial/LeadAnexos";
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -22,7 +23,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
   await requireUser();
   const data = await getLeadDetail(id);
   if (!data) notFound();
-  const { lead, mensagens, assignedUserName, historico } = data;
+  const { lead, mensagens, assignedUserName, historico, anexos } = data;
   const stage = leadStageMeta(lead.stage);
   // tempo no estágio atual = intervalo aberto do último evento (calculado no server)
   const naFilaMs = historico.length ? historico[historico.length - 1].durationMs : null;
@@ -82,6 +83,22 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
           <Field label="Último contato">{fullLabel(new Date(lead.lastContactAt))} {hourLabel(new Date(lead.lastContactAt))}</Field>
         </div>
       </Card>
+
+      {/* Propostas anexadas (PDF) */}
+      <div style={{ marginTop: "var(--gap)" }}>
+        <Card title="Propostas" sub="PDFs enviados ao cliente" pad={false}>
+          <LeadAnexos
+            leadId={lead.id}
+            anexos={anexos.map((a) => ({
+              id: a.id,
+              nome: a.nome,
+              tamanho: a.tamanho,
+              createdAt: a.createdAt.toISOString(),
+              uploadedByName: a.uploadedByName,
+            }))}
+          />
+        </Card>
+      </div>
 
       {/* Histórico de filas (movimentações do funil) */}
       <div style={{ marginTop: "var(--gap)" }}>

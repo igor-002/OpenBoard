@@ -7,6 +7,7 @@ import { db } from "@/lib/db";
 import { ingestLead, changeLeadStage } from "@/server/comercial/leads";
 import { analisarConversaLead } from "@/server/comercial/analise";
 import { isLeadStage } from "@/lib/leads";
+import { ANEXO_MAX_BYTES, ANEXO_MIME, sanitizeNomeArquivo, validaAnexo } from "@/lib/anexos";
 
 export type LeadActionState = { ok?: boolean; error?: string; id?: string; created?: boolean; matchedBy?: string | null };
 
@@ -59,11 +60,56 @@ export async function assignLead(id: string, userId: string | null): Promise<Lea
 
 export async function deleteLead(id: string): Promise<LeadActionState> {
   await requireAdmin();
-  // FK loose (sem cascade) → apaga mensagens e histórico antes p/ não deixar órfãos.
+  // FK loose (sem cascade) → apaga mensagens, histórico e anexos antes p/ não deixar órfãos.
   await db.leadMensagem.deleteMany({ where: { leadId: id } });
   await db.leadStageEvent.deleteMany({ where: { leadId: id } });
+  await db.leadAnexo.deleteMany({ where: { leadId: id } });
   await db.lead.delete({ where: { id } });
   revalidatePath("/comercial/leads");
+  return { ok: true };
+}
+
+// ── Anexos (propostas em PDF) ────────────────────────────────────────────────
+// Sobe o PDF da proposta pro lead. Bytes vão pro Postgres (model LeadAnexo).
+export async function uploadLeadAnexo(_prev: LeadActionState, formData: FormData): Promise<LeadActionState> {
+  const user = await requireModuleUser("leads");
+  const leadId = String(formData.get("leadId") ?? "");
+  const file = formData.get("arquivo");
+  if (!leadId) return { error: "Lead não informado." };
+  if (!(file instanceof File)) return { error: "Selecione um arquivo PDF." };
+
+  const erro = validaAnexo({ name: file.name, type: file.type, size: file.size });
+  if (erro) return { error: erro };
+
+  const lead = await db.lead.findUnique({ where: { id: leadId }, select: { id: true } });
+  if (!lead) return { error: "Lead não encontrado." };
+
+  const bytes = Buffer.from(await file.arrayBuffer());
+  // Confere a assinatura do PDF ("%PDF-"): o mime do browser é palpite, isso não é.
+  if (bytes.length > ANEXO_MAX_BYTES) return { error: "Arquivo muito grande." };
+  if (bytes.subarray(0, 5).toString("latin1") !== "%PDF-") return { error: "O arquivo não é um PDF válido." };
+
+  await db.leadAnexo.create({
+    data: {
+      leadId,
+      nome: sanitizeNomeArquivo(file.name),
+      mime: ANEXO_MIME,
+      tamanho: bytes.length,
+      data: bytes,
+      uploadedById: user.id,
+    },
+  });
+  revalidatePath(`/comercial/leads/${leadId}`);
+  return { ok: true };
+}
+
+// Apaga o anexo — delete de verdade (a linha some, os bytes vão junto).
+export async function deleteLeadAnexo(id: string): Promise<LeadActionState> {
+  await requireModuleUser("leads");
+  const anexo = await db.leadAnexo.findUnique({ where: { id }, select: { leadId: true } });
+  if (!anexo) return { error: "Anexo não encontrado." };
+  await db.leadAnexo.delete({ where: { id } });
+  revalidatePath(`/comercial/leads/${anexo.leadId}`);
   return { ok: true };
 }
 

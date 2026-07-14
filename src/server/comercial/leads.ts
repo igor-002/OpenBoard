@@ -278,14 +278,37 @@ export function sortConversa<T extends { externalId: string; sentAt: Date | null
 // Se o lead não tem mensagens na tabela (criado antes da feature), faz backfill do payload.
 export type LeadStageHistItem = { id: string; fromStage: string | null; toStage: string; movedByName: string | null; at: Date; durationMs: number | null };
 
+export type LeadAnexoItem = { id: string; nome: string; tamanho: number; createdAt: Date; uploadedByName: string | null };
+
+// Anexos (propostas PDF) de um lead. `data` (bytea) fica FORA do select de
+// propósito — os bytes só saem do banco no download (rota da API).
+export async function listLeadAnexos(leadId: string): Promise<LeadAnexoItem[]> {
+  const anexos = await db.leadAnexo.findMany({
+    where: { leadId },
+    select: { id: true, nome: true, tamanho: true, createdAt: true, uploadedById: true },
+    orderBy: { createdAt: "desc" },
+  });
+  const uids = [...new Set(anexos.map((a) => a.uploadedById).filter((x): x is string => !!x))];
+  const users = uids.length ? await db.user.findMany({ where: { id: { in: uids } }, select: { id: true, name: true } }) : [];
+  const uMap = new Map(users.map((u) => [u.id, u.name]));
+  return anexos.map((a) => ({
+    id: a.id,
+    nome: a.nome,
+    tamanho: a.tamanho,
+    createdAt: a.createdAt,
+    uploadedByName: a.uploadedById ? uMap.get(a.uploadedById) ?? null : null,
+  }));
+}
+
 export async function getLeadDetail(id: string) {
   const lead = await db.lead.findUnique({ where: { id } });
   if (!lead) return null;
   await ensureMensagens(id, lead.payload);
-  const [raw, user, events] = await Promise.all([
+  const [raw, user, events, anexos] = await Promise.all([
     db.leadMensagem.findMany({ where: { leadId: id } }),
     lead.assignedUserId ? db.user.findUnique({ where: { id: lead.assignedUserId }, select: { name: true } }) : Promise.resolve(null),
     db.leadStageEvent.findMany({ where: { leadId: id }, orderBy: { createdAt: "asc" } }),
+    listLeadAnexos(id),
   ]);
   const moverIds = [...new Set(events.map((e) => e.movedByUserId).filter((x): x is string => !!x))];
   const movers = moverIds.length ? await db.user.findMany({ where: { id: { in: moverIds } }, select: { id: true, name: true } }) : [];
@@ -299,5 +322,5 @@ export async function getLeadDetail(id: string) {
     at: e.createdAt,
     durationMs: (i < events.length - 1 ? events[i + 1].createdAt.getTime() : Date.now()) - e.createdAt.getTime(),
   }));
-  return { lead, mensagens: sortConversa(raw), assignedUserName: user?.name ?? null, historico };
+  return { lead, mensagens: sortConversa(raw), assignedUserName: user?.name ?? null, historico, anexos };
 }

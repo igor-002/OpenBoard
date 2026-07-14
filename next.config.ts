@@ -11,6 +11,10 @@ const nextConfig: NextConfig = {
   // Espelha o basePath pro bundle client (inlined no build) — usado por
   // src/lib/basePath.ts pra prefixar fetch/EventSource/<a href> montados à mão.
   env: { NEXT_PUBLIC_BASE_PATH: process.env.BASE_PATH || "" },
+  // Upload de proposta (PDF) nos leads vai por Server Action; o default de 1MB
+  // estoura. Teto real do arquivo = ANEXO_MAX_BYTES (src/lib/anexos.ts); a folga
+  // aqui cobre o overhead do multipart.
+  experimental: { serverActions: { bodySizeLimit: "12mb" } },
   async headers() {
     const headers = [
       { key: "X-Frame-Options", value: "DENY" },

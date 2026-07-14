@@ -412,6 +412,23 @@ model LeadMensagem {
   @@index([leadId])
 }
 
+// Anexos do lead — propostas em PDF que o comercial envia pro cliente. Os bytes
+// ficam no Postgres (bytea): sem volume no Docker pra configurar, entra no backup
+// do banco, e apagar a linha some com o arquivo de vez (nada de órfão em disco).
+// Limite por arquivo em src/lib/anexos.ts. NUNCA selecionar `data` em listagem.
+model LeadAnexo {
+  id           String   @id @default(cuid())
+  leadId       String   // loose FK -> Lead.id (sem constraint, padrão do comercial)
+  nome         String   // nome original do arquivo (sanitizado)
+  mime         String   // sempre application/pdf hoje
+  tamanho      Int      // bytes
+  data         Bytes    // conteúdo do PDF
+  uploadedById String?  // quem subiu (User.id)
+  createdAt    DateTime @default(now())
+
+  @@index([leadId, createdAt])
+}
+
 // Histórico de transições de estágio do lead (base dos relatórios de tempo em fila).
 // fromStage null = entrada do lead no funil (criação).
 model LeadStageEvent {
