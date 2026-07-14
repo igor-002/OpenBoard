@@ -8,6 +8,8 @@ import { Card } from "@/components/ui/Card";
 import { StatCard } from "@/components/ui/Stat";
 import { LineChart } from "@/components/charts/Charts";
 import { SocialDonutCard, BarsList } from "./SocialCharts";
+import { BrazilMap, type MapPoint } from "./BrazilMap";
+import { projectPoint } from "./BrazilMapData";
 
 // Relatório gerencial dos links curtos. Layout na linha do Dub (grid de cards
 // de barras + série temporal no topo) com o recorte do Bitly (QR/direto vs
@@ -24,6 +26,7 @@ interface Report {
   byDevice: Item[];
   byRegion: Item[];
   byCity: Item[];
+  mapPoints: MapPoint[];
   topLinks: { id: string; title: string; slug: string; kind: string; campaignName: string | null; clicks: number }[];
 }
 
@@ -63,6 +66,9 @@ export function LinksReport({
   const { stats } = report;
   const geoItems = geoMode === "region" ? report.byRegion : report.byCity;
   const periodLabel = PERIODS.find((p) => p.days === dias)?.label ?? "";
+  const outsideMap = report.mapPoints
+    .filter((p) => !projectPoint(p.lat, p.lon))
+    .reduce((s, p) => s + p.count, 0);
 
   return (
     <>
@@ -174,7 +180,19 @@ export function LinksReport({
               Sem geolocalização no período.
             </div>
           ) : (
-            <BarsList items={geoItems.slice(0, 8)} />
+            <>
+              {report.mapPoints.length > 0 && (
+                <div style={{ marginBottom: 14 }}>
+                  <BrazilMap points={report.mapPoints} height={280} />
+                  {outsideMap > 0 && (
+                    <p className="muted" style={{ fontSize: 11.5, marginTop: 4, textAlign: "center" }}>
+                      +{outsideMap} clique(s) fora do Brasil (não plotados no mapa)
+                    </p>
+                  )}
+                </div>
+              )}
+              <BarsList items={geoItems.slice(0, 8)} />
+            </>
           )}
         </Card>
       </div>

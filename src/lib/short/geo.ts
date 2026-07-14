@@ -7,7 +7,14 @@ import { stat } from "node:fs/promises";
 import { open, type Reader, type CityResponse } from "maxmind";
 import { isPrivateIp } from "./ip";
 
-export type GeoResult = { country: string | null; region: string | null; city: string | null };
+export type GeoResult = {
+  country: string | null;
+  region: string | null;
+  city: string | null;
+  // Centroide da cidade (não é posição exata da pessoa) — usado no mapa de pontos.
+  latitude: number | null;
+  longitude: number | null;
+};
 
 // ── GeoLite2 local ───────────────────────────────────────────────────────────
 const DB_PATH = process.env.GEOIP_DB_PATH || "geoip/GeoLite2-City.mmdb";
@@ -46,6 +53,8 @@ function lookupLocal(hit: CityResponse): GeoResult {
     country: name(hit.country?.names),
     region: name(hit.subdivisions?.[0]?.names),
     city: name(hit.city?.names),
+    latitude: hit.location?.latitude ?? null,
+    longitude: hit.location?.longitude ?? null,
   };
 }
 
@@ -77,7 +86,7 @@ async function lookupIpApi(ip: string): Promise<GeoResult | null> {
 
   try {
     const res = await fetch(
-      `http://ip-api.com/json/${encodeURIComponent(ip)}?fields=status,country,regionName,city&lang=pt-BR`,
+      `http://ip-api.com/json/${encodeURIComponent(ip)}?fields=status,country,regionName,city,lat,lon&lang=pt-BR`,
       { signal: AbortSignal.timeout(2000), cache: "no-store" },
     );
     if (!res.ok) return null;
@@ -86,12 +95,16 @@ async function lookupIpApi(ip: string): Promise<GeoResult | null> {
       country?: string;
       regionName?: string;
       city?: string;
+      lat?: number;
+      lon?: number;
     };
     if (data.status !== "success") return null;
     const geo: GeoResult = {
       country: data.country || null,
       region: data.regionName || null,
       city: data.city || null,
+      latitude: typeof data.lat === "number" ? data.lat : null,
+      longitude: typeof data.lon === "number" ? data.lon : null,
     };
     memo.set(ip, { geo, at: Date.now() });
     if (memo.size > 5000) {

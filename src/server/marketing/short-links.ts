@@ -160,7 +160,7 @@ export async function getLinksReport({ days, campaignId }: ReportFilters) {
     ...(campaignId ? { link: { campaignId } } : {}),
   };
 
-  const [total, uniqueRows, byReferrer, byDevice, byRegion, byCity, byLink, chartRows, links, campaigns] =
+  const [total, uniqueRows, byReferrer, byDevice, byRegion, byCity, byPoint, byLink, chartRows, links, campaigns] =
     await Promise.all([
       db.linkClick.count({ where }),
       db.linkClick.findMany({
@@ -172,6 +172,11 @@ export async function getLinksReport({ days, campaignId }: ReportFilters) {
       db.linkClick.groupBy({ by: ["deviceType"], where, _count: { _all: true } }),
       db.linkClick.groupBy({ by: ["region"], where, _count: { _all: true } }),
       db.linkClick.groupBy({ by: ["city"], where, _count: { _all: true } }),
+      db.linkClick.groupBy({
+        by: ["latitude", "longitude", "city"],
+        where: { ...where, latitude: { not: null }, longitude: { not: null } },
+        _count: { _all: true },
+      }),
       db.linkClick.groupBy({ by: ["linkId"], where, _count: { _all: true } }),
       db.linkClick.findMany({
         where: { ...where, createdAt: { gte: chartSince } },
@@ -264,6 +269,15 @@ export async function getLinksReport({ days, campaignId }: ReportFilters) {
       .map((r) => ({ label: r.deviceType ?? "desconhecido", value: r._count._all })),
     byRegion: sortGeo(byRegion, "region"),
     byCity: sortGeo(byCity, "city"),
+    mapPoints: [...byPoint]
+      .sort((a, b) => b._count._all - a._count._all)
+      .slice(0, 300)
+      .map((r) => ({
+        lat: r.latitude as number,
+        lon: r.longitude as number,
+        label: r.city ?? "Local aproximado",
+        count: r._count._all,
+      })),
     topLinks: topLinks.slice(0, 20),
   };
 }

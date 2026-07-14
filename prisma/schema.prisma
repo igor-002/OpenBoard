@@ -642,6 +642,8 @@ model LinkClick {
   country    String?
   region     String? // estado/UF
   city       String?
+  latitude   Float? // centroide da cidade (GeoLite2/ip-api) — pro mapa de pontos
+  longitude  Float?
   deviceType String? // mobile | tablet | desktop
   os         String?
   browser    String?

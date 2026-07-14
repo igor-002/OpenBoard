@@ -35,7 +35,13 @@ export async function recordClick(input: {
       if (geo) {
         await db.linkClick.update({
           where: { id: click.id },
-          data: { country: geo.country, region: geo.region, city: geo.city },
+          data: {
+            country: geo.country,
+            region: geo.region,
+            city: geo.city,
+            latitude: geo.latitude,
+            longitude: geo.longitude,
+          },
         });
       }
     }
