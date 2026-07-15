@@ -21,8 +21,13 @@ export async function GET(request: Request) {
       send({ kind: "ready" });
 
       const unsub = onAppEvent((e) => {
-        if (e.workspaceId !== user.workspaceId) return;
-        if (e.actorId === user.id) return;
+        if (e.recipientIds) {
+          // evento direcionado (ex.: solicitação de cadastro do form público)
+          if (!e.recipientIds.includes(user.id)) return;
+        } else {
+          if (e.workspaceId !== user.workspaceId) return;
+          if (e.actorId === user.id) return;
+        }
         send(e);
       });
 

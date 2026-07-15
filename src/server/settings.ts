@@ -10,6 +10,7 @@ export const SETTING_KEYS = {
   openaiModel: "openai_model",
   openaiPriceIn: "openai_price_in",
   openaiPriceOut: "openai_price_out",
+  cadastroNotifyUserIds: "cadastro_notify_user_ids", // JSON string[] de User.id
 } as const;
 
 export async function getSetting(key: string): Promise<string | null> {

@@ -3,8 +3,9 @@ import { verifyToken, SESSION_COOKIE } from "@/lib/jwt";
 
 const AUTH_PAGES = ["/login", "/register", "/esqueci-senha", "/redefinir-senha"];
 // Rotas públicas com gate próprio por token (painel de TV, webhook de leads)
-// ou abertas por natureza (/r = redirect do encurtador, escaneado via QR).
-const PUBLIC_PAGES = ["/tv", "/api/tv", "/api/comercial/leads", "/r/"];
+// ou abertas por natureza (/r = redirect do encurtador, escaneado via QR;
+// /solicitar-cadastro = form aberto com rate-limit + honeypot na action).
+const PUBLIC_PAGES = ["/tv", "/api/tv", "/api/comercial/leads", "/r/", "/solicitar-cadastro"];
 
 // Convenção "proxy" do Next 16 (substitui o antigo middleware).
 export async function proxy(req: NextRequest) {

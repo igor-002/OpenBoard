@@ -2,7 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/auth";
-import { setSettings, SETTING_KEYS } from "@/server/settings";
+import { db } from "@/lib/db";
+import { setSetting, setSettings, SETTING_KEYS } from "@/server/settings";
 
 export type ConfigActionState = { ok?: boolean; error?: string };
 
@@ -26,6 +27,24 @@ export async function saveOpenAISettings(_prev: ConfigActionState, formData: For
     [SETTING_KEYS.openaiPriceIn]: priceIn,
     [SETTING_KEYS.openaiPriceOut]: priceOut,
   });
+
+  revalidatePath("/comercial/config");
+  return { ok: true };
+}
+
+// Salva quem recebe as notificações de solicitação de cadastro (toast + sino).
+// Lista vazia = "[]" explícito → o backend cai no fallback (todos os admins).
+export async function saveCadastroNotifySettings(_prev: ConfigActionState, formData: FormData): Promise<ConfigActionState> {
+  await requireAdmin();
+
+  const ids = formData.getAll("userIds").map(String).filter(Boolean);
+  // só aceita ids de usuários reais (form pode ser adulterado no client)
+  const validos = ids.length
+    ? (await db.user.findMany({ where: { id: { in: ids } }, select: { id: true } })).map((u) => u.id)
+    : [];
+
+  // setSetting direto: setSettings ignora string "vazia", e "[]" precisa persistir.
+  await setSetting(SETTING_KEYS.cadastroNotifyUserIds, JSON.stringify(validos));
 
   revalidatePath("/comercial/config");
   return { ok: true };

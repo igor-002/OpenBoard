@@ -388,6 +388,58 @@ model Lead {
   @@index([emailNorm])
 }
 
+// Solicitação de cadastro de cliente enviada pelo formulário PÚBLICO
+// /solicitar-cadastro (sem login). Fila interna em /comercial/cadastros.
+// status/situacao são String + const TS (src/lib/cadastros.ts), padrão do comercial.
+model SolicitacaoCadastro {
+  id                String    @id @default(cuid())
+  solicitante       String // quem pediu o cadastro (pessoa do time/parceiro)
+  nomeCompleto      String // nome completo / razão social
+  cnpjCpf           String // como digitado
+  cnpjCpfNorm       String? // só dígitos 11/14 (normDoc)
+  rg                String?
+  inscricaoEstadual String?
+  cidade            String?
+  bairro            String?
+  rua               String?
+  pontoReferencia   String?
+  cep               String?
+  telefone1         String
+  telefone1Norm     String?
+  telefone2         String?
+  telefone2Norm     String?
+  emailBoletos      String?
+  vencimentoDia     Int? // dia do vencimento desejado: 5|10|15|20|25
+  plano             String?
+  valorCents        Int       @default(0)
+  observacao        String? // ex.: "Jogar na fila do MU"
+  situacao          String    @default("normal") // normal | urgente (marcado no form)
+  prazoAt           DateTime? // "até quando o contrato precisa subir" — ≤2 dias vira urgente efetivo
+  status            String    @default("pendente") // pendente | cadastrado | cancelado
+  statusChangedAt   DateTime  @default(now())
+  finalizadoAt      DateTime? // quando saiu de pendente (métrica de tempo até cadastrar)
+  finalizadoPorId   String? // User.id frouxo — quem cadastrou/cancelou
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([status, createdAt])
+  @@index([cnpjCpfNorm])
+}
+
+// Histórico de transições de status da solicitação (análogo a LeadStageEvent).
+// fromStatus null = criação pública.
+model SolicitacaoCadastroEvent {
+  id            String   @id @default(cuid())
+  solicitacaoId String // loose FK -> SolicitacaoCadastro.id (padrão do comercial)
+  fromStatus    String?
+  toStatus      String
+  movedByUserId String? // null = formulário público
+  createdAt     DateTime @default(now())
+
+  @@index([solicitacaoId, createdAt])
+  @@index([toStatus, createdAt])
+}
+
 // Configurações do app editáveis pela UI (key-value). Ex.: chave/modelo/preço da
 // OpenAI. Server-only (nunca expor valores sensíveis ao client). Fallback = env.
 model AppSetting {

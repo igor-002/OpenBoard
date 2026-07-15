@@ -1,14 +1,18 @@
 import "server-only";
 import { EventEmitter } from "node:events";
 
-// Evento efêmero de "algo aconteceu no workspace" — usado pra empurrar
-// toasts em tempo real via SSE (/api/events). Não persiste nada.
+// Evento efêmero de "algo aconteceu" — usado pra empurrar toasts em tempo real
+// via SSE (/api/events). Não persiste nada. Dois modos de entrega:
+// - workspace (padrão): workspaceId + actorId — todos do workspace menos o autor;
+// - direcionado: recipientIds — só esses users (ex.: solicitação de cadastro
+//   vinda do form público, que não tem workspace nem autor logado).
 export type AppEvent = {
-  kind: "project_created" | "task_created";
-  workspaceId: string;
-  actorId: string;
+  kind: "project_created" | "task_created" | "solicitacao_cadastro";
+  workspaceId?: string;
+  actorId?: string;
+  recipientIds?: string[]; // se presente, entrega SÓ a estes users
   actorName: string;
-  entity: string; // nome do projeto / título da tarefa
+  entity: string; // nome do projeto / título da tarefa / cliente solicitado
   link: string;
 };
 

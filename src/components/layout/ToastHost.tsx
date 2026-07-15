@@ -7,7 +7,7 @@ import { withBasePath } from "@/lib/basePath";
 
 type Toast = {
   id: number;
-  kind: "project_created" | "task_created";
+  kind: "project_created" | "task_created" | "solicitacao_cadastro";
   actorName: string;
   entity: string;
   link: string;
@@ -16,6 +16,7 @@ type Toast = {
 const META: Record<Toast["kind"], { icon: IconName; label: string; verb: string }> = {
   project_created: { icon: "folder", label: "Novo projeto", verb: "criado por" },
   task_created: { icon: "kanban", label: "Nova tarefa", verb: "criada por" },
+  solicitacao_cadastro: { icon: "users", label: "Solicitação de cadastro", verb: "solicitado por" },
 };
 
 const DURATION = 5200; // ms na tela
@@ -39,7 +40,7 @@ export function ToastHost() {
       } catch {
         return;
       }
-      if (data.kind !== "project_created" && data.kind !== "task_created") return;
+      if (!data.kind || !(data.kind in META)) return;
 
       const id = nextId.current++;
       setToasts((list) => [

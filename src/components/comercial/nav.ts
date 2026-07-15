@@ -6,6 +6,7 @@ export type NavItem = { href: string; label: string; icon: IconName };
 export const COMERCIAL_NAV: NavItem[] = [
   { href: "/comercial", label: "Visão geral", icon: "home" },
   { href: "/comercial/leads", label: "Leads", icon: "target" },
+  { href: "/comercial/cadastros", label: "Cadastros", icon: "inbox" },
   { href: "/comercial/contratos", label: "Contratos", icon: "briefcase" },
   { href: "/comercial/clientes", label: "Clientes", icon: "users" },
   { href: "/comercial/pipeline", label: "Pipeline", icon: "layers" },
@@ -21,6 +22,7 @@ export const COMERCIAL_NAV: NavItem[] = [
 export const COMERCIAL_CRUMBS: { prefix: string; a: string; b: string }[] = [
   { prefix: "/comercial/leads/relatorios", a: "Comercial", b: "Relatórios de Leads" },
   { prefix: "/comercial/leads", a: "Comercial", b: "Leads" },
+  { prefix: "/comercial/cadastros", a: "Comercial", b: "Cadastros" },
   { prefix: "/comercial/contratos", a: "Comercial", b: "Contratos" },
   { prefix: "/comercial/clientes", a: "Comercial", b: "Clientes" },
   { prefix: "/comercial/pipeline", a: "Comercial", b: "Pipeline" },
