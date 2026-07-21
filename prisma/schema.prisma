@@ -666,6 +666,59 @@ model MarketingTask {
   @@index([employeeId, status])
 }
 
+// ── Integração GLPI (aba "Demandas" do Marketing) ────────────────────────────
+// Espelho READ-ONLY dos chamados do GLPI 11 (API V2.1 / OAuth2 password grant).
+// "Demanda do marketing" = ticket cujo autor (user_recipient) é um dos usuários
+// rastreados (env GLPI_TRACKED_USER_IDS). Vínculo frouxo por glpiId (sem FK),
+// derivados pré-computados no sync. Ver glpi-api-v2-integracao.md.
+model GlpiTicket {
+  id                 String    @id @default(cuid())
+  glpiId             Int       @unique
+  name               String
+  statusId           Int // 1 Novo, 2 Em atendimento, 4 Pendente, 5 Solucionado, 6 Fechado
+  statusName         String    @default("")
+  typeId             Int       @default(0) // 1 Incidente, 2 Requisição
+  urgency            Int       @default(0)
+  impact             Int       @default(0)
+  priority           Int       @default(0)
+  requesterId        Int // user_recipient.id — o usuário do marketing que abriu o chamado
+  requesterLogin     String    @default("")
+  requesterName      String    @default("")
+  assignees          String    @default("") // técnicos atribuídos (team role=assigned), nomes por vírgula
+  entityName         String    @default("")
+  requestType        String    @default("")
+  categoryName       String?
+  locationName       String?
+  dateCreation       DateTime
+  dateMod            DateTime?
+  dateSolve          DateTime?
+  dateClose          DateTime?
+  resolutionDuration Int? // segundos
+  closeDuration      Int? // segundos
+  waitingDuration    Int? // segundos
+  isDeleted          Boolean   @default(false) // lixeira do GLPI OU sumiu da API
+  syncedAt           DateTime  @default(now())
+
+  @@index([requesterId, statusId])
+  @@index([dateCreation])
+}
+
+// Log de cada execução do sync GLPI. Separado do SyncRun (IXC) de propósito: o
+// freshness guard de cada scheduler faz findFirst sem filtrar kind, então tabelas
+// separadas evitam que um sync suprima o tick do outro.
+model GlpiSyncRun {
+  id         String    @id @default(cuid())
+  kind       String    @default("tickets") // "auto" | "manual"
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+  durationMs Int?
+  processed  Int       @default(0)
+  errors     Int       @default(0)
+  fatalError String?
+
+  @@index([startedAt])
+}
+
 // ── Encurtador de links + QR + analytics (aba "Links & QR" do Marketing) ─────
 // Visibilidade compartilhada do módulo (sem RBAC), igual ao resto do Marketing.
 // createdById é vínculo frouxo com User (sem FK), padrão Employee.userId.

@@ -11,6 +11,7 @@ export const MARKETING_NAV: NavItem[] = [
   { href: "/marketing/equipe/funcionarios", label: "Funcionários", icon: "folder" },
   { href: "/marketing/links", label: "Links & QR", icon: "link" },
   { href: "/marketing/links/relatorios", label: "Relatório de Cliques", icon: "chart" },
+  { href: "/marketing/demandas", label: "Demandas (GLPI)", icon: "inbox" },
 ];
 
 export const MARKETING_CRUMBS: { prefix: string; a: string; b: string }[] = [
@@ -21,6 +22,7 @@ export const MARKETING_CRUMBS: { prefix: string; a: string; b: string }[] = [
   { prefix: "/marketing/links/campanhas", a: "Marketing", b: "Campanhas" },
   { prefix: "/marketing/links/relatorios", a: "Marketing", b: "Relatório de Cliques" },
   { prefix: "/marketing/links", a: "Marketing", b: "Links & QR" },
+  { prefix: "/marketing/demandas", a: "Marketing", b: "Demandas (GLPI)" },
 ];
 
 export function marketingCrumbFor(pathname: string) {

@@ -10,5 +10,8 @@ export async function register() {
     // Sync de métricas do Instagram (módulo Marketing).
     const { startMarketingSyncScheduler } = await import("@/server/marketing/scheduler");
     startMarketingSyncScheduler();
+    // Sync de chamados do GLPI (aba Demandas do Marketing).
+    const { startGlpiSyncScheduler } = await import("@/server/glpi/scheduler");
+    startGlpiSyncScheduler();
   }
 }

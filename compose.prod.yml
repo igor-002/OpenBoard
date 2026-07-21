@@ -61,6 +61,14 @@ services:
       IXC_TOKEN: ${IXC_TOKEN:-}
       IXC_FILIAIS: ${IXC_FILIAIS:-}
       IXC_CAMPO_STATUS_CONTRATO: ${IXC_CAMPO_STATUS_CONTRATO:-}
+      # Marketing / GLPI (server-only). Sem as GLPI_* a aba "Demandas" fica "não configurado".
+      GLPI_URL: ${GLPI_URL:-}
+      GLPI_CLIENT_ID: ${GLPI_CLIENT_ID:-}
+      GLPI_CLIENT_SECRET: ${GLPI_CLIENT_SECRET:-}
+      GLPI_USERNAME: ${GLPI_USERNAME:-}
+      GLPI_PASSWORD: ${GLPI_PASSWORD:-}
+      GLPI_TRACKED_USER_IDS: ${GLPI_TRACKED_USER_IDS:-}
+      GLPI_SYNC_INTERVAL_MIN: ${GLPI_SYNC_INTERVAL_MIN:-}
       # Webhook de ingest de leads do chat de atendimento (POST /api/comercial/leads).
       LEADS_INGEST_TOKEN: ${LEADS_INGEST_TOKEN:-}
       # Análise IA da conversa (OpenAI). Sem OPENAI_API_KEY o botão de análise fica off.
