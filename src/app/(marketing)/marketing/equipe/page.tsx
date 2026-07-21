@@ -1,103 +1,112 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/auth";
-import { listEmployees, listTasks } from "@/server/marketing/task-source";
-import { teamKpis, monthlyProduction, statusBreakdown, lastPeriods, completedInPeriod } from "@/lib/marketing/team-math";
-import { currentPeriod, previousPeriod, monthLong } from "@/lib/marketing/format";
+import { getGlpiTeamStats, glpiConfigured } from "@/server/glpi/queries";
 import { StatCard } from "@/components/ui/Stat";
 import { Card } from "@/components/ui/Card";
 import { Icon } from "@/components/ui/Icon";
-import { VerticalBars, SocialDonutCard, BarsList } from "@/components/marketing/SocialCharts";
-import { TaskBoard } from "@/components/marketing/TaskBoard";
+import { BarsList } from "@/components/marketing/SocialCharts";
+import { hourLabel } from "@/lib/format";
 
+// Equipe = visão gerencial da produção do time de marketing, alimentada pelos
+// chamados do GLPI (mesmo mirror da aba Demandas). Substitui o antigo painel
+// manual (MarketingTask/Employee).
 export default async function EquipePage() {
   await requireUser();
-  const [employees, tasks] = await Promise.all([listEmployees(), listTasks()]);
-
-  const period = currentPeriod();
-  const prevPeriod = previousPeriod(period);
-  const kpis = teamKpis(tasks, period, prevPeriod);
-  const months = lastPeriods(6);
-  const production = monthlyProduction(tasks, months);
-  const status = statusBreakdown(tasks);
-
-  const doneThisMonth = completedInPeriod(tasks, period);
-  const ranking = employees
-    .map((e) => ({ label: e.name, value: doneThisMonth.filter((t) => t.employeeId === e.id).length }))
-    .sort((a, b) => b.value - a.value);
+  const configured = glpiConfigured();
+  const stats = configured ? await getGlpiTeamStats() : null;
 
   return (
     <div className="page">
       <div className="page-head">
         <div>
           <h1 className="page-title">Equipe</h1>
-          <p className="page-sub">Produção da equipe de marketing — {monthLong(period)}</p>
+          <p className="page-sub">Produção do time de marketing — chamados abertos no GLPI, por pessoa.</p>
         </div>
-        <Link className="btn btn-ghost" href="/marketing/equipe/funcionarios">
-          <Icon name="folder" size={15} /> Funcionários
+        <Link className="btn btn-ghost" href="/marketing/demandas">
+          <Icon name="inbox" size={15} /> Ver demandas
         </Link>
       </div>
 
-      {employees.length === 0 ? (
-        <div className="card card-pad muted">
-          Nenhum funcionário cadastrado. Cadastre em{" "}
-          <Link href="/marketing/equipe/funcionarios">Funcionários</Link>.
+      {!configured ? (
+        <div className="card card-pad" style={{ display: "flex", gap: 12, alignItems: "center", borderLeft: "3px solid var(--st-risk)" }}>
+          <span style={{ color: "var(--st-risk)" }}><Icon name="alert" /></span>
+          <div>
+            <div style={{ fontWeight: 800 }}>GLPI não configurado</div>
+            <div className="muted">Defina as variáveis <code>GLPI_*</code>. Veja <code>glpi-api-v2-integracao.md</code>.</div>
+          </div>
         </div>
+      ) : !stats || stats.members.length === 0 ? (
+        <div className="card card-pad muted">Nenhum chamado sincronizado ainda.</div>
       ) : (
         <>
-          <div className="grid" style={{ gridTemplateColumns: "repeat(5,1fr)", gap: "var(--gap)" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: "var(--gap)", marginBottom: "var(--gap)" }}>
+            <StatCard icon="inbox" label="Total de demandas" value={stats.totals.total} foot="no espelho" />
+            <StatCard icon="clock" label="Abertas" value={stats.totals.abertos} accent="var(--st-progress)" foot="em andamento" />
+            <StatCard icon="alert" label="Paradas" value={stats.totals.paradas} accent="var(--st-risk)" foot="≥3 dias sem mov." />
+            <StatCard icon="checkCircle" label="Solucionadas" value={stats.totals.solucionados} accent="var(--st-done)" foot="status Solucionado" />
             <StatCard
-              icon="checkCircle"
-              label="Concluídas no mês"
-              value={kpis.completed.current}
-              trend={kpis.completed.deltaPct != null ? Math.round(kpis.completed.deltaPct) : undefined}
-              accent="var(--st-done)"
-            />
-            <StatCard icon="clock" label="Em andamento" value={kpis.inProgress} accent="var(--st-progress)" />
-            <StatCard
-              icon="alert"
-              label="Atrasadas"
-              value={kpis.overdue.current}
-              trend={kpis.overdue.deltaPct != null ? Math.round(-kpis.overdue.deltaPct) : undefined}
-              accent="var(--st-risk)"
-            />
-            <StatCard
-              icon="target"
-              label="No prazo"
-              value={kpis.onTimeRate.current}
-              suffix="%"
-              trend={kpis.onTimeRate.deltaPct != null ? Math.round(kpis.onTimeRate.deltaPct) : undefined}
-              accent="var(--primary)"
-            />
-            <StatCard
-              icon="trendUp"
-              label="Tempo médio"
-              value={kpis.avgDays.current}
-              suffix="dias"
-              trend={kpis.avgDays.deltaPct != null ? Math.round(-kpis.avgDays.deltaPct) : undefined}
-              accent="var(--pr-med)"
+              icon="timeline"
+              label="Tempo até solução"
+              value={stats.totals.medianResolutionH ?? "—"}
+              suffix={stats.totals.medianResolutionH ? "h" : undefined}
+              accent="var(--c5)"
+              foot="mediana (tempo corrido)"
             />
           </div>
 
-          <div className="grid" style={{ gridTemplateColumns: "1fr 1fr", gap: "var(--gap)", marginTop: "var(--gap)" }}>
-            <Card title="Produção mensal" sub="Tarefas concluídas por mês" pad>
-              <VerticalBars data={production.map((p) => ({ label: p.label, value: p.concluidas }))} />
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "var(--gap)", marginBottom: "var(--gap)", alignItems: "start" }}>
+            <Card title="Solucionadas por pessoa" pad>
+              <BarsList items={stats.members.map((m) => ({ label: m.name, value: m.solucionados }))} />
             </Card>
-            <SocialDonutCard
-              title="Distribuição atual"
-              sub="Por status"
-              items={status.map((s) => ({ label: s.label, value: s.count }))}
-            />
-          </div>
-
-          <div style={{ marginTop: "var(--gap)" }}>
-            <Card title="Ranking de produção" sub={`Concluídas em ${monthLong(period)}, por funcionário`} pad>
-              <BarsList items={ranking} />
+            <Card title="Abertas por pessoa" sub="carga atual" pad>
+              <BarsList items={stats.members.map((m) => ({ label: m.name, value: m.abertos }))} />
             </Card>
           </div>
 
-          <div style={{ marginTop: "var(--gap)" }}>
-            <TaskBoard tasks={tasks} employees={employees} />
-          </div>
+          <Card title="Por pessoa" sub="clique numa linha para ver as demandas da pessoa" pad={false}>
+            <div style={{ overflowX: "auto" }}>
+              <table className="tbl" style={{ width: "100%" }}>
+                <thead>
+                  <tr>
+                    <th style={{ textAlign: "left" }}>Pessoa</th>
+                    <th style={{ textAlign: "right" }}>Total</th>
+                    <th style={{ textAlign: "right" }}>Abertas</th>
+                    <th style={{ textAlign: "right" }}>Paradas</th>
+                    <th style={{ textAlign: "right" }}>Pendentes</th>
+                    <th style={{ textAlign: "right" }}>Solucionadas</th>
+                    <th style={{ textAlign: "right" }}>Fechadas</th>
+                    <th style={{ textAlign: "right" }}>Tempo (mediana)</th>
+                    <th style={{ textAlign: "right" }}></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {stats.members.map((m) => (
+                    <tr key={m.requesterId}>
+                      <td style={{ fontWeight: 600 }}>{m.name}</td>
+                      <td style={{ textAlign: "right" }}>{m.total}</td>
+                      <td style={{ textAlign: "right" }}>{m.abertos}</td>
+                      <td style={{ textAlign: "right", color: m.paradas ? "var(--st-risk)" : "inherit", fontWeight: m.paradas ? 700 : 400 }}>{m.paradas}</td>
+                      <td style={{ textAlign: "right" }}>{m.pendentes}</td>
+                      <td style={{ textAlign: "right" }}>{m.solucionados}</td>
+                      <td style={{ textAlign: "right" }}>{m.fechados}</td>
+                      <td style={{ textAlign: "right" }} className="muted">{m.medianResolutionH != null ? `${m.medianResolutionH}h` : "—"}</td>
+                      <td style={{ textAlign: "right" }}>
+                        <Link href={`/marketing/demandas?user=${m.requesterId}`} className="btn btn-ghost" style={{ padding: "2px 8px" }} title="Ver demandas">
+                          <Icon name="chevRight" size={14} />
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+
+          {stats.lastSync?.finishedAt && (
+            <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>
+              Última sincronização: {hourLabel(new Date(stats.lastSync.finishedAt))} · {stats.lastSync.processed} chamados.
+            </p>
+          )}
         </>
       )}
     </div>

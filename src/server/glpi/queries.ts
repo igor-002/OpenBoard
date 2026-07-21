@@ -8,6 +8,17 @@ export { glpiConfigured } from "@/lib/glpi";
 // 4 Pendente, 5 Solucionado, 6 Fechado. "Aberto" = ainda não solucionado/fechado.
 const OPEN_STATUSES = [1, 2, 3, 4];
 
+// Mediana em horas de uma lista de durações (segundos). Mediana > média porque
+// resolution_duration é tempo CORRIDO (criação→solução) e alguns chamados ficam
+// meses abertos, distorcendo a média. null se lista vazia.
+function medianHours(secs: number[]): number | null {
+  const v = secs.filter((s) => s > 0).sort((a, b) => a - b);
+  if (v.length === 0) return null;
+  const mid = Math.floor(v.length / 2);
+  const med = v.length % 2 ? v[mid] : (v[mid - 1] + v[mid]) / 2;
+  return Math.round((med / 3600) * 10) / 10;
+}
+
 export type StatusFilter = "abertos" | "pendentes" | "solucionados" | "fechados" | "todos";
 
 function statusWhere(f: StatusFilter): { statusId?: { in: number[] } | number } {
@@ -50,9 +61,80 @@ export interface UserTab {
 
 export interface GlpiReport {
   users: UserTab[];
-  stats: { total: number; abertos: number; pendentes: number; solucionados: number; fechados: number; avgResolutionH: number | null };
+  stats: { total: number; abertos: number; pendentes: number; solucionados: number; fechados: number; medianResolutionH: number | null };
   tickets: TicketRow[];
   lastSync: { finishedAt: string | null; ok: boolean; processed: number } | null;
+}
+
+export interface TeamMemberStats {
+  requesterId: number;
+  name: string;
+  total: number;
+  abertos: number;
+  pendentes: number;
+  solucionados: number;
+  fechados: number;
+  paradas: number; // abertas sem movimentação há ≥3 dias
+  medianResolutionH: number | null;
+}
+
+export interface TeamStats {
+  members: TeamMemberStats[];
+  totals: { total: number; abertos: number; solucionados: number; paradas: number; medianResolutionH: number | null };
+  lastSync: { finishedAt: string | null; ok: boolean; processed: number } | null;
+}
+
+// Dashboard da Equipe: produção real por usuário do marketing, a partir do mirror.
+export async function getGlpiTeamStats(): Promise<TeamStats> {
+  const rows = await db.glpiTicket.findMany({
+    where: { isDeleted: false },
+    select: { requesterId: true, requesterName: true, statusId: true, dateMod: true, dateCreation: true, resolutionDuration: true },
+  });
+  const now = Date.now();
+  const staleDaysOf = (r: (typeof rows)[number]) => {
+    const ref = r.dateMod ?? r.dateCreation;
+    return Math.floor((now - ref.getTime()) / 86_400_000);
+  };
+
+  const byId = new Map<number, { name: string; rows: typeof rows }>();
+  for (const r of rows) {
+    const e = byId.get(r.requesterId) ?? { name: r.requesterName || String(r.requesterId), rows: [] as typeof rows };
+    e.rows.push(r);
+    byId.set(r.requesterId, e);
+  }
+
+  const members: TeamMemberStats[] = [...byId.entries()]
+    .map(([requesterId, { name, rows: rr }]) => {
+      const open = rr.filter((r) => OPEN_STATUSES.includes(r.statusId));
+      return {
+        requesterId,
+        name,
+        total: rr.length,
+        abertos: open.length,
+        pendentes: rr.filter((r) => r.statusId === 4).length,
+        solucionados: rr.filter((r) => r.statusId === 5).length,
+        fechados: rr.filter((r) => r.statusId === 6).length,
+        paradas: open.filter((r) => staleDaysOf(r) >= 3).length,
+        medianResolutionH: medianHours(rr.map((r) => r.resolutionDuration ?? 0)),
+      };
+    })
+    .sort((a, b) => b.total - a.total);
+
+  const openAll = rows.filter((r) => OPEN_STATUSES.includes(r.statusId));
+  const totals = {
+    total: rows.length,
+    abertos: openAll.length,
+    solucionados: rows.filter((r) => r.statusId === 5).length,
+    paradas: openAll.filter((r) => staleDaysOf(r) >= 3).length,
+    medianResolutionH: medianHours(rows.map((r) => r.resolutionDuration ?? 0)),
+  };
+
+  const lastRun = await db.glpiSyncRun.findFirst({ orderBy: { startedAt: "desc" } });
+  const lastSync = lastRun
+    ? { finishedAt: lastRun.finishedAt?.toISOString() ?? null, ok: !lastRun.fatalError && !!lastRun.finishedAt, processed: lastRun.processed }
+    : null;
+
+  return { members, totals, lastSync };
 }
 
 export async function getGlpiReport(opts: { requesterId?: number | null; status?: StatusFilter }): Promise<GlpiReport> {
@@ -89,19 +171,18 @@ export async function getGlpiReport(opts: { requesterId?: number | null; status?
   // Escopo atual (usuário selecionado, se houver) para stats + tabela.
   const scopeWhere = { ...baseWhere, ...(opts.requesterId ? { requesterId: opts.requesterId } : {}) };
 
-  const [total, abertos, pendentes, solucionados, fechados, avgAgg] = await Promise.all([
+  const [total, abertos, pendentes, solucionados, fechados, resolvedRows] = await Promise.all([
     db.glpiTicket.count({ where: scopeWhere }),
     db.glpiTicket.count({ where: { ...scopeWhere, statusId: { in: OPEN_STATUSES } } }),
     db.glpiTicket.count({ where: { ...scopeWhere, statusId: 4 } }),
     db.glpiTicket.count({ where: { ...scopeWhere, statusId: 5 } }),
     db.glpiTicket.count({ where: { ...scopeWhere, statusId: 6 } }),
-    db.glpiTicket.aggregate({
+    db.glpiTicket.findMany({
       where: { ...scopeWhere, resolutionDuration: { not: null, gt: 0 } },
-      _avg: { resolutionDuration: true },
+      select: { resolutionDuration: true },
     }),
   ]);
-  const avgSec = avgAgg._avg.resolutionDuration;
-  const avgResolutionH = avgSec ? Math.round((avgSec / 3600) * 10) / 10 : null;
+  const medianResolutionH = medianHours(resolvedRows.map((r) => r.resolutionDuration ?? 0));
 
   const rows = await db.glpiTicket.findMany({
     where: { ...scopeWhere, ...statusWhere(status) },
@@ -129,5 +210,5 @@ export async function getGlpiReport(opts: { requesterId?: number | null; status?
     ? { finishedAt: lastRun.finishedAt?.toISOString() ?? null, ok: !lastRun.fatalError && !!lastRun.finishedAt, processed: lastRun.processed }
     : null;
 
-  return { users, stats: { total, abertos, pendentes, solucionados, fechados, avgResolutionH }, tickets, lastSync };
+  return { users, stats: { total, abertos, pendentes, solucionados, fechados, medianResolutionH }, tickets, lastSync };
 }

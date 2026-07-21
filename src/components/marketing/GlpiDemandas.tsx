@@ -1,11 +1,13 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Icon } from "@/components/ui/Icon";
 import { Card } from "@/components/ui/Card";
 import { StatCard } from "@/components/ui/Stat";
 import { fullLabel, hourLabel } from "@/lib/format";
+import { statusColors, PRIORITY_LABEL, staleDays, staleLevel } from "@/lib/glpi-format";
 import { runGlpiSyncAction } from "@/app/(marketing)/marketing/demandas/actions";
 import type { GlpiReport, StatusFilter } from "@/server/glpi/queries";
 
@@ -16,15 +18,6 @@ const STATUS_TABS: { key: StatusFilter; label: string }[] = [
   { key: "fechados", label: "Fechados" },
   { key: "todos", label: "Todos" },
 ];
-
-// Cor do status (GLPI: 1 Novo, 2 Em atend., 4 Pendente, 5 Solucionado, 6 Fechado).
-function statusStyle(id: number): React.CSSProperties {
-  if (id === 5 || id === 6) return { color: "var(--st-done)", background: "var(--st-done-bg)" };
-  if (id === 4) return { color: "var(--st-risk)", background: "var(--st-risk-bg)" };
-  return { color: "var(--st-progress)", background: "var(--st-progress-bg)" }; // novo / em atendimento
-}
-
-const PRIORITY_LABEL: Record<number, string> = { 1: "Muito baixa", 2: "Baixa", 3: "Média", 4: "Alta", 5: "Muito alta" };
 
 export function GlpiDemandas({
   report,
@@ -110,11 +103,11 @@ export function GlpiDemandas({
         <StatCard icon="checkCircle" label="Solucionados" value={stats.solucionados} accent="var(--c4)" foot="status Solucionado" />
         <StatCard
           icon="timeline"
-          label="Tempo médio"
-          value={stats.avgResolutionH ?? "—"}
-          suffix={stats.avgResolutionH ? "h" : undefined}
+          label="Tempo até solução"
+          value={stats.medianResolutionH ?? "—"}
+          suffix={stats.medianResolutionH ? "h" : undefined}
           accent="var(--c5)"
-          foot="até solução"
+          foot="mediana (tempo corrido)"
         />
       </div>
 
@@ -150,35 +143,48 @@ export function GlpiDemandas({
                 </tr>
               </thead>
               <tbody>
-                {tickets.map((t) => (
-                  <tr key={t.glpiId}>
-                    <td className="muted" style={{ width: 56 }}>{t.glpiId}</td>
-                    <td style={{ fontWeight: 600, maxWidth: 340 }}>{t.name}</td>
-                    <td className="muted" style={{ fontSize: 12.5 }}>{t.requesterName}</td>
-                    <td className="muted" style={{ fontSize: 12.5 }}>{t.assignees || "—"}</td>
-                    <td>
-                      <span className="badge" style={statusStyle(t.statusId)}>{t.statusName || "—"}</span>
-                    </td>
-                    <td className="muted" style={{ fontSize: 12.5 }}>{PRIORITY_LABEL[t.priority] ?? "—"}</td>
-                    <td className="muted" style={{ fontSize: 12.5, whiteSpace: "nowrap" }}>
-                      {fullLabel(new Date(t.dateCreation))}
-                    </td>
-                    <td style={{ textAlign: "right" }}>
-                      {glpiBase && (
-                        <a
-                          href={`${glpiBase}/front/ticket.form.php?id=${t.glpiId}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
+                {tickets.map((t) => {
+                  const sc = statusColors(t.statusId);
+                  const days = staleDays(t.dateMod, t.dateCreation);
+                  const stale = staleLevel(t.statusId, days);
+                  const staleColor = stale === "risk" ? "var(--st-risk)" : "var(--st-warn, #b45309)";
+                  return (
+                    <tr key={t.glpiId}>
+                      <td className="muted" style={{ width: 56 }}>{t.glpiId}</td>
+                      <td style={{ maxWidth: 360 }}>
+                        <Link href={`/marketing/demandas/${t.glpiId}`} style={{ fontWeight: 600 }}>{t.name}</Link>
+                        {stale !== "none" && (
+                          <span
+                            className="badge"
+                            style={{ marginLeft: 8, color: staleColor, background: "color-mix(in srgb, currentColor 12%, transparent)" }}
+                            title={`Sem movimentação há ${days} dias`}
+                          >
+                            <Icon name="clock" size={11} /> parada {days}d
+                          </span>
+                        )}
+                      </td>
+                      <td className="muted" style={{ fontSize: 12.5 }}>{t.requesterName}</td>
+                      <td className="muted" style={{ fontSize: 12.5 }}>{t.assignees || "—"}</td>
+                      <td>
+                        <span className="badge" style={{ color: sc.color, background: sc.bg }}>{t.statusName || "—"}</span>
+                      </td>
+                      <td className="muted" style={{ fontSize: 12.5 }}>{PRIORITY_LABEL[t.priority] ?? "—"}</td>
+                      <td className="muted" style={{ fontSize: 12.5, whiteSpace: "nowrap" }}>
+                        {fullLabel(new Date(t.dateCreation))}
+                      </td>
+                      <td style={{ textAlign: "right" }}>
+                        <Link
+                          href={`/marketing/demandas/${t.glpiId}`}
                           className="btn btn-ghost"
                           style={{ padding: "2px 8px" }}
-                          title="Abrir no GLPI"
+                          title="Ver detalhes"
                         >
-                          <Icon name="externalLink" size={14} />
-                        </a>
-                      )}
-                    </td>
-                  </tr>
-                ))}
+                          <Icon name="chevRight" size={14} />
+                        </Link>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
