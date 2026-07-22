@@ -3,6 +3,8 @@ import { notFound } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { getTicketDetail, type TimelineEntry } from "@/server/glpi/detail";
 import { glpiConfigured } from "@/server/glpi/queries";
+import { getAssignableUsers } from "@/server/glpi/users";
+import { TicketActions } from "@/components/marketing/TicketActions";
 import { Icon } from "@/components/ui/Icon";
 import { fullLabel, hourLabel } from "@/lib/format";
 import { statusColors, PRIORITY_LABEL, staleDays, staleLevel, initialsOf, colorForName } from "@/lib/glpi-format";
@@ -67,6 +69,8 @@ export default async function DemandaDetailPage({ params }: { params: Promise<{ 
 
   const t = await getTicketDetail(glpiId);
   if (!t) notFound();
+
+  const assignable = await getAssignableUsers();
 
   const glpiBase = (process.env.GLPI_URL ?? "").replace(/\/$/, "");
   const sc = statusColors(t.statusId);
@@ -180,6 +184,8 @@ export default async function DemandaDetailPage({ params }: { params: Promise<{ 
               </div>
             )}
           </div>
+
+          <TicketActions glpiId={t.glpiId} statusId={t.statusId} assignable={assignable} />
         </div>
 
         {/* Painel lateral */}

@@ -1,7 +1,9 @@
 import { requireUser } from "@/lib/auth";
 import { getGlpiReport, glpiConfigured, type StatusFilter } from "@/server/glpi/queries";
+import { getTrackedUsers } from "@/server/glpi/users";
 import { Icon } from "@/components/ui/Icon";
 import { GlpiDemandas } from "@/components/marketing/GlpiDemandas";
+import { NovaDemanda } from "@/components/marketing/NovaDemanda";
 
 const VALID_STATUS: StatusFilter[] = ["abertos", "pendentes", "solucionados", "fechados", "todos"];
 
@@ -16,9 +18,12 @@ export default async function DemandasPage({
   const status = (VALID_STATUS.includes(sp.status as StatusFilter) ? sp.status : "abertos") as StatusFilter;
   const configured = glpiConfigured();
 
-  const report = configured
-    ? await getGlpiReport({ requesterId: Number.isInteger(requesterId) ? requesterId : null, status })
-    : null;
+  const [report, trackedUsers] = configured
+    ? await Promise.all([
+        getGlpiReport({ requesterId: Number.isInteger(requesterId) ? requesterId : null, status }),
+        getTrackedUsers(),
+      ])
+    : [null, []];
   const glpiBase = (process.env.GLPI_URL ?? "").replace(/\/$/, "");
 
   return (
@@ -27,10 +32,11 @@ export default async function DemandasPage({
         <div>
           <h1 className="page-title">Demandas (GLPI)</h1>
           <p className="page-sub">
-            Chamados abertos pela equipe de marketing no GLPI. Monitoramento de demandas e projetos —
-            somente leitura, sincronizado automaticamente.
+            Chamados abertos pela equipe de marketing no GLPI. Monitoramento de demandas e projetos,
+            sincronizado automaticamente.
           </p>
         </div>
+        {configured && trackedUsers.length > 0 && <NovaDemanda trackedUsers={trackedUsers} />}
       </div>
 
       {!configured ? (

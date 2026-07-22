@@ -57,6 +57,45 @@ async function resolveTrackedUsers(): Promise<Map<number, { login: string; name:
   return map;
 }
 
+// Mapeia o ticket cru do GLPI → colunas do GlpiTicket (mesma forma no sync completo
+// e no syncOneTicket pós-escrita).
+function buildTicketData(t: GlpiTicketRaw, users: Map<number, { login: string; name: string }>) {
+  const reqId = t.user_recipient?.id ?? 0;
+  const resolved = users.get(reqId);
+  const requesterLogin = t.user_recipient?.name ?? resolved?.login ?? "";
+  const requesterName = resolved?.name ?? requesterLogin;
+  const assignees = (t.team ?? [])
+    .filter((m) => m.role === "assigned")
+    .map((m) => m.display_name || m.name)
+    .join(", ");
+  return {
+    name: t.name ?? "",
+    statusId: t.status?.id ?? 0,
+    statusName: t.status?.name ?? "",
+    typeId: t.type ?? 0,
+    urgency: t.urgency ?? 0,
+    impact: t.impact ?? 0,
+    priority: t.priority ?? 0,
+    requesterId: reqId,
+    requesterLogin,
+    requesterName,
+    assignees,
+    entityName: t.entity?.name ?? "",
+    requestType: t.request_type?.name ?? "",
+    categoryName: t.category?.name ?? null,
+    locationName: t.location?.name ?? null,
+    dateCreation: glpiDate(t.date_creation) ?? new Date(0),
+    dateMod: glpiDate(t.date_mod),
+    dateSolve: glpiDate(t.date_solve),
+    dateClose: glpiDate(t.date_close),
+    resolutionDuration: t.resolution_duration ?? null,
+    closeDuration: t.close_duration ?? null,
+    waitingDuration: t.waiting_duration ?? null,
+    isDeleted: Boolean(t.is_deleted),
+    syncedAt: new Date(),
+  };
+}
+
 async function syncTickets(): Promise<{ processed: number; errors: number }> {
   const users = await resolveTrackedUsers();
   const filter = `user_recipient.id=in=(${TRACKED_USER_IDS.join(",")})`;
@@ -68,42 +107,7 @@ async function syncTickets(): Promise<{ processed: number; errors: number }> {
 
   for (const t of tickets) {
     try {
-      const reqId = t.user_recipient?.id ?? 0;
-      const resolved = users.get(reqId);
-      const requesterLogin = t.user_recipient?.name ?? resolved?.login ?? "";
-      const requesterName = resolved?.name ?? requesterLogin;
-      const assignees = (t.team ?? [])
-        .filter((m) => m.role === "assigned")
-        .map((m) => m.display_name || m.name)
-        .join(", ");
-
-      const data = {
-        name: t.name ?? "",
-        statusId: t.status?.id ?? 0,
-        statusName: t.status?.name ?? "",
-        typeId: t.type ?? 0,
-        urgency: t.urgency ?? 0,
-        impact: t.impact ?? 0,
-        priority: t.priority ?? 0,
-        requesterId: reqId,
-        requesterLogin,
-        requesterName,
-        assignees,
-        entityName: t.entity?.name ?? "",
-        requestType: t.request_type?.name ?? "",
-        categoryName: t.category?.name ?? null,
-        locationName: t.location?.name ?? null,
-        dateCreation: glpiDate(t.date_creation) ?? new Date(0),
-        dateMod: glpiDate(t.date_mod),
-        dateSolve: glpiDate(t.date_solve),
-        dateClose: glpiDate(t.date_close),
-        resolutionDuration: t.resolution_duration ?? null,
-        closeDuration: t.close_duration ?? null,
-        waitingDuration: t.waiting_duration ?? null,
-        isDeleted: Boolean(t.is_deleted),
-        syncedAt: new Date(),
-      };
-
+      const data = buildTicketData(t, users);
       await db.glpiTicket.upsert({
         where: { glpiId: t.id },
         create: { glpiId: t.id, ...data },
@@ -127,6 +131,21 @@ async function syncTickets(): Promise<{ processed: number; errors: number }> {
   }
 
   return { processed, errors };
+}
+
+// Re-espelha UM chamado (após uma escrita: novo ticket, followup, status, atribuição).
+// Se o ticket não for mais visível/existir, ignora silenciosamente.
+export async function syncOneTicket(glpiId: number): Promise<void> {
+  if (!glpiConfigured() || !Number.isInteger(glpiId) || glpiId <= 0) return;
+  const users = await resolveTrackedUsers();
+  const t = await glpiGetOne<GlpiTicketRaw>(`/Assistance/Ticket/${glpiId}`, FIELDS);
+  if (!t || !t.id) return;
+  const data = buildTicketData(t, users);
+  await db.glpiTicket.upsert({
+    where: { glpiId: t.id },
+    create: { glpiId: t.id, ...data },
+    update: data,
+  });
 }
 
 export async function runGlpiSync(

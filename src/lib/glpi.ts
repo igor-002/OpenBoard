@@ -28,6 +28,9 @@ export const TRACKED_USER_IDS = (process.env.GLPI_TRACKED_USER_IDS || "")
   .map((s) => Number(s.trim()))
   .filter((n) => Number.isInteger(n) && n > 0);
 
+// Entidade onde os chamados do marketing são criados (Marketing = 54 nesta instância).
+export const DEFAULT_ENTITY_ID = Number(process.env.GLPI_ENTITY_ID) || 54;
+
 export function glpiConfigured(): boolean {
   return Boolean(URL_BASE && CLIENT_ID && CLIENT_SECRET && USERNAME && PASSWORD && TRACKED_USER_IDS.length);
 }
@@ -187,6 +190,42 @@ export async function glpiGetAll<T = unknown>(
   } while (start < total);
   return out;
 }
+
+// ── Escrita (POST/PATCH/DELETE) ──────────────────────────────────────────────
+async function glpiSend<T = unknown>(method: "POST" | "PATCH" | "DELETE", path: string, body?: unknown): Promise<T | null> {
+  if (!glpiConfigured()) throw new GlpiError(401, path, "GLPI não configurado (env GLPI_* ausentes)");
+  const token = await getToken();
+  let res: Response;
+  try {
+    res = await fetch(`${API}${path}`, {
+      method,
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Accept-Language": "pt_BR",
+        ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
+      },
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+      cache: "no-store",
+    });
+  } catch (e) {
+    throw new GlpiError(504, path, (e as Error).message);
+  }
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new GlpiError(res.status, path, txt.slice(0, 200));
+  }
+  const txt = await res.text();
+  if (!txt) return null;
+  try {
+    return JSON.parse(txt) as T;
+  } catch {
+    return null;
+  }
+}
+
+export const glpiPost = <T = unknown>(path: string, body: unknown) => glpiSend<T>("POST", path, body);
+export const glpiPatch = <T = unknown>(path: string, body: unknown) => glpiSend<T>("PATCH", path, body);
+export const glpiDelete = <T = unknown>(path: string, body?: unknown) => glpiSend<T>("DELETE", path, body);
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 // GLPI manda datas ISO8601 com fuso (ex.: "2026-04-14T14:00:02-03:00"). Parse direto.
