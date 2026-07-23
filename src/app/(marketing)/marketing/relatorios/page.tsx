@@ -3,41 +3,17 @@ import { requireUser } from "@/lib/auth";
 import { glpiConfigured } from "@/server/glpi/queries";
 import { getGlpiActivityReport } from "@/server/glpi/report";
 import { resolvePeriodo } from "@/server/relatorios";
-import { StatCard } from "@/components/ui/Stat";
 import { Card } from "@/components/ui/Card";
 import { Icon } from "@/components/ui/Icon";
 import { BarsList } from "@/components/marketing/SocialCharts";
+import { AnimatedStat, DemandasDailyBars } from "@/components/marketing/GlpiReportCharts";
 import { PeriodPicker } from "@/components/reports/PeriodPicker";
 import { fullLabel, hourLabel } from "@/lib/format";
+import { withBasePath } from "@/lib/basePath";
 
 export const dynamic = "force-dynamic";
 
 const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-
-// Barras agrupadas abertas × solucionadas por dia/semana (server-render, sem JS).
-function DualBars({ data }: { data: { label: string; abertas: number; solucionadas: number }[] }) {
-  const max = Math.max(...data.map((d) => Math.max(d.abertas, d.solucionadas)), 1);
-  if (data.length === 0) return <div className="muted" style={{ padding: 8 }}>Sem dados no período.</div>;
-  return (
-    <div>
-      <div className="row gap12" style={{ marginBottom: 10, fontSize: 12, color: "var(--muted)" }}>
-        <span className="row gap8" style={{ alignItems: "center" }}><span style={{ width: 10, height: 10, borderRadius: 3, background: "var(--st-progress)" }} /> Abertas</span>
-        <span className="row gap8" style={{ alignItems: "center" }}><span style={{ width: 10, height: 10, borderRadius: 3, background: "var(--st-done)" }} /> Solucionadas</span>
-      </div>
-      <div style={{ display: "flex", alignItems: "flex-end", gap: 6, height: 190, padding: "8px 2px 0", overflowX: "auto" }}>
-        {data.map((d) => (
-          <div key={d.label} style={{ flex: "1 0 26px", display: "flex", flexDirection: "column", alignItems: "center", gap: 6, height: "100%" }}>
-            <div className="row" style={{ gap: 3, flex: 1, width: "100%", alignItems: "flex-end", justifyContent: "center" }}>
-              <div title={`${d.abertas} abertas`} style={{ width: 9, height: `${(d.abertas / max) * 100}%`, background: "var(--st-progress)", borderRadius: "3px 3px 0 0", minHeight: d.abertas ? 3 : 0 }} />
-              <div title={`${d.solucionadas} solucionadas`} style={{ width: 9, height: `${(d.solucionadas / max) * 100}%`, background: "var(--st-done)", borderRadius: "3px 3px 0 0", minHeight: d.solucionadas ? 3 : 0 }} />
-            </div>
-            <span style={{ fontSize: 10, color: "var(--muted)", whiteSpace: "nowrap" }}>{d.label}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
 
 export default async function MarketingRelatoriosPage({
   searchParams,
@@ -49,6 +25,7 @@ export default async function MarketingRelatoriosPage({
   const { from, to, preset } = resolvePeriodo(sp);
   const configured = glpiConfigured();
   const r = configured ? await getGlpiActivityReport(from, to) : null;
+  const pdfUrl = withBasePath(`/api/marketing/relatorios?from=${iso(from)}&to=${iso(to)}`);
 
   return (
     <div className="page">
@@ -59,9 +36,16 @@ export default async function MarketingRelatoriosPage({
             Produção do time de marketing no GLPI · {fullLabel(from)} até {fullLabel(to)}
           </p>
         </div>
-        <Link className="btn btn-ghost" href="/marketing/equipe">
-          <Icon name="users" size={15} /> Ver equipe
-        </Link>
+        <div className="row gap12">
+          {configured && (
+            <a className="btn btn-primary" href={pdfUrl} target="_blank" rel="noopener">
+              <Icon name="download" size={16} /> Gerar relatório (PDF)
+            </a>
+          )}
+          <Link className="btn btn-ghost" href="/marketing/equipe">
+            <Icon name="users" size={15} /> Ver equipe
+          </Link>
+        </div>
       </div>
 
       {!configured ? (
@@ -76,32 +60,33 @@ export default async function MarketingRelatoriosPage({
         <>
           <PeriodPicker preset={preset} fromIso={iso(from)} toIso={iso(to)} />
 
-          {/* KPIs do período */}
+          {/* KPIs do período (count-up na entrada) */}
           <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: "var(--gap)" }}>
-            <StatCard icon="inbox" label="Abertas no período" value={r.kpis.abertasNoPeriodo} foot="chamados criados" accent="var(--st-progress)" />
-            <StatCard
+            <AnimatedStat icon="inbox" label="Abertas no período" value={r.kpis.abertasNoPeriodo} foot="chamados criados" accent="var(--st-progress)" />
+            <AnimatedStat
               icon="checkCircle"
               label="Solucionadas"
               value={r.kpis.solucionadasNoPeriodo}
               foot={r.kpis.taxaSolucaoPct != null ? `${r.kpis.taxaSolucaoPct}% das abertas` : "no período"}
               accent="var(--st-done)"
             />
-            <StatCard
+            <AnimatedStat
               icon="timeline"
               label="Tempo até solução"
-              value={r.kpis.tempoMedianoH ?? "—"}
-              suffix={r.kpis.tempoMedianoH ? "h" : undefined}
+              value={r.kpis.tempoMedianoH}
+              suffix="h"
+              decimals={1}
               foot="mediana (tempo corrido)"
               accent="var(--c5)"
             />
-            <StatCard icon="clock" label="Abertas agora" value={r.kpis.abertasAgora} foot="snapshot atual" accent="var(--st-review)" />
-            <StatCard icon="alert" label="Paradas agora" value={r.kpis.paradasAgora} foot="≥3 dias sem mov." accent="var(--st-risk)" />
+            <AnimatedStat icon="clock" label="Abertas agora" value={r.kpis.abertasAgora} foot="snapshot atual" accent="var(--st-review)" />
+            <AnimatedStat icon="alert" label="Paradas agora" value={r.kpis.paradasAgora} foot="≥3 dias sem mov." accent="var(--st-risk)" />
           </div>
 
           {/* Produção por dia + categoria */}
           <div className="grid" style={{ gridTemplateColumns: "1.7fr 1fr", gap: "var(--gap)", marginTop: "var(--gap)", alignItems: "start" }}>
             <Card title="Atividade no período" sub="Abertas vs. solucionadas" pad>
-              <DualBars data={r.porDia} />
+              <DemandasDailyBars data={r.porDia} />
             </Card>
             <Card title="Por categoria" sub="Chamados abertos no período" pad>
               {r.porCategoria.length === 0 ? (
