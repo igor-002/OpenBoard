@@ -6,6 +6,7 @@ export type NavItem = { href: string; label: string; icon: IconName };
 // usuário logado vê e edita tudo (mesmo modelo do app de origem).
 export const MARKETING_NAV: NavItem[] = [
   { href: "/marketing/demandas", label: "Demandas", icon: "inbox" },
+  { href: "/marketing/relatorios", label: "Relatório de Demandas", icon: "chart" },
   { href: "/marketing/equipe", label: "Equipe", icon: "users" },
   { href: "/marketing/social", label: "Redes Sociais", icon: "share" },
   { href: "/marketing/social/contas", label: "Contas Instagram", icon: "grid" },
@@ -14,6 +15,7 @@ export const MARKETING_NAV: NavItem[] = [
 ];
 
 export const MARKETING_CRUMBS: { prefix: string; a: string; b: string }[] = [
+  { prefix: "/marketing/relatorios", a: "Marketing", b: "Relatório de Demandas" },
   { prefix: "/marketing/demandas", a: "Marketing", b: "Demandas" },
   { prefix: "/marketing/social/contas", a: "Marketing", b: "Contas Instagram" },
   { prefix: "/marketing/social", a: "Marketing", b: "Redes Sociais" },
