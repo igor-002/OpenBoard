@@ -8,7 +8,7 @@ import { Card } from "@/components/ui/Card";
 import { StatCard } from "@/components/ui/Stat";
 import { fullLabel, hourLabel } from "@/lib/format";
 import { statusColors, PRIORITY_LABEL, staleDays, staleLevel } from "@/lib/glpi-format";
-import { runGlpiSyncAction } from "@/app/(marketing)/marketing/demandas/actions";
+import { runGlpiSyncAction, updateStatusAction } from "@/app/(marketing)/marketing/demandas/actions";
 import type { GlpiReport, StatusFilter } from "@/server/glpi/queries";
 
 const STATUS_TABS: { key: StatusFilter; label: string }[] = [
@@ -217,68 +217,121 @@ export function GlpiDemandas({
   );
 }
 
-// ── Kanban: colunas por status GLPI (read-only; card → detalhe) ───────────────
+// ── Kanban: colunas por status GLPI, com drag-and-drop pra mudar o status ──────
+// Arrastar um card pra outra coluna chama updateStatusAction (escrita no GLPI).
+// Override otimista (sem useEffect): o card "pula" na hora; router.refresh traz
+// a verdade do servidor; erro reverte e mostra a mensagem.
+const colOfStatus = (statusId: number) => KANBAN_COLS.find((c) => c.ids.includes(statusId))?.key ?? "novo";
+
 function KanbanBoard({ tickets }: { tickets: GlpiReport["tickets"] }) {
-  const colOf = (statusId: number) => KANBAN_COLS.find((c) => c.ids.includes(statusId))?.key ?? "novo";
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  const [overrides, setOverrides] = useState<Record<number, number>>({});
+  const [dragId, setDragId] = useState<number | null>(null);
+  const [overCol, setOverCol] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  const effStatus = (t: GlpiReport["tickets"][number]) => overrides[t.glpiId] ?? t.statusId;
+
   const byCol = new Map<string, GlpiReport["tickets"]>();
   for (const c of KANBAN_COLS) byCol.set(c.key, []);
-  for (const t of tickets) byCol.get(colOf(t.statusId))!.push(t);
+  for (const t of tickets) byCol.get(colOfStatus(effStatus(t)))!.push(t);
+
+  function drop(col: (typeof KANBAN_COLS)[number]) {
+    const id = dragId;
+    setDragId(null);
+    setOverCol(null);
+    if (id == null) return;
+    const t = tickets.find((x) => x.glpiId === id);
+    if (!t) return;
+    if (colOfStatus(effStatus(t)) === col.key) return; // já está na coluna
+    const target = col.ids[0]; // "Em atendimento" → 2
+    const prev = effStatus(t);
+    setErr(null);
+    setOverrides((o) => ({ ...o, [id]: target })); // otimista
+    start(async () => {
+      const r = await updateStatusAction(id, target);
+      if (!r.ok) {
+        setOverrides((o) => ({ ...o, [id]: prev })); // reverte
+        setErr(r.error || "Falha ao mudar o status no GLPI.");
+      } else {
+        router.refresh();
+      }
+    });
+  }
 
   if (tickets.length === 0) {
     return <div className="card card-pad muted">Nenhum chamado neste filtro.</div>;
   }
 
   return (
-    <div style={{ display: "flex", gap: "var(--gap)", overflowX: "auto", paddingBottom: 8, alignItems: "flex-start" }}>
-      {KANBAN_COLS.map((col) => {
-        const items = byCol.get(col.key) ?? [];
-        const accent = statusColors(col.ids[0]);
-        return (
-          <div key={col.key} style={{ flex: "0 0 268px", minWidth: 268 }}>
+    <>
+      {err && <div className="form-error" style={{ marginBottom: 10 }}>{err}</div>}
+      <div style={{ display: "flex", gap: "var(--gap)", overflowX: "auto", paddingBottom: 8, alignItems: "flex-start", opacity: pending ? 0.75 : 1 }}>
+        {KANBAN_COLS.map((col) => {
+          const items = byCol.get(col.key) ?? [];
+          const accent = statusColors(col.ids[0]);
+          const isOver = overCol === col.key;
+          return (
             <div
-              className="row between"
-              style={{ padding: "8px 10px", borderRadius: "var(--r-md) var(--r-md) 0 0", background: "var(--surface-2)", borderBottom: `2px solid ${accent.color}` }}
+              key={col.key}
+              onDragOver={(e) => { e.preventDefault(); if (overCol !== col.key) setOverCol(col.key); }}
+              onDragLeave={(e) => { if (e.currentTarget === e.target) setOverCol(null); }}
+              onDrop={() => drop(col)}
+              style={{ flex: "0 0 268px", minWidth: 268, borderRadius: "var(--r-md)", outline: isOver ? `2px dashed ${accent.color}` : "none", outlineOffset: 2, transition: "outline .12s" }}
             >
-              <span style={{ fontWeight: 700, fontSize: 13, color: "var(--ink)" }}>{col.label}</span>
-              <span className="badge" style={{ color: accent.color, background: accent.bg, fontWeight: 800 }}>{items.length}</span>
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8, padding: "10px 4px", minHeight: 40 }}>
-              {items.length === 0 ? (
-                <div className="muted" style={{ fontSize: 12, textAlign: "center", padding: "12px 0" }}>—</div>
-              ) : (
-                items.map((t) => {
-                  const days = staleDays(t.dateMod, t.dateCreation);
-                  const stale = staleLevel(t.statusId, days);
-                  const staleColor = stale === "risk" ? "var(--st-risk)" : "var(--st-warn, #b45309)";
-                  return (
-                    <Link
-                      key={t.glpiId}
-                      href={`/marketing/demandas/${t.glpiId}`}
-                      className="card"
-                      style={{ display: "block", padding: 10, textDecoration: "none", color: "inherit" }}
-                    >
-                      <div className="row between" style={{ alignItems: "center", marginBottom: 4 }}>
-                        <span className="muted" style={{ fontSize: 11.5 }}>#{t.glpiId}</span>
-                        {stale !== "none" && (
-                          <span className="badge" style={{ color: staleColor, background: "color-mix(in srgb, currentColor 12%, transparent)", fontSize: 10.5 }} title={`Sem movimentação há ${days} dias`}>
-                            <Icon name="clock" size={10} /> {days}d
-                          </span>
-                        )}
+              <div
+                className="row between"
+                style={{ padding: "8px 10px", borderRadius: "var(--r-md) var(--r-md) 0 0", background: "var(--surface-2)", borderBottom: `2px solid ${accent.color}` }}
+              >
+                <span style={{ fontWeight: 700, fontSize: 13, color: "var(--ink)" }}>{col.label}</span>
+                <span className="badge" style={{ color: accent.color, background: accent.bg, fontWeight: 800 }}>{items.length}</span>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, padding: "10px 4px", minHeight: 60 }}>
+                {items.length === 0 ? (
+                  <div className="muted" style={{ fontSize: 12, textAlign: "center", padding: "12px 0" }}>{isOver ? "Soltar aqui" : "—"}</div>
+                ) : (
+                  items.map((t) => {
+                    const days = staleDays(t.dateMod, t.dateCreation);
+                    const stale = staleLevel(t.statusId, days);
+                    const staleColor = stale === "risk" ? "var(--st-risk)" : "var(--st-warn, #b45309)";
+                    return (
+                      <div
+                        key={t.glpiId}
+                        draggable
+                        onDragStart={() => setDragId(t.glpiId)}
+                        onDragEnd={() => { setDragId(null); setOverCol(null); }}
+                        className="card"
+                        style={{ padding: 10, cursor: "grab", opacity: dragId === t.glpiId ? 0.5 : 1 }}
+                      >
+                        <div className="row between" style={{ alignItems: "center", marginBottom: 4 }}>
+                          <Link href={`/marketing/demandas/${t.glpiId}`} className="muted" style={{ fontSize: 11.5 }} onClick={(e) => e.stopPropagation()}>#{t.glpiId}</Link>
+                          {stale !== "none" && (
+                            <span className="badge" style={{ color: staleColor, background: "color-mix(in srgb, currentColor 12%, transparent)", fontSize: 10.5 }} title={`Sem movimentação há ${days} dias`}>
+                              <Icon name="clock" size={10} /> {days}d
+                            </span>
+                          )}
+                        </div>
+                        <Link href={`/marketing/demandas/${t.glpiId}`} style={{ display: "block", fontWeight: 600, fontSize: 13, color: "var(--ink)", lineHeight: 1.35, marginBottom: 6, textDecoration: "none" }}>
+                          {t.name}
+                        </Link>
+                        <div className="muted" style={{ fontSize: 11.5, display: "flex", flexDirection: "column", gap: 2 }}>
+                          <span>{t.requesterName}</span>
+                          <span>{t.assignees ? `→ ${t.assignees}` : "sem responsável"} · {PRIORITY_LABEL[t.priority] ?? "—"}</span>
+                          <span>{fullLabel(new Date(t.dateCreation))}</span>
+                        </div>
                       </div>
-                      <div style={{ fontWeight: 600, fontSize: 13, color: "var(--ink)", lineHeight: 1.35, marginBottom: 6 }}>{t.name}</div>
-                      <div className="muted" style={{ fontSize: 11.5, display: "flex", flexDirection: "column", gap: 2 }}>
-                        <span>{t.requesterName}</span>
-                        <span>{t.assignees ? `→ ${t.assignees}` : "sem responsável"} · {PRIORITY_LABEL[t.priority] ?? "—"}</span>
-                        <span>{fullLabel(new Date(t.dateCreation))}</span>
-                      </div>
-                    </Link>
-                  );
-                })
-              )}
+                    );
+                  })
+                )}
+              </div>
             </div>
-          </div>
-        );
-      })}
-    </div>
+          );
+        })}
+      </div>
+      <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>
+        <Icon name="kanban" size={12} /> Arraste um card entre as colunas pra mudar o status no GLPI.
+      </p>
+    </>
   );
 }
