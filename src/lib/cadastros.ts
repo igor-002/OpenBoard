@@ -19,6 +19,16 @@ export function solicitacaoStatusMeta(id: string) {
 export const SITUACOES = ["normal", "urgente"] as const;
 export type Situacao = (typeof SITUACOES)[number];
 
+// Tipo da solicitação: cadastro (novo contrato) ou upgrade (troca de plano).
+export const SOLICITACAO_TIPOS = ["cadastro", "upgrade"] as const;
+export type SolicitacaoTipo = (typeof SOLICITACAO_TIPOS)[number];
+export function isSolicitacaoTipo(t: string | null | undefined): t is SolicitacaoTipo {
+  return !!t && (SOLICITACAO_TIPOS as readonly string[]).includes(t);
+}
+export function solicitacaoTipoLabel(t: string): string {
+  return t === "upgrade" ? "Upgrade" : "Novo contrato";
+}
+
 // Dias de vencimento aceitos pelo financeiro.
 export const VENCIMENTO_DIAS = [5, 10, 15, 20, 25] as const;
 

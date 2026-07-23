@@ -393,6 +393,7 @@ model Lead {
 // status/situacao são String + const TS (src/lib/cadastros.ts), padrão do comercial.
 model SolicitacaoCadastro {
   id                String    @id @default(cuid())
+  tipo              String    @default("cadastro") // cadastro (novo contrato) | upgrade
   solicitante       String // quem pediu o cadastro (pessoa do time/parceiro)
   nomeCompleto      String // nome completo / razão social
   cnpjCpf           String // como digitado
@@ -410,8 +411,9 @@ model SolicitacaoCadastro {
   telefone2Norm     String?
   emailBoletos      String?
   vencimentoDia     Int? // dia do vencimento desejado: 5|10|15|20|25
-  plano             String?
-  valorCents        Int       @default(0)
+  planoAntigo       String? // upgrade: plano de venda atual do cliente
+  plano             String? // cadastro: plano contratado | upgrade: plano novo vendido
+  valorCents        Int       @default(0) // cadastro: valor do plano | upgrade: valor a adicionar
   observacao        String? // ex.: "Jogar na fila do MU"
   situacao          String    @default("normal") // normal | urgente (marcado no form)
   prazoAt           DateTime? // "até quando o contrato precisa subir" — ≤2 dias vira urgente efetivo

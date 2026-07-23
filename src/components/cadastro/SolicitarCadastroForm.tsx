@@ -2,7 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { Icon } from "@/components/ui/Icon";
-import { VENCIMENTO_DIAS, parseSolicitacaoTexto, type SolicitacaoPrefill } from "@/lib/cadastros";
+import { VENCIMENTO_DIAS, parseSolicitacaoTexto, type SolicitacaoPrefill, type SolicitacaoTipo } from "@/lib/cadastros";
 import { solicitarCadastroAction, type SolicitarState } from "@/app/(public)/solicitar-cadastro/actions";
 
 // Form público de solicitação de cadastro de cliente (sem login).
@@ -21,6 +21,10 @@ export function SolicitarCadastroForm() {
   const [textoColado, setTextoColado] = useState("");
   const [colarAberto, setColarAberto] = useState(false);
   const [preenchidos, setPreenchidos] = useState<number | null>(null);
+
+  // Novo contrato (cadastro completo) x Upgrade (troca de plano, form reduzido).
+  const [tipo, setTipo] = useState<SolicitacaoTipo>("cadastro");
+  const ehUpgrade = tipo === "upgrade";
 
   const aplicarTexto = () => {
     const p = parseSolicitacaoTexto(textoColado);
@@ -84,13 +88,27 @@ export function SolicitarCadastroForm() {
       </div>
 
       <h1 style={{ fontSize: 22, fontWeight: 800, margin: "0 0 4px", letterSpacing: "-.4px" }}>
-        Solicitar cadastro de cliente
+        {ehUpgrade ? "Solicitar upgrade de plano" : "Solicitar cadastro de cliente"}
       </h1>
       <p className="page-sub" style={{ marginBottom: 16 }}>
-        Preencha os dados do cliente. Campos com * são obrigatórios.
+        {ehUpgrade
+          ? "Troca de plano de um cliente já ativo. Campos com * são obrigatórios."
+          : "Preencha os dados do cliente. Campos com * são obrigatórios."}
       </p>
 
-      {/* Colar o checklist de WhatsApp já preenchido → completa os campos */}
+      {/* Toggle Novo contrato x Upgrade */}
+      <div className="seg" style={{ marginBottom: 18 }}>
+        <button type="button" className={!ehUpgrade ? "on" : ""} onClick={() => setTipo("cadastro")}>
+          <Icon name="briefcase" size={14} /> Novo contrato
+        </button>
+        <button type="button" className={ehUpgrade ? "on" : ""} onClick={() => setTipo("upgrade")}>
+          <Icon name="trendUp" size={14} /> Upgrade
+        </button>
+      </div>
+
+      {/* Colar o checklist de WhatsApp já preenchido → completa os campos (só no cadastro) */}
+      {!ehUpgrade && (
+      <>
       <div
         style={{
           border: "1px dashed var(--line-2)",
@@ -140,6 +158,8 @@ export function SolicitarCadastroForm() {
           <Icon name="checkCircle" size={15} /> {preenchidos} campo{preenchidos > 1 ? "s" : ""} preenchido{preenchidos > 1 ? "s" : ""} — confira antes de enviar.
         </div>
       )}
+      </>
+      )}
 
       <form key={formKey} action={formAction} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
         {/* Honeypot anti-bot: invisível pra humanos, bots preenchem. */}
@@ -147,6 +167,9 @@ export function SolicitarCadastroForm() {
           <label htmlFor="website">Website</label>
           <input id="website" name="website" type="text" tabIndex={-1} autoComplete="off" />
         </div>
+
+        {/* tipo da solicitação — controla schema no server */}
+        <input type="hidden" name="tipo" value={tipo} />
 
         <div className="field">
           <label htmlFor="solicitante">Seu nome (quem está solicitando) *</label>
@@ -163,6 +186,8 @@ export function SolicitarCadastroForm() {
             <label htmlFor="cnpjCpf">CPF / CNPJ *</label>
             <input className="input" id="cnpjCpf" name="cnpjCpf" type="text" required maxLength={30} inputMode="numeric" defaultValue={prefill.cnpjCpf} />
           </div>
+          {!ehUpgrade && (
+          <>
           <div className="field" style={{ flex: "1 1 150px" }}>
             <label htmlFor="rg">RG</label>
             <input className="input" id="rg" name="rg" type="text" maxLength={30} defaultValue={prefill.rg} />
@@ -171,8 +196,12 @@ export function SolicitarCadastroForm() {
             <label htmlFor="inscricaoEstadual">I.E. (Inscrição Estadual)</label>
             <input className="input" id="inscricaoEstadual" name="inscricaoEstadual" type="text" maxLength={30} defaultValue={prefill.inscricaoEstadual} />
           </div>
+          </>
+          )}
         </div>
 
+        {!ehUpgrade && (
+        <>
         <div className="row gap12" style={{ alignItems: "start", flexWrap: "wrap" }}>
           <div className="field" style={{ flex: "1 1 150px" }}>
             <label htmlFor="cidade">Cidade</label>
@@ -228,15 +257,24 @@ export function SolicitarCadastroForm() {
             </select>
           </div>
         </div>
+        </>
+        )}
+
+        {ehUpgrade && (
+          <div className="field">
+            <label htmlFor="planoAntigo">Plano de venda antigo *</label>
+            <input className="input" id="planoAntigo" name="planoAntigo" type="text" required maxLength={120} placeholder="Plano atual do cliente" />
+          </div>
+        )}
 
         <div className="row gap12" style={{ alignItems: "start", flexWrap: "wrap" }}>
           <div className="field" style={{ flex: "2 1 200px" }}>
-            <label htmlFor="plano">Plano</label>
-            <input className="input" id="plano" name="plano" type="text" maxLength={120} defaultValue={prefill.plano} />
+            <label htmlFor="plano">{ehUpgrade ? "Novo plano vendido *" : "Plano"}</label>
+            <input className="input" id="plano" name="plano" type="text" required={ehUpgrade} maxLength={120} defaultValue={ehUpgrade ? undefined : prefill.plano} />
           </div>
           <div className="field" style={{ flex: "1 1 150px" }}>
-            <label htmlFor="valor">Valor (R$)</label>
-            <input className="input" id="valor" name="valor" type="text" inputMode="decimal" placeholder="0,00" maxLength={20} defaultValue={prefill.valor} />
+            <label htmlFor="valor">{ehUpgrade ? "Valor a adicionar (R$) *" : "Valor (R$)"}</label>
+            <input className="input" id="valor" name="valor" type="text" required={ehUpgrade} inputMode="decimal" placeholder="0,00" maxLength={20} defaultValue={ehUpgrade ? undefined : prefill.valor} />
           </div>
         </div>
 
@@ -267,7 +305,7 @@ export function SolicitarCadastroForm() {
             </div>
           </div>
           <div className="field" style={{ flex: "1 1 150px" }}>
-            <label htmlFor="prazoAt">Contrato precisa subir até (opcional)</label>
+            <label htmlFor="prazoAt">{ehUpgrade ? "Upgrade precisa subir até (opcional)" : "Contrato precisa subir até (opcional)"}</label>
             <input className="input" id="prazoAt" name="prazoAt" type="date" />
           </div>
         </div>

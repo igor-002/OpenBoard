@@ -8,6 +8,7 @@ import { fullLabel } from "@/lib/format";
 import {
   SOLICITACAO_STATUS,
   solicitacaoStatusMeta,
+  solicitacaoTipoLabel,
   diasAtePrazo,
   isUrgenteEfetivo,
   type SolicitacaoStatus,
@@ -131,6 +132,11 @@ export function CadastrosQueue({
                 <div style={{ flex: "1 1 220px", minWidth: 0 }}>
                   <div style={{ fontWeight: 700, fontSize: 14.5, color: "var(--ink)", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                     {s.nomeCompleto}
+                    {s.tipo === "upgrade" && (
+                      <span className="badge" style={{ color: "var(--pr-med)", background: "var(--pr-med-bg)", border: "none", fontWeight: 800 }}>
+                        <Icon name="trendUp" size={12} /> UPGRADE
+                      </span>
+                    )}
                     {urgente && (
                       <span className="badge" style={{ color: "var(--st-risk)", background: "var(--st-risk-bg)", border: "none", fontWeight: 800 }}>
                         <Icon name="alert" size={12} /> URGENTE
@@ -154,6 +160,7 @@ export function CadastrosQueue({
               {expandido && (
                 <div style={{ borderTop: "1px solid var(--line)", padding: "16px", background: "var(--surface-2)" }}>
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 14 }}>
+                    <Campo label="Tipo" valor={solicitacaoTipoLabel(s.tipo)} />
                     <Campo label="Solicitante" valor={s.solicitante} />
                     <Campo label="CPF/CNPJ" valor={s.cnpjCpf} />
                     <Campo label="RG" valor={s.rg} />
@@ -167,8 +174,12 @@ export function CadastrosQueue({
                     <Campo label="Telefone 2" valor={s.telefone2} />
                     <Campo label="E-mail boletos" valor={s.emailBoletos} />
                     <Campo label="Vencimento" valor={s.vencimentoDia ? `Dia ${s.vencimentoDia}` : null} />
-                    <Campo label="Plano" valor={s.plano} />
-                    <Campo label="Valor" valor={s.valorCents ? valorLabel(s.valorCents) : null} />
+                    {s.tipo === "upgrade" && <Campo label="Plano antigo" valor={s.planoAntigo} />}
+                    <Campo label={s.tipo === "upgrade" ? "Novo plano" : "Plano"} valor={s.plano} />
+                    <Campo
+                      label={s.tipo === "upgrade" ? "Valor a adicionar" : "Valor"}
+                      valor={s.valorCents ? valorLabel(s.valorCents) : null}
+                    />
                     <Campo label="Situação (form)" valor={s.situacao === "urgente" ? "Urgente" : "Normal"} />
                     <Campo label="Prazo pra subir" valor={s.prazoAt ? fullLabel(new Date(s.prazoAt)) : null} />
                     <Campo

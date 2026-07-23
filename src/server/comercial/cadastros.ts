@@ -11,6 +11,7 @@ import { getSetting, SETTING_KEYS } from "@/server/settings";
 import type { SolicitacaoCadastro } from "@/generated/prisma";
 
 export type SolicitacaoInput = {
+  tipo?: "cadastro" | "upgrade";
   solicitante: string;
   nomeCompleto: string;
   cnpjCpf: string;
@@ -25,6 +26,7 @@ export type SolicitacaoInput = {
   telefone2?: string | null;
   emailBoletos?: string | null;
   vencimentoDia?: number | null;
+  planoAntigo?: string | null;
   plano?: string | null;
   valorCents?: number;
   observacao?: string | null;
@@ -57,6 +59,7 @@ export async function getCadastroNotifyUserIds(): Promise<string[]> {
 export async function createSolicitacao(input: SolicitacaoInput): Promise<{ id: string }> {
   const s = await db.solicitacaoCadastro.create({
     data: {
+      tipo: input.tipo === "upgrade" ? "upgrade" : "cadastro",
       solicitante: input.solicitante.trim(),
       nomeCompleto: input.nomeCompleto.trim(),
       cnpjCpf: input.cnpjCpf.trim(),
@@ -74,6 +77,7 @@ export async function createSolicitacao(input: SolicitacaoInput): Promise<{ id: 
       telefone2Norm: normPhone(input.telefone2),
       emailBoletos: normEmail(input.emailBoletos),
       vencimentoDia: input.vencimentoDia ?? null,
+      planoAntigo: input.planoAntigo?.trim() || null,
       plano: input.plano?.trim() || null,
       valorCents: Math.max(0, Math.round(input.valorCents ?? 0)),
       observacao: input.observacao?.trim() || null,
@@ -89,9 +93,10 @@ export async function createSolicitacao(input: SolicitacaoInput): Promise<{ id: 
   try {
     const recipientIds = await getCadastroNotifyUserIds();
     if (recipientIds.length) {
+      const ehUpgrade = s.tipo === "upgrade";
       await notify(recipientIds, {
         type: "solicitacao_cadastro",
-        title: "Nova solicitação de cadastro",
+        title: ehUpgrade ? "Nova solicitação de upgrade" : "Nova solicitação de cadastro",
         body: `${s.nomeCompleto} — por ${s.solicitante}`,
         link: "/comercial/cadastros",
       });
