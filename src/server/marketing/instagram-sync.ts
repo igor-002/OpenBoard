@@ -148,7 +148,9 @@ async function syncAccount(
   //    viram métricas prefixadas views_follow:* / views_media:*.
   const [reach, views, profileViews, viewsByFollow, viewsByMedia] =
     await Promise.all([
-      fetchAccountMetricSum(profile.igUserId, token, "reach", sinceUnix, untilUnix),
+      // reach = contas ÚNICAS → total agregado deduplicado (aggregate=true),
+      // NUNCA soma da série diária (infla, conta a mesma pessoa por dia).
+      fetchAccountMetricSum(profile.igUserId, token, "reach", sinceUnix, untilUnix, true),
       fetchAccountMetricSum(profile.igUserId, token, "views", sinceUnix, untilUnix),
       fetchAccountMetricSum(profile.igUserId, token, "profile_views", sinceUnix, untilUnix),
       fetchMetricBreakdown(profile.igUserId, token, "views", "follow_type", sinceUnix, untilUnix),

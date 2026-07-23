@@ -91,11 +91,20 @@ interface InsightsResponse {
 }
 
 /**
- * Soma de uma métrica de conta na janela [since, until] (unix seconds).
- * Tenta série diária; se a métrica só existir como total agregado
- * (caso de profile_views/views em versões recentes), refaz com
- * metric_type=total_value. Retorna null se a métrica não existir
- * para a conta (ex.: <100 seguidores) — o sync pula sem falhar.
+ * Valor de uma métrica de conta na janela [since, until] (unix seconds).
+ *
+ * `aggregate=true` → pede direto `metric_type=total_value` (o total do
+ * período que a API já entrega). OBRIGATÓRIO para métricas de contagem
+ * ÚNICA como `reach` (contas únicas alcançadas): somar a série diária
+ * conta a mesma pessoa em cada dia e INFLA o número. O app do Instagram
+ * mostra o total deduplicado do período — que é o total_value.
+ *
+ * `aggregate=false` (default) → tenta série diária e SOMA (correto para
+ * métricas aditivas como `views`/`impressions`/`profile_views`); se a
+ * métrica não expõe série diária, cai pro total_value.
+ *
+ * Retorna null se a métrica não existir para a conta (ex.: <100
+ * seguidores) — o sync pula sem falhar.
  */
 export async function fetchAccountMetricSum(
   igUserId: string,
@@ -103,6 +112,7 @@ export async function fetchAccountMetricSum(
   metric: string,
   since: number,
   until: number,
+  aggregate = false,
 ): Promise<number | null> {
   const base = {
     metric,
@@ -111,17 +121,22 @@ export async function fetchAccountMetricSum(
     until: String(until),
     access_token: accessToken,
   };
-  let firstAttempt: number | null = null;
-  try {
-    const res = await igGet<InsightsResponse>(`${igUserId}/insights`, base);
-    firstAttempt = sumInsights(res);
-  } catch (err) {
-    if (!(err instanceof InstagramApiError)) throw err;
-  }
-  if (firstAttempt !== null) return firstAttempt;
 
-  // Métricas como views/profile_views não têm série diária: a API
-  // responde 200 com data vazio (ou erro). Refaz como total agregado.
+  // Métricas de contagem única (reach) NÃO podem ser somadas por dia:
+  // vai direto no total agregado deduplicado do período.
+  if (!aggregate) {
+    let firstAttempt: number | null = null;
+    try {
+      const res = await igGet<InsightsResponse>(`${igUserId}/insights`, base);
+      firstAttempt = sumInsights(res);
+    } catch (err) {
+      if (!(err instanceof InstagramApiError)) throw err;
+    }
+    if (firstAttempt !== null) return firstAttempt;
+  }
+
+  // Total agregado do período (total_value). Usado quando aggregate=true
+  // ou quando a métrica não tem série diária (views/profile_views recentes).
   try {
     const res = await igGet<InsightsResponse>(`${igUserId}/insights`, {
       ...base,
