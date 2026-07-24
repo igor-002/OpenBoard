@@ -15,6 +15,7 @@ import {
   renameAccountAction,
   runManualMarketingSyncAction,
 } from "@/app/(marketing)/marketing/social/contas/actions";
+import { useSyncRun } from "@/lib/useSyncRun";
 
 interface AccountRow {
   id: string;
@@ -118,26 +119,24 @@ export function ContasManager({ companies }: { companies: CompanyRow[] }) {
     );
   }
 
-  function syncAgora() {
-    setMsg(null);
-    start(async () => {
+  const igSync = useSyncRun(
+    async () => {
       const r = await runManualMarketingSyncAction();
-      if (!r.ok) {
-        setMsg("Falha ao sincronizar.");
-        return;
-      }
+      if (!r.ok) return { ok: false, error: "Falha ao sincronizar." };
       const erros = r.resultados?.filter((x) => x.status === "erro").length ?? 0;
       const semToken = r.resultados?.filter((x) => x.status === "sem_token").length ?? 0;
-      setMsg(`Sync concluído: ${r.resultados?.length ?? 0} conta(s), ${erros} erro(s), ${semToken} sem token.`);
-      router.refresh();
-    });
-  }
+      const total = r.resultados?.length ?? 0;
+      if (erros > 0) return { ok: false, error: `${total} conta(s), ${erros} com erro, ${semToken} sem token.` };
+      return { ok: true };
+    },
+    { label: "Sync do Instagram", onSuccess: () => router.refresh() },
+  );
 
   return (
     <>
       <div className="row gap12" style={{ alignItems: "center", marginBottom: "var(--gap)" }}>
-        <button className="btn btn-primary" onClick={syncAgora} disabled={pending}>
-          <Icon name="zap" size={15} /> {pending ? "…" : "Sincronizar agora"}
+        <button className="btn btn-primary" onClick={igSync.run} disabled={igSync.pending}>
+          <Icon name="zap" size={15} /> {igSync.pending ? `Sincronizando… ${igSync.elapsed}s` : "Sincronizar agora"}
         </button>
         {msg && <span className="muted" style={{ fontSize: 12.5 }}>{msg}</span>}
       </div>

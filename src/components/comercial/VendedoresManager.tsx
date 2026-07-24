@@ -1,8 +1,10 @@
 "use client";
 
 import { useState, useTransition, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import { Icon } from "@/components/ui/Icon";
 import { Card } from "@/components/ui/Card";
+import { useSyncRun } from "@/lib/useSyncRun";
 import { setVendedorAtivo, setVendedorHistorico, setVendedorUser, autoVincularVendedores, syncVendedoresAction } from "@/app/(comercial)/comercial/vendedores/actions";
 import type { VendedorRow } from "@/server/comercial/queries";
 
@@ -26,11 +28,13 @@ function Toggle({ on, disabled, onChange }: { on: boolean; disabled?: boolean; o
 }
 
 export function VendedoresManager({ rows, userOpts, isAdmin }: { rows: VendedorRow[]; userOpts: UserOpt[]; workspaceId: string; isAdmin: boolean }) {
+  const router = useRouter();
   const [list, setList] = useState(rows);
   const [busca, setBusca] = useState("");
   const [pending, start] = useTransition();
   const [msg, setMsg] = useState<string | null>(null);
   const userNome = useMemo(() => new Map(userOpts.map((u) => [u.id, u.name])), [userOpts]);
+  const vendSync = useSyncRun(syncVendedoresAction, { label: "Sync de vendedores", onSuccess: () => router.refresh() });
 
   const filtrados = useMemo(() => {
     const t = busca.trim().toLowerCase();
@@ -59,13 +63,6 @@ export function VendedoresManager({ rows, userOpts, isAdmin }: { rows: VendedorR
       setMsg(r.ok ? `${r.vinculados ?? 0} vendedor(es) vinculados por nome. Recarregue.` : r.error ?? "Erro");
     });
   }
-  function syncVend() {
-    setMsg(null);
-    start(async () => {
-      const r = await syncVendedoresAction();
-      setMsg(r.ok ? `Vendedores sincronizados (${r.total} no IXC). Recarregue.` : r.error ?? "Erro");
-    });
-  }
 
   return (
     <div className="page">
@@ -80,8 +77,8 @@ export function VendedoresManager({ rows, userOpts, isAdmin }: { rows: VendedorR
             <button className="btn btn-ghost" onClick={autoVincular} disabled={pending} title="Vincula vendedores a usuários do OpenBoard com mesmo nome">
               <Icon name="users" size={15} /> Vincular por nome
             </button>
-            <button className="btn btn-primary" onClick={syncVend} disabled={pending}>
-              <Icon name="download" size={15} /> {pending ? "…" : "Sincronizar Vendedores"}
+            <button className="btn btn-primary" onClick={vendSync.run} disabled={vendSync.pending}>
+              <Icon name="download" size={15} /> {vendSync.pending ? `Sincronizando… ${vendSync.elapsed}s` : "Sincronizar Vendedores"}
             </button>
           </div>
         )}

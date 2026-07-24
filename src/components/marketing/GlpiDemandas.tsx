@@ -8,6 +8,7 @@ import { Card } from "@/components/ui/Card";
 import { StatCard } from "@/components/ui/Stat";
 import { fullLabel, hourLabel } from "@/lib/format";
 import { statusColors, PRIORITY_LABEL, staleDays, staleLevel } from "@/lib/glpi-format";
+import { useSyncRun } from "@/lib/useSyncRun";
 import { runGlpiSyncAction, updateStatusAction } from "@/app/(marketing)/marketing/demandas/actions";
 import type { GlpiReport, StatusFilter } from "@/server/glpi/queries";
 
@@ -42,9 +43,8 @@ export function GlpiDemandas({
   isAdmin: boolean;
 }) {
   const router = useRouter();
-  const [pending, start] = useTransition();
-  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [view, setView] = useState<"lista" | "kanban">("lista");
+  const glpiSync = useSyncRun(runGlpiSyncAction, { label: "Sincronização GLPI", onSuccess: () => router.refresh() });
 
   function navigate(nextUser: number | null, nextStatus: StatusFilter) {
     const p = new URLSearchParams();
@@ -52,15 +52,6 @@ export function GlpiDemandas({
     if (nextStatus !== "abertos") p.set("status", nextStatus);
     const qs = p.toString();
     router.push(`/marketing/demandas${qs ? `?${qs}` : ""}`);
-  }
-
-  function sync() {
-    setMsg(null);
-    start(async () => {
-      const r = await runGlpiSyncAction();
-      setMsg(r.ok ? { ok: true, text: "Sincronizado." } : { ok: false, text: r.error || "Falha no sync." });
-      if (r.ok) router.refresh();
-    });
   }
 
   const { users, stats, tickets, lastSync } = report;
@@ -94,14 +85,9 @@ export function GlpiDemandas({
             </span>
           )}
           {isAdmin && (
-            <button className="btn btn-ghost" onClick={sync} disabled={pending}>
-              <Icon name="zap" size={15} /> {pending ? "Sincronizando…" : "Sincronizar"}
+            <button className="btn btn-ghost" onClick={glpiSync.run} disabled={glpiSync.pending}>
+              <Icon name="zap" size={15} /> {glpiSync.pending ? `Sincronizando… ${glpiSync.elapsed}s` : "Sincronizar"}
             </button>
-          )}
-          {msg && (
-            <span style={{ color: msg.ok ? "var(--st-done)" : "var(--st-risk)", fontWeight: 600, fontSize: 12.5 }}>
-              {msg.text}
-            </span>
           )}
         </div>
       </div>
