@@ -9,6 +9,7 @@ import { StatCard } from "@/components/ui/Stat";
 import { fullLabel, hourLabel } from "@/lib/format";
 import { statusColors, PRIORITY_LABEL, staleDays, staleLevel } from "@/lib/glpi-format";
 import { useSyncRun } from "@/lib/useSyncRun";
+import { emitToast } from "@/lib/toast";
 import { runGlpiSyncAction, updateStatusAction } from "@/app/(marketing)/marketing/demandas/actions";
 import type { GlpiReport, StatusFilter } from "@/server/glpi/queries";
 
@@ -235,12 +236,15 @@ function KanbanBoard({ tickets }: { tickets: GlpiReport["tickets"] }) {
     const prev = effStatus(t);
     setErr(null);
     setOverrides((o) => ({ ...o, [id]: target })); // otimista
+    emitToast({ variant: "info", title: `Movendo chamado #${id}…`, sub: `→ ${col.label}` });
     start(async () => {
       const r = await updateStatusAction(id, target);
       if (!r.ok) {
         setOverrides((o) => ({ ...o, [id]: prev })); // reverte
         setErr(r.error || "Falha ao mudar o status no GLPI.");
+        emitToast({ variant: "error", title: `Chamado #${id} — falha ao mover`, sub: r.error });
       } else {
+        emitToast({ variant: "success", title: `Chamado #${id} movido`, sub: `agora em ${col.label}` });
         router.refresh();
       }
     });
@@ -261,9 +265,9 @@ function KanbanBoard({ tickets }: { tickets: GlpiReport["tickets"] }) {
           return (
             <div
               key={col.key}
-              onDragOver={(e) => { e.preventDefault(); if (overCol !== col.key) setOverCol(col.key); }}
+              onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; if (overCol !== col.key) setOverCol(col.key); }}
               onDragLeave={(e) => { if (e.currentTarget === e.target) setOverCol(null); }}
-              onDrop={() => drop(col)}
+              onDrop={(e) => { e.preventDefault(); drop(col); }}
               style={{ flex: "0 0 268px", minWidth: 268, borderRadius: "var(--r-md)", outline: isOver ? `2px dashed ${accent.color}` : "none", outlineOffset: 2, transition: "outline .12s" }}
             >
               <div
@@ -285,20 +289,20 @@ function KanbanBoard({ tickets }: { tickets: GlpiReport["tickets"] }) {
                       <div
                         key={t.glpiId}
                         draggable
-                        onDragStart={() => setDragId(t.glpiId)}
+                        onDragStart={(e) => { e.dataTransfer.setData("text/plain", String(t.glpiId)); e.dataTransfer.effectAllowed = "move"; setDragId(t.glpiId); }}
                         onDragEnd={() => { setDragId(null); setOverCol(null); }}
                         className="card"
                         style={{ padding: 10, cursor: "grab", opacity: dragId === t.glpiId ? 0.5 : 1 }}
                       >
                         <div className="row between" style={{ alignItems: "center", marginBottom: 4 }}>
-                          <Link href={`/marketing/demandas/${t.glpiId}`} className="muted" style={{ fontSize: 11.5 }} onClick={(e) => e.stopPropagation()}>#{t.glpiId}</Link>
+                          <Link href={`/marketing/demandas/${t.glpiId}`} draggable={false} className="muted" style={{ fontSize: 11.5 }} onClick={(e) => e.stopPropagation()}>#{t.glpiId}</Link>
                           {stale !== "none" && (
                             <span className="badge" style={{ color: staleColor, background: "color-mix(in srgb, currentColor 12%, transparent)", fontSize: 10.5 }} title={`Sem movimentação há ${days} dias`}>
                               <Icon name="clock" size={10} /> {days}d
                             </span>
                           )}
                         </div>
-                        <Link href={`/marketing/demandas/${t.glpiId}`} style={{ display: "block", fontWeight: 600, fontSize: 13, color: "var(--ink)", lineHeight: 1.35, marginBottom: 6, textDecoration: "none" }}>
+                        <Link href={`/marketing/demandas/${t.glpiId}`} draggable={false} onClick={(e) => e.stopPropagation()} style={{ display: "block", fontWeight: 600, fontSize: 13, color: "var(--ink)", lineHeight: 1.35, marginBottom: 6, textDecoration: "none" }}>
                           {t.name}
                         </Link>
                         <div className="muted" style={{ fontSize: 11.5, display: "flex", flexDirection: "column", gap: 2 }}>
