@@ -137,6 +137,36 @@ export default async function MarketingRelatoriosPage({
             )}
           </Card>
 
+          {/* Por atribuído (quem executa) */}
+          <Card title="Por atribuído" sub="Quem executa a demanda (técnico responsável)" style={{ marginTop: "var(--gap)" }} pad={false}>
+            {r.porAtribuido.length === 0 ? (
+              <div className="card-pad muted" style={{ fontSize: 13.5 }}>Nenhum chamado com atribuído no período.</div>
+            ) : (
+              <div style={{ overflowX: "auto" }}>
+                <table className="tbl" style={{ width: "100%", marginTop: 6 }}>
+                  <thead>
+                    <tr>
+                      <th style={{ textAlign: "left" }}>Atribuído</th>
+                      <th style={{ textAlign: "right" }}>Abertas no período</th>
+                      <th style={{ textAlign: "right" }}>Solucionadas</th>
+                      <th style={{ textAlign: "right" }}>Abertas agora</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {r.porAtribuido.map((a) => (
+                      <tr key={a.name}>
+                        <td style={{ fontWeight: 600 }}>{a.name}</td>
+                        <td style={{ textAlign: "right" }}>{a.abertasNoPeriodo}</td>
+                        <td style={{ textAlign: "right", fontWeight: 700, color: "var(--st-done)" }}>{a.solucionadasNoPeriodo}</td>
+                        <td style={{ textAlign: "right" }}>{a.abertasAgora}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </Card>
+
           {/* Detalhe: solucionadas no período */}
           <Card title={`Solucionadas no período (${r.solucionadas.length})`} sub="Mais recentes primeiro" style={{ marginTop: "var(--gap)" }} pad={false}>
             {r.solucionadas.length === 0 ? (
@@ -147,7 +177,8 @@ export default async function MarketingRelatoriosPage({
                   <thead>
                     <tr>
                       <th style={{ textAlign: "left" }}>Chamado</th>
-                      <th style={{ textAlign: "left" }}>Pessoa</th>
+                      <th style={{ textAlign: "left" }}>Solicitante</th>
+                      <th style={{ textAlign: "left" }}>Atribuído</th>
                       <th style={{ textAlign: "left" }}>Categoria</th>
                       <th style={{ textAlign: "right" }}>Solucionado em</th>
                       <th style={{ textAlign: "right" }}>Tempo</th>
@@ -162,6 +193,7 @@ export default async function MarketingRelatoriosPage({
                           </div>
                         </td>
                         <td style={{ color: "var(--ink-2)" }}>{t.requesterName}</td>
+                        <td style={{ color: "var(--ink-2)" }}>{t.assignees}</td>
                         <td className="muted">{t.categoryName ?? "—"}</td>
                         <td style={{ textAlign: "right", whiteSpace: "nowrap", color: "var(--ink-2)" }}>{fullLabel(new Date(t.dateSolve))}</td>
                         <td style={{ textAlign: "right" }} className="muted">{t.resolutionH != null ? `${t.resolutionH}h` : "—"}</td>

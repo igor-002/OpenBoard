@@ -50,9 +50,18 @@ export interface GlpiReportSolucionada {
   glpiId: number;
   name: string;
   requesterName: string;
+  assignees: string;
   categoryName: string | null;
   dateSolve: string; // ISO
   resolutionH: number | null;
+}
+
+// Carga por ATRIBUÍDO (técnico que executa a demanda).
+export interface GlpiReportAtribuido {
+  name: string;
+  abertasNoPeriodo: number;
+  solucionadasNoPeriodo: number;
+  abertasAgora: number;
 }
 
 export interface GlpiActivityReport {
@@ -60,6 +69,7 @@ export interface GlpiActivityReport {
   porDia: GlpiReportDia[];
   porCategoria: { label: string; value: number }[];
   porPessoa: GlpiReportPessoa[];
+  porAtribuido: GlpiReportAtribuido[];
   solucionadas: GlpiReportSolucionada[];
   lastSync: { finishedAt: string | null; ok: boolean; processed: number } | null;
 }
@@ -70,12 +80,19 @@ type Row = {
   statusId: number;
   requesterId: number;
   requesterName: string;
+  assignees: string;
   categoryName: string | null;
   dateCreation: Date;
   dateMod: Date | null;
   dateSolve: Date | null;
   resolutionDuration: number | null;
 };
+
+// Nomes dos atribuídos (técnicos que EXECUTAM) — string "A, B" → lista; vazio = sem atribuído.
+function assigneeList(s: string): string[] {
+  const names = s.split(",").map((x) => x.trim()).filter(Boolean);
+  return names.length ? names : ["Sem atribuído"];
+}
 
 // Bucket por dia (≤45 dias no intervalo) ou por semana (ISO segunda) acima disso —
 // mesmo critério visual do /reports de Projetos (dia vs semana).
@@ -114,6 +131,7 @@ export async function getGlpiActivityReport(from: Date, to: Date): Promise<GlpiA
       statusId: true,
       requesterId: true,
       requesterName: true,
+      assignees: true,
       categoryName: true,
       dateCreation: true,
       dateMod: true,
@@ -190,6 +208,24 @@ export async function getGlpiActivityReport(from: Date, to: Date): Promise<GlpiA
     .filter((p) => p.abertasNoPeriodo > 0 || p.solucionadasNoPeriodo > 0 || p.abertasAgora > 0)
     .sort((a, b) => b.solucionadasNoPeriodo - a.solucionadasNoPeriodo || b.abertasNoPeriodo - a.abertasNoPeriodo);
 
+  // ── Por atribuído (quem EXECUTA) ── um chamado com N atribuídos conta pra cada um.
+  const atMap = new Map<string, { aberta: number; solv: number; abertaAgora: number }>();
+  const bump = (name: string, k: "aberta" | "solv" | "abertaAgora") => {
+    const e = atMap.get(name) ?? { aberta: 0, solv: 0, abertaAgora: 0 };
+    e[k]++;
+    atMap.set(name, e);
+  };
+  for (const r of rows) {
+    const nomes = assigneeList(r.assignees);
+    if (abertaNo(r)) nomes.forEach((n) => bump(n, "aberta"));
+    if (solvidaNo(r)) nomes.forEach((n) => bump(n, "solv"));
+    if (isOpen(r)) nomes.forEach((n) => bump(n, "abertaAgora"));
+  }
+  const porAtribuido: GlpiReportAtribuido[] = [...atMap.entries()]
+    .map(([name, e]) => ({ name, abertasNoPeriodo: e.aberta, solucionadasNoPeriodo: e.solv, abertasAgora: e.abertaAgora }))
+    .filter((p) => p.abertasNoPeriodo > 0 || p.solucionadasNoPeriodo > 0 || p.abertasAgora > 0)
+    .sort((a, b) => b.solucionadasNoPeriodo - a.solucionadasNoPeriodo || b.abertasAgora - a.abertasAgora);
+
   // ── Detalhe: solucionadas no período ──
   const solucionadas: GlpiReportSolucionada[] = resolvidas
     .sort((a, b) => (b.dateSolve!.getTime() - a.dateSolve!.getTime()))
@@ -198,6 +234,7 @@ export async function getGlpiActivityReport(from: Date, to: Date): Promise<GlpiA
       glpiId: r.glpiId,
       name: r.name,
       requesterName: r.requesterName || String(r.requesterId),
+      assignees: r.assignees || "—",
       categoryName: r.categoryName,
       dateSolve: r.dateSolve!.toISOString(),
       resolutionH: r.resolutionDuration && r.resolutionDuration > 0 ? Math.round((r.resolutionDuration / 3600) * 10) / 10 : null,
@@ -208,5 +245,5 @@ export async function getGlpiActivityReport(from: Date, to: Date): Promise<GlpiA
     ? { finishedAt: lastRun.finishedAt?.toISOString() ?? null, ok: !lastRun.fatalError && !!lastRun.finishedAt, processed: lastRun.processed }
     : null;
 
-  return { kpis, porDia, porCategoria, porPessoa, solucionadas, lastSync };
+  return { kpis, porDia, porCategoria, porPessoa, porAtribuido, solucionadas, lastSync };
 }

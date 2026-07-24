@@ -141,23 +141,46 @@ export function DemandasGlpiPdf({ r, from, to, geradoEm }: { r: GlpiActivityRepo
           </View>
         ))}
 
+        {/* Por atribuído (quem executa) */}
+        {r.porAtribuido.length > 0 && (
+          <>
+            <Text style={s.h2}>Por atribuído (quem executa)</Text>
+            <View style={s.th}>
+              <Text style={[s.thCell, { flex: 1 }]}>Atribuído</Text>
+              <Text style={[s.thCell, { width: 90, textAlign: "right" }]}>Abertas no período</Text>
+              <Text style={[s.thCell, { width: 70, textAlign: "right" }]}>Solucionadas</Text>
+              <Text style={[s.thCell, { width: 70, textAlign: "right" }]}>Abertas agora</Text>
+            </View>
+            {r.porAtribuido.map((a) => (
+              <View key={a.name} style={s.tr} wrap={false}>
+                <Text style={{ flex: 1, fontFamily: "Helvetica-Bold", color: C.ink }}>{a.name}</Text>
+                <Text style={{ width: 90, textAlign: "right" }}>{a.abertasNoPeriodo}</Text>
+                <Text style={{ width: 70, textAlign: "right", fontFamily: "Helvetica-Bold", color: C.done }}>{a.solucionadasNoPeriodo}</Text>
+                <Text style={{ width: 70, textAlign: "right" }}>{a.abertasAgora}</Text>
+              </View>
+            ))}
+          </>
+        )}
+
         {/* Solucionadas detalhe */}
         <Text style={s.h2}>Solucionadas no período — detalhe ({r.solucionadas.length})</Text>
         {r.solucionadas.length === 0 && <Text style={{ color: C.muted, marginTop: 4 }}>Nenhum chamado solucionado no período.</Text>}
         <View style={s.th}>
           <Text style={[s.thCell, { flex: 1 }]}>Chamado</Text>
-          <Text style={[s.thCell, { width: 90 }]}>Pessoa</Text>
-          <Text style={[s.thCell, { width: 90 }]}>Categoria</Text>
-          <Text style={[s.thCell, { width: 70 }]}>Solucionado</Text>
-          <Text style={[s.thCell, { width: 40, textAlign: "right" }]}>Tempo</Text>
+          <Text style={[s.thCell, { width: 80 }]}>Solicitante</Text>
+          <Text style={[s.thCell, { width: 80 }]}>Atribuído</Text>
+          <Text style={[s.thCell, { width: 74 }]}>Categoria</Text>
+          <Text style={[s.thCell, { width: 58 }]}>Solucionado</Text>
+          <Text style={[s.thCell, { width: 34, textAlign: "right" }]}>Tempo</Text>
         </View>
         {r.solucionadas.map((t) => (
           <View key={t.glpiId} style={s.tr} wrap={false}>
             <Text style={{ flex: 1, paddingRight: 6 }}>#{t.glpiId} · {t.name}</Text>
-            <Text style={{ width: 90 }}>{t.requesterName}</Text>
-            <Text style={{ width: 90, color: C.muted }}>{t.categoryName ?? "—"}</Text>
-            <Text style={{ width: 70 }}>{fmtDate(new Date(t.dateSolve))}</Text>
-            <Text style={{ width: 40, textAlign: "right" }}>{t.resolutionH != null ? `${t.resolutionH}h` : "—"}</Text>
+            <Text style={{ width: 80 }}>{t.requesterName}</Text>
+            <Text style={{ width: 80 }}>{t.assignees}</Text>
+            <Text style={{ width: 74, color: C.muted }}>{t.categoryName ?? "—"}</Text>
+            <Text style={{ width: 58 }}>{fmtDate(new Date(t.dateSolve))}</Text>
+            <Text style={{ width: 34, textAlign: "right" }}>{t.resolutionH != null ? `${t.resolutionH}h` : "—"}</Text>
           </View>
         ))}
 
