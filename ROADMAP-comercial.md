@@ -29,15 +29,23 @@
 
 
 
-## 8. Quadro de Demandas do Marketing (Trello-like)  🔨 FASE 1 FEITA
+## 8. Quadro de Demandas do Marketing (Trello-like)  🔨 FASE 1 + MODAL/ANEXOS FEITOS
 Módulo novo `/marketing/quadro`. Base decidida: quadro Kanban próprio (colunas ≠
 status GLPI), card interno OU linkado a chamado GLPI (puxa status/atribuído do espelho).
 - [x] FASE 1 — base + etiquetas: schema (MktBoard/Column/Card/Label + m2m), migração
   `20260724181942_mkt_quadro`, `server/marketing/board.ts` (ensureDefaultBoard lazy c/
   colunas do Trello + labels), actions, `QuadroBoard.tsx` (DnD nativo, add card, editor
   modal c/ etiquetas/descrição/prazo/link GLPI), nav. tsc+eslint limpos. Falta deploy.
+- [x] MODAL DE CRIAR + ANEXOS + UX (2026-07-27): botão "Adicionar cartão" abre modal rico
+  (mesmo modal de criar/editar; header, título, etiquetas, descrição, prazo, GLPI). Colunas
+  repaginadas (borda, header, scroll interno, empty state, hover no card, badges de anexo/desc).
+  Anexos: modelo `MktCardAttachment` (bytea no Postgres, sem infra de storage), migração
+  `20260727154208_mkt_card_attachment`, cap 20 MB, upload multi-arquivo via server action
+  (FormData), preview de imagem, rota autenticada `/marketing/quadro/anexo/[id]` (guard módulo
+  `marketing`). Cria o card → libera anexar. tsc limpo. Falta deploy VPS.
 - [ ] FASE 2 — prazo + notificação de vencimento (campo dueAt já existe; falta cron + toast/sino).
-- [ ] FASE 3 — upload de arquivo no card → anexa no GLPI + descrição (API de documentos GLPI).
+- [ ] FASE 3 — anexo do card → também **espelhar no GLPI** + descrição (API de documentos GLPI).
+      (upload local no card já feito; falta o push pro GLPI.)
 - [ ] Reorder dentro da coluna (hoje drop só joga no fim); colunas customizáveis (add/rename/reorder).
 
 

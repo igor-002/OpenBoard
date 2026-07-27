@@ -817,11 +817,29 @@ model MktCard {
   dueAt       DateTime? // prazo (fase 2: prazo + notificação)
   createdById String? // loose FK -> User.id
   labels      MktLabel[] @relation("MktCardLabels")
+  attachments MktCardAttachment[]
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
 
   @@index([columnId, order])
   @@index([glpiId])
+}
+
+// Anexos do card (imagem/PDF/etc). Guardados no Postgres (bytea) — sem infra de
+// storage/volume no VPS. Cap de tamanho aplicado na action. Servidos por rota
+// autenticada /marketing/quadro/anexo/[id].
+model MktCardAttachment {
+  id          String   @id @default(cuid())
+  cardId      String
+  card        MktCard  @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  filename    String
+  mime        String
+  size        Int
+  data        Bytes
+  createdById String? // loose FK -> User.id
+  createdAt   DateTime @default(now())
+
+  @@index([cardId])
 }
 
 model MktLabel {

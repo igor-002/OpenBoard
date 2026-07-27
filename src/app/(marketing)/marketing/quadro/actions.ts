@@ -10,19 +10,32 @@ import {
   moveCard,
   setCardLabels,
   createLabel,
+  addAttachment,
+  deleteAttachment,
+  type AttachmentDTO,
 } from "@/server/marketing/board";
 
 export type BoardActionState = { ok: boolean; error?: string; id?: string };
+export type AttachmentActionState = { ok: boolean; error?: string; attachment?: AttachmentDTO };
 
 const P = "/marketing/quadro";
 function fail(e: unknown): BoardActionState {
   return { ok: false, error: e instanceof Error ? e.message : "Falha na operação." };
 }
 
-export async function createCardAction(input: { columnId: string; title: string; kind?: "interna" | "glpi"; glpiId?: number | null }): Promise<BoardActionState> {
+export async function createCardAction(input: {
+  columnId: string;
+  title: string;
+  description?: string | null;
+  dueAt?: string | null;
+  kind?: "interna" | "glpi";
+  glpiId?: number | null;
+  labelIds?: string[];
+}): Promise<BoardActionState> {
   const user = await requireUser();
   try {
-    const r = await createCard({ ...input, createdById: user.id });
+    const dueAt = input.dueAt ? new Date(`${input.dueAt}T12:00:00`) : null;
+    const r = await createCard({ ...input, dueAt, createdById: user.id });
     revalidatePath(P);
     return { ok: true, id: r.id };
   } catch (e) {
@@ -85,6 +98,39 @@ export async function createLabelAction(name: string, color: string): Promise<Bo
     const r = await createLabel(boardId, name, color);
     revalidatePath(P);
     return { ok: true, id: r.id };
+  } catch (e) {
+    return fail(e);
+  }
+}
+
+export async function uploadAttachmentAction(form: FormData): Promise<AttachmentActionState> {
+  const user = await requireUser();
+  try {
+    const cardId = String(form.get("cardId") ?? "");
+    const file = form.get("file");
+    if (!cardId) throw new Error("Cartão inválido.");
+    if (!(file instanceof File)) throw new Error("Arquivo inválido.");
+    const bytes = Buffer.from(await file.arrayBuffer());
+    const attachment = await addAttachment({
+      cardId,
+      filename: file.name,
+      mime: file.type,
+      bytes,
+      createdById: user.id,
+    });
+    revalidatePath(P);
+    return { ok: true, attachment };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Falha no upload." };
+  }
+}
+
+export async function deleteAttachmentAction(id: string): Promise<BoardActionState> {
+  await requireUser();
+  try {
+    await deleteAttachment(id);
+    revalidatePath(P);
+    return { ok: true };
   } catch (e) {
     return fail(e);
   }

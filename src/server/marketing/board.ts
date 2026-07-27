@@ -43,6 +43,7 @@ export async function ensureDefaultBoard(): Promise<string> {
 }
 
 export type LabelDTO = { id: string; name: string; color: string };
+export type AttachmentDTO = { id: string; filename: string; mime: string; size: number };
 export type CardDTO = {
   id: string;
   title: string;
@@ -52,6 +53,7 @@ export type CardDTO = {
   dueAt: string | null;
   order: number;
   labels: LabelDTO[];
+  attachments: AttachmentDTO[];
   glpi: { statusId: number; statusName: string; requesterName: string; assignees: string } | null;
 };
 export type ColumnDTO = { id: string; name: string; order: number; cards: CardDTO[] };
@@ -66,7 +68,10 @@ export async function getBoard(): Promise<BoardDTO> {
       include: {
         cards: {
           orderBy: { order: "asc" },
-          include: { labels: { orderBy: { order: "asc" }, select: { id: true, name: true, color: true } } },
+          include: {
+            labels: { orderBy: { order: "asc" }, select: { id: true, name: true, color: true } },
+            attachments: { orderBy: { createdAt: "asc" }, select: { id: true, filename: true, mime: true, size: true } },
+          },
         },
       },
     }),
@@ -103,6 +108,7 @@ export async function getBoard(): Promise<BoardDTO> {
           dueAt: c.dueAt?.toISOString() ?? null,
           order: c.order,
           labels: c.labels,
+          attachments: c.attachments,
           glpi: g ? { statusId: g.statusId, statusName: g.statusName, requesterName: g.requesterName, assignees: g.assignees } : null,
         };
       }),
@@ -119,8 +125,11 @@ async function nextOrder(columnId: string): Promise<number> {
 export async function createCard(input: {
   columnId: string;
   title: string;
+  description?: string | null;
+  dueAt?: Date | null;
   kind?: "interna" | "glpi";
   glpiId?: number | null;
+  labelIds?: string[];
   createdById?: string | null;
 }): Promise<{ id: string }> {
   const title = input.title.trim();
@@ -130,10 +139,13 @@ export async function createCard(input: {
     data: {
       columnId: input.columnId,
       title,
+      description: input.description?.trim() || null,
+      dueAt: input.dueAt ?? null,
       kind,
       glpiId: kind === "glpi" ? input.glpiId ?? null : null,
       order: await nextOrder(input.columnId),
       createdById: input.createdById ?? null,
+      labels: input.labelIds?.length ? { connect: input.labelIds.map((id) => ({ id })) } : undefined,
     },
     select: { id: true },
   });
@@ -191,4 +203,42 @@ export async function createLabel(boardId: string, name: string, color: string):
     data: { boardId, name: n, color: color || "#6b7280", order: (last?.order ?? -1) + 1 },
     select: { id: true },
   });
+}
+
+// ── Anexos ────────────────────────────────────────────────────────────────────
+export const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024; // 20 MB — guardado no Postgres.
+
+export async function addAttachment(input: {
+  cardId: string;
+  filename: string;
+  mime: string;
+  bytes: Buffer;
+  createdById?: string | null;
+}): Promise<AttachmentDTO> {
+  if (input.bytes.length === 0) throw new Error("Arquivo vazio.");
+  if (input.bytes.length > MAX_ATTACHMENT_BYTES) throw new Error("Arquivo acima de 20 MB.");
+  const card = await db.mktCard.findUnique({ where: { id: input.cardId }, select: { id: true } });
+  if (!card) throw new Error("Cartão não encontrado.");
+  const a = await db.mktCardAttachment.create({
+    data: {
+      cardId: input.cardId,
+      filename: input.filename.slice(0, 200) || "arquivo",
+      mime: input.mime || "application/octet-stream",
+      size: input.bytes.length,
+      data: new Uint8Array(input.bytes),
+      createdById: input.createdById ?? null,
+    },
+    select: { id: true, filename: true, mime: true, size: true },
+  });
+  return a;
+}
+
+export async function deleteAttachment(id: string): Promise<void> {
+  await db.mktCardAttachment.delete({ where: { id } });
+}
+
+export async function getAttachmentBytes(id: string): Promise<{ filename: string; mime: string; data: Buffer } | null> {
+  const a = await db.mktCardAttachment.findUnique({ where: { id }, select: { filename: true, mime: true, data: true } });
+  if (!a) return null;
+  return { filename: a.filename, mime: a.mime, data: Buffer.from(a.data) };
 }
