@@ -18,8 +18,10 @@ import {
   deleteColumn,
   moveColumn,
   reorderColumn,
+  setColumnGlpiStatus,
   type AttachmentDTO,
 } from "@/server/marketing/board";
+import { updateStatus } from "@/server/glpi/write";
 
 export type BoardActionState = { ok: boolean; error?: string; id?: string };
 export type AttachmentActionState = { ok: boolean; error?: string; attachment?: AttachmentDTO };
@@ -75,10 +77,35 @@ export async function deleteCardAction(cardId: string): Promise<BoardActionState
   }
 }
 
+// Mover card. Se for card de chamado e a coluna destino estiver mapeada num
+// status, o status também é escrito no GLPI. A falha no GLPI NÃO desfaz o move
+// local — o card fica onde o usuário soltou e a mensagem avisa que o chamado
+// seguiu no status antigo (desfazer em silêncio seria pior de entender).
 export async function moveCardAction(cardId: string, toColumnId: string, toIndex: number): Promise<BoardActionState> {
   await requireUser();
+  let escrever: { glpiId: number; statusId: number } | null = null;
   try {
-    await moveCard(cardId, toColumnId, toIndex);
+    escrever = await moveCard(cardId, toColumnId, toIndex);
+    revalidatePath(P);
+  } catch (e) {
+    return fail(e);
+  }
+  if (!escrever) return { ok: true };
+  try {
+    await updateStatus(escrever.glpiId, escrever.statusId);
+    revalidatePath(P);
+    revalidatePath("/marketing/demandas");
+    return { ok: true };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "erro desconhecido";
+    return { ok: false, error: `Card movido, mas o chamado #${escrever.glpiId} não mudou de status no GLPI: ${msg}` };
+  }
+}
+
+export async function setColumnGlpiStatusAction(columnId: string, glpiStatusId: number | null): Promise<BoardActionState> {
+  await requireUser();
+  try {
+    await setColumnGlpiStatus(columnId, glpiStatusId);
     revalidatePath(P);
     return { ok: true };
   } catch (e) {

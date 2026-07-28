@@ -42,7 +42,8 @@ export function GlpiDemandas({
   isAdmin: boolean;
 }) {
   const router = useRouter();
-  const [view, setView] = useState<"lista" | "kanban">("lista");
+  // Kanban é o padrão; a lista continua no toggle pra ver muitos chamados de uma vez.
+  const [view, setView] = useState<"lista" | "kanban">("kanban");
   const glpiSync = useSyncRun(runGlpiSyncAction, { label: "Sincronização GLPI", onSuccess: () => router.refresh() });
 
   function navigate(nextUser: number | null, nextStatus: StatusFilter) {

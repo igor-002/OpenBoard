@@ -7,15 +7,29 @@ import { db } from "@/lib/db";
 const BOARD_SLUG = "marketing";
 
 // Colunas + etiquetas iniciais (do Trello atual do time). Criadas no 1º acesso.
-const DEFAULT_COLUMNS = [
-  "Backlog (Ideias)",
-  "Daily",
-  "Novos",
-  "Pendente",
-  "Atribuídos ao Setor",
-  "Concluído",
-  "Material Pronto",
+// `glpi` = status do GLPI que a coluna representa; null = coluna só do time.
+// `done` = coluna de saída (card ganha doneAt e some depois de 2 dias).
+const DEFAULT_COLUMNS: { name: string; glpi: number | null; done?: boolean }[] = [
+  { name: "Backlog (Ideias)", glpi: null },
+  { name: "Daily", glpi: null },
+  { name: "Novos", glpi: 1 }, // Novo
+  { name: "Pendente", glpi: 4 }, // Pendente
+  { name: "Atribuídos ao Setor", glpi: 2 }, // Em atendimento (2 e 3)
+  { name: "Concluído", glpi: 5, done: true }, // Solucionado
+  { name: "Material Pronto", glpi: 6, done: true }, // Fechado
 ];
+
+// GLPI 3 (Em atendimento — planejado) mora na mesma coluna do 2.
+const GLPI_STATUS_ALIAS: Record<number, number> = { 3: 2 };
+export const normalizeGlpiStatus = (id: number) => GLPI_STATUS_ALIAS[id] ?? id;
+
+// Status ainda "vivos" — só esses viram card automaticamente. Chamado antigo já
+// fechado não precisa entupir o quadro; se reabrir, entra no próximo carregamento.
+const GLPI_OPEN_STATUSES = [1, 2, 3, 4];
+
+// Quanto tempo um card concluído fica visível antes de sair do quadro.
+export const DIAS_MOSTRA_CONCLUIDO = 2;
+const MS_MOSTRA_CONCLUIDO = DIAS_MOSTRA_CONCLUIDO * 86_400_000;
 const DEFAULT_LABELS: { name: string; color: string }[] = [
   { name: "ATENÇÃO", color: "#f59e0b" },
   { name: "EVENTO", color: "#f2691f" },
@@ -34,7 +48,9 @@ export async function ensureDefaultBoard(): Promise<string> {
     data: {
       name: "Demandas do Marketing",
       slug: BOARD_SLUG,
-      columns: { create: DEFAULT_COLUMNS.map((name, i) => ({ name, order: i })) },
+      columns: {
+        create: DEFAULT_COLUMNS.map((c, i) => ({ name: c.name, order: i, glpiStatusId: c.glpi, isDone: c.done ?? false })),
+      },
       labels: { create: DEFAULT_LABELS.map((l, i) => ({ ...l, order: i })) },
     },
     select: { id: true },
@@ -56,17 +72,118 @@ export type CardDTO = {
   attachments: AttachmentDTO[];
   glpi: { statusId: number; statusName: string; requesterName: string; assignees: string } | null;
 };
-export type ColumnDTO = { id: string; name: string; order: number; cards: CardDTO[] };
-export type BoardDTO = { id: string; name: string; columns: ColumnDTO[]; labels: LabelDTO[] };
+export type ColumnDTO = {
+  id: string;
+  name: string;
+  order: number;
+  glpiStatusId: number | null;
+  isDone: boolean;
+  cards: CardDTO[];
+};
+export type BoardDTO = {
+  id: string;
+  name: string;
+  columns: ColumnDTO[];
+  labels: LabelDTO[];
+  hiddenDone: number; // concluídas escondidas por passarem do corte
+  showingDone: boolean;
+  doneAfterDays: number; // dias que uma concluída fica visível (vai no DTO pra não duplicar no client)
+};
 
-export async function getBoard(): Promise<BoardDTO> {
+// ── Ingestão + reconciliação dos chamados GLPI ───────────────────────────────
+// O quadro é o ÚNICO kanban do marketing: todo chamado aberto do espelho vira
+// card sozinho, sem ninguém linkar na mão (era o gargalo do modelo antigo).
+//
+// Reconciliação: card do GLPI parado numa coluna MAPEADA cujo status não bate
+// mais volta pra coluna certa. Card em coluna não mapeada (Backlog, Daily) fica
+// onde está — é o time usando o quadro do jeito dele, não erro de sincronia.
+async function ingestGlpiCards(boardId: string): Promise<void> {
+  const columns = await db.mktColumn.findMany({
+    where: { boardId },
+    orderBy: { order: "asc" },
+    select: { id: true, glpiStatusId: true, isDone: true },
+  });
+  if (!columns.length) return;
+  const colForStatus = new Map<number, string>();
+  for (const c of columns) if (c.glpiStatusId != null) colForStatus.set(c.glpiStatusId, c.id);
+  if (!colForStatus.size) return; // nenhuma coluna mapeada → nada a fazer
+  const mapeada = new Set(columns.filter((c) => c.glpiStatusId != null).map((c) => c.id));
+  const saida = new Set(columns.filter((c) => c.isDone).map((c) => c.id));
+
+  const [espelho, existentes] = await Promise.all([
+    db.glpiTicket.findMany({
+      where: { isDeleted: false },
+      select: { glpiId: true, name: true, statusId: true, dueAt: true },
+    }),
+    db.mktCard.findMany({
+      where: { column: { boardId }, glpiId: { not: null } },
+      select: { id: true, glpiId: true, columnId: true, doneAt: true },
+    }),
+  ]);
+  const cardByGlpi = new Map(existentes.map((c) => [c.glpiId!, c]));
+
+  // Reserva de `order` no fim de cada coluna, sem uma consulta por card.
+  const ordemBase = new Map<string, number>();
+  async function proximaOrdem(colId: string): Promise<number> {
+    if (!ordemBase.has(colId)) {
+      const last = await db.mktCard.findFirst({ where: { columnId: colId }, orderBy: { order: "desc" }, select: { order: true } });
+      ordemBase.set(colId, (last?.order ?? -1) + 1);
+    }
+    const n = ordemBase.get(colId)!;
+    ordemBase.set(colId, n + 1);
+    return n;
+  }
+
+  // 1) chamados ABERTOS ainda sem card. Já solucionado/fechado não entra: seria
+  //    despejar anos de histórico direto na coluna de saída.
+  const novos = espelho.filter((t) => GLPI_OPEN_STATUSES.includes(t.statusId) && !cardByGlpi.has(t.glpiId));
+  const data = [];
+  for (const t of novos) {
+    const colId = colForStatus.get(normalizeGlpiStatus(t.statusId));
+    if (!colId) continue;
+    data.push({ columnId: colId, title: t.name, kind: "glpi", glpiId: t.glpiId, dueAt: t.dueAt, order: await proximaOrdem(colId) });
+  }
+  if (data.length) await db.mktCard.createMany({ data });
+
+  // 2) cards em coluna mapeada cujo status mudou POR FORA (inclusive pra
+  //    solucionado/fechado — senão o chamado resolvido no GLPI ficaria preso na
+  //    coluna antiga pra sempre). Coluna do time não é tocada.
+  const porId = new Map(espelho.map((t) => [t.glpiId, t]));
+  for (const card of existentes) {
+    if (!mapeada.has(card.columnId)) continue;
+    const t = porId.get(card.glpiId!);
+    if (!t) continue;
+    const alvo = colForStatus.get(normalizeGlpiStatus(t.statusId));
+    if (!alvo || alvo === card.columnId) continue;
+    await db.mktCard.update({
+      where: { id: card.id },
+      data: { columnId: alvo, order: await proximaOrdem(alvo), ...doneAtPatch(saida.has(alvo), card.doneAt) },
+    });
+  }
+}
+
+// Card que entra numa coluna de saída marca a hora (base do "some depois de 2
+// dias"); voltando pro fluxo, limpa. Já concluído que anda entre colunas de saída
+// mantém a hora original — reentrar em "Material Pronto" não renova o prazo.
+function doneAtPatch(paraSaida: boolean, atual: Date | null): { doneAt?: Date | null } {
+  if (paraSaida) return atual ? {} : { doneAt: new Date() };
+  return atual ? { doneAt: null } : {};
+}
+
+// `includeDone` traz também as concluídas velhas (botão "ver concluídas"). Por
+// padrão o quadro esconde card com doneAt anterior ao corte, pra não poluir.
+export async function getBoard(opts: { includeDone?: boolean } = {}): Promise<BoardDTO> {
   const boardId = await ensureDefaultBoard();
-  const [columns, labels] = await Promise.all([
+  await ingestGlpiCards(boardId);
+  const corte = new Date(Date.now() - MS_MOSTRA_CONCLUIDO);
+  const cardWhere = opts.includeDone ? {} : { OR: [{ doneAt: null }, { doneAt: { gte: corte } }] };
+  const [columns, labels, ocultas] = await Promise.all([
     db.mktColumn.findMany({
       where: { boardId },
       orderBy: { order: "asc" },
       include: {
         cards: {
+          where: cardWhere,
           orderBy: { order: "asc" },
           include: {
             labels: { orderBy: { order: "asc" }, select: { id: true, name: true, color: true } },
@@ -76,6 +193,7 @@ export async function getBoard(): Promise<BoardDTO> {
       },
     }),
     db.mktLabel.findMany({ where: { boardId }, orderBy: { order: "asc" }, select: { id: true, name: true, color: true } }),
+    db.mktCard.count({ where: { column: { boardId }, doneAt: { lt: corte } } }),
   ]);
 
   // Join só-leitura dos cards GLPI → status/atribuído ao vivo do espelho.
@@ -93,10 +211,15 @@ export async function getBoard(): Promise<BoardDTO> {
     id: board.id,
     name: board.name,
     labels,
+    hiddenDone: ocultas,
+    showingDone: !!opts.includeDone,
+    doneAfterDays: DIAS_MOSTRA_CONCLUIDO,
     columns: columns.map((col) => ({
       id: col.id,
       name: col.name,
       order: col.order,
+      glpiStatusId: col.glpiStatusId,
+      isDone: col.isDone,
       cards: col.cards.map((c) => {
         const g = c.glpiId != null ? byGlpi.get(c.glpiId) : null;
         return {
@@ -175,9 +298,24 @@ export async function deleteCard(cardId: string): Promise<void> {
 
 // Move o card pra uma coluna/posição. Reindexa a coluna destino de forma simples
 // (volume baixo por coluna). O card entra na posição `toIndex` (0 = topo).
-export async function moveCard(cardId: string, toColumnId: string, toIndex: number): Promise<void> {
-  const card = await db.mktCard.findUnique({ where: { id: cardId }, select: { id: true } });
-  if (!card) return;
+//
+// Devolve o status do GLPI a escrever quando o card é de chamado E a coluna
+// destino está mapeada num status diferente do atual. Quem chama (a action) faz
+// a escrita — este módulo não fala com a API do GLPI.
+export async function moveCard(
+  cardId: string,
+  toColumnId: string,
+  toIndex: number,
+): Promise<{ glpiId: number; statusId: number } | null> {
+  const card = await db.mktCard.findUnique({
+    where: { id: cardId },
+    select: { id: true, glpiId: true, columnId: true, doneAt: true },
+  });
+  if (!card) return null;
+  const destino = await db.mktColumn.findUnique({
+    where: { id: toColumnId },
+    select: { glpiStatusId: true, isDone: true },
+  });
   const others = await db.mktCard.findMany({
     where: { columnId: toColumnId, id: { not: cardId } },
     orderBy: { order: "asc" },
@@ -186,9 +324,36 @@ export async function moveCard(cardId: string, toColumnId: string, toIndex: numb
   const idx = Math.max(0, Math.min(toIndex, others.length));
   const ordered = [...others.slice(0, idx).map((c) => c.id), cardId, ...others.slice(idx).map((c) => c.id)];
   await db.$transaction([
-    db.mktCard.update({ where: { id: cardId }, data: { columnId: toColumnId } }),
+    db.mktCard.update({
+      where: { id: cardId },
+      data: { columnId: toColumnId, ...doneAtPatch(!!destino?.isDone, card.doneAt) },
+    }),
     ...ordered.map((id, i) => db.mktCard.update({ where: { id }, data: { order: i } })),
   ]);
+
+  if (card.glpiId == null || card.columnId === toColumnId) return null;
+  if (destino?.glpiStatusId == null) return null; // coluna do time: só parqueia
+  const atual = await db.glpiTicket.findUnique({ where: { glpiId: card.glpiId }, select: { statusId: true } });
+  if (atual && normalizeGlpiStatus(atual.statusId) === destino.glpiStatusId) return null;
+  return { glpiId: card.glpiId, statusId: destino.glpiStatusId };
+}
+
+// Mapeia (ou desmapeia, com null) a coluna num status do GLPI. Um status só pode
+// estar em uma coluna — senão a reconciliação ficaria não-determinística.
+export async function setColumnGlpiStatus(columnId: string, glpiStatusId: number | null): Promise<void> {
+  const col = await db.mktColumn.findUnique({ where: { id: columnId }, select: { boardId: true } });
+  if (!col) throw new Error("Coluna não encontrada.");
+  if (glpiStatusId != null) {
+    const normalizado = normalizeGlpiStatus(glpiStatusId);
+    const jaUsado = await db.mktColumn.findFirst({
+      where: { boardId: col.boardId, glpiStatusId: normalizado, id: { not: columnId } },
+      select: { name: true },
+    });
+    if (jaUsado) throw new Error(`Esse status já é da coluna "${jaUsado.name}".`);
+    await db.mktColumn.update({ where: { id: columnId }, data: { glpiStatusId: normalizado } });
+    return;
+  }
+  await db.mktColumn.update({ where: { id: columnId }, data: { glpiStatusId: null } });
 }
 
 export async function setCardLabels(cardId: string, labelIds: string[]): Promise<void> {

@@ -810,6 +810,15 @@ model MktColumn {
   cards     MktCard[]
   createdAt DateTime  @default(now())
 
+  // Status do GLPI que esta coluna representa (1 Novo, 2 Em atend., 4 Pendente,
+  // 5 Solucionado, 6 Fechado). null = coluna só do time (ex.: Backlog, Daily):
+  // card do GLPI parado nela não é mexido pela reconciliação nem escreve status.
+  glpiStatusId Int?
+
+  // Coluna de saída (trabalho terminado). Card que cai aqui ganha `doneAt` e some
+  // do quadro depois de 2 dias, pra não poluir — só reaparece no "ver concluídas".
+  isDone Boolean @default(false)
+
   @@index([boardId, order])
 }
 
@@ -823,6 +832,7 @@ model MktCard {
   kind        String     @default("interna") // interna | glpi
   glpiId      Int? // kind=glpi: chamado espelhado (loose FK -> GlpiTicket.glpiId)
   dueAt       DateTime? // prazo (fase 2: prazo + notificação)
+  doneAt      DateTime? // quando entrou numa coluna de saída; limpo se voltar pro fluxo
   createdById String? // loose FK -> User.id
   labels      MktLabel[] @relation("MktCardLabels")
   attachments MktCardAttachment[]
@@ -831,6 +841,7 @@ model MktCard {
 
   @@index([columnId, order])
   @@index([glpiId])
+  @@index([doneAt])
 }
 
 // Anexos do card (imagem/PDF/etc). Guardados no Postgres (bytea) — sem infra de

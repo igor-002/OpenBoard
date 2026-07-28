@@ -80,6 +80,33 @@ Upgrade envia: CPF/CNPJ, razão social, plano antigo, plano novo, valor a adicio
 - [x] tsc + eslint limpos
 - [ ] Teste manual no browser (Igor) + push + deploy VPS
 
+## 10. Unificação dos dois kanbans (2026-07-28)  🔨 FEITO (falta testar no browser + deploy)
+Problema: `/marketing/quadro` (visão "Status GLPI") e `/marketing/demandas` (kanban)
+agrupavam igual mas com populações diferentes — e o chamado só entrava no quadro se
+alguém criasse card e linkasse à mão. Digitação dupla = quadro vazio e sem uso.
+- [x] **Um kanban só.** `/marketing/quadro` é o único; a visão "Status GLPI" e o
+  toggle foram removidos (`GlpiStatusView` deletada, ~165 linhas).
+- [x] **Ingestão automática**: todo chamado ABERTO do espelho vira card sozinho, na
+  coluna do status dele (`ingestGlpiCards`, roda no `getBoard`). Solucionado/fechado
+  não entra — seria despejar anos de histórico na coluna de saída.
+- [x] **Mapeamento coluna → status** (`MktColumn.glpiStatusId`, migração
+  `20260728170000_mkt_column_glpi_status`, com UPDATE das colunas que já existem).
+  Padrão: Novos=1, Pendente=4, Atribuídos ao Setor=2, Concluído=5, Material Pronto=6;
+  Backlog/Daily sem mapeamento (coluna só do time). Editável pelo menu da coluna.
+- [x] **Arrastar escreve no GLPI**: soltar card de chamado em coluna mapeada faz
+  PATCH do status. Falha no GLPI NÃO desfaz o move local — avisa e o card fica onde
+  foi solto. Coluna não mapeada só "parqueia" o card, sem escrever.
+- [x] **Reconciliação**: status mudado por fora traz o card pra coluna certa —
+  inclusive solucionado/fechado (antes o chamado resolvido no GLPI ficava preso).
+  Card em coluna do time nunca é movido pela reconciliação.
+- [x] **Concluídas somem depois de 2 dias** (`MktColumn.isDone` + `MktCard.doneAt`,
+  migração `20260728180000_mkt_column_done`) + botão "Ver concluídas (N)" no topo
+  (`?concluidas=1`). Voltar o card pro fluxo limpa o `doneAt`.
+- [x] `/marketing/demandas` abre em **Kanban por padrão** (lista segue no toggle).
+- [x] Validado contra o banco: 6 abertos → 6 cards nas colunas certas, idempotente
+  (4,2s na 1ª carga, 33ms depois), reconciliação 100%, ciclo de conclusão OK.
+- [ ] Teste no browser + deploy.
+
 ## 9. Pedidos do marketing (2026-07-28)  🔨 FEITO (falta migrar + testar + deploy)
 Vieram de `demandas/marketing/` (3 prints + descricao.md).
 - [x] **Solicitante correto no chamado criado pelo app.** Era bug: o GLPI ignora
