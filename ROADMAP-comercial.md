@@ -80,6 +80,34 @@ Upgrade envia: CPF/CNPJ, razão social, plano antigo, plano novo, valor a adicio
 - [x] tsc + eslint limpos
 - [ ] Teste manual no browser (Igor) + push + deploy VPS
 
+## 9. Pedidos do marketing (2026-07-28)  🔨 FEITO (falta migrar + testar + deploy)
+Vieram de `demandas/marketing/` (3 prints + descricao.md).
+- [x] **Solicitante correto no chamado criado pelo app.** Era bug: o GLPI ignora
+  `user_recipient` no POST e grava o usuário AUTENTICADO (integracaomkt). Certo é
+  `POST /Assistance/Ticket/{id}/TeamMember {type:"User", id, role:"requester"}`.
+  Efeito colateral do bug: sem requerente rastreado no team, `attributedTrackedId`
+  devolve null e o chamado SOME do espelho no próximo full sync.
+- [x] Escolher o **responsável já na abertura** (mesmo endpoint, role `assigned`).
+- [x] **Prioridade** na escala cheia do GLPI (1..5; faltava "Muito baixa"). Manda
+  `urgency` + `priority` (o GLPI normalmente recalcula por urgency × impact).
+- [x] **Prazo de conclusão** (`GlpiTicket.dueAt` + `dueSetById`, migração
+  `20260728143000_glpi_ticket_due`): definir na criação e no detalhe, badge na
+  lista/kanban/detalhe, alerta no scheduler de 6h (`alertGlpiPrazos`, vencido ou ≤2d).
+  Vive SÓ no espelho: o schema Ticket da v2.1 **não tem** `time_to_resolve`/`due_date`
+  (só SLA, que esta instância não usa — `sla_ttr` nulo). Definir prazo posta um
+  acompanhamento no chamado pra quem acompanha pelo GLPI ver.
+- [x] "Quem abriu / quem recebeu" no topo do chamado — já existia; passa a ficar
+  correto agora que o create grava requester + assigned.
+- [ ] **Categoria de serviço — BLOQUEADA.** A v2.1 não expõe ITILCategory
+  (`/Dropdowns/` só tem Location, State, Manufacturer, Calendar; todas as rotas
+  ITILCategory dão 404). GraphQL existe mas responde 403 (`ERROR_RIGHT_MISSING` —
+  falta scope no Cliente OAuth). `apirest.php` v1 está ligado mas exige `app_token`.
+  Destravar = liberar o scope de GraphQL no cliente OAuth **ou** gerar um App-Token.
+- [ ] Rodar a migração (Docker local estava parado — SQL escrito à mão, aditivo),
+  testar no browser, push e deploy.
+- [ ] Chamados JÁ criados pelo app estão órfãos (sem requester rastreado) e somem
+  no próximo full sync. Ex.: #36758. Precisa backfill do TeamMember requester.
+
 ## 2. Escrita GLPI (interação pelo sistema)  ✅ FUNCIONANDO
 Fase de escrita codada+pushada (3acbeb8). Bloqueio 403 resolvido: causa era
 **perfil DEFAULT** do user de serviço (API usa o default, não o mais alto).
