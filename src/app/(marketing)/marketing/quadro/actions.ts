@@ -17,6 +17,7 @@ import {
   renameColumn,
   deleteColumn,
   moveColumn,
+  reorderColumn,
   type AttachmentDTO,
 } from "@/server/marketing/board";
 
@@ -168,6 +169,17 @@ export async function moveColumnAction(columnId: string, dir: -1 | 1): Promise<B
   await requireUser();
   try {
     await moveColumn(columnId, dir);
+    revalidatePath(P);
+    return { ok: true };
+  } catch (e) {
+    return fail(e);
+  }
+}
+
+export async function reorderColumnAction(draggedId: string, targetId: string, before: boolean): Promise<BoardActionState> {
+  await requireUser();
+  try {
+    await reorderColumn(draggedId, targetId, before);
     revalidatePath(P);
     return { ok: true };
   } catch (e) {

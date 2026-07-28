@@ -23,6 +23,7 @@ import {
   renameColumnAction,
   deleteColumnAction,
   moveColumnAction,
+  reorderColumnAction,
   type GlpiHit,
 } from "@/app/(marketing)/marketing/quadro/actions";
 
@@ -56,6 +57,9 @@ export function QuadroBoard({ board, openCardId = null }: { board: BoardDTO; ope
   // Card sendo arrastado (origem) + posição de inserção ao vivo (coluna + índice na lista exibida).
   const [drag, setDrag] = useState<{ id: string; colId: string; index: number } | null>(null);
   const [over, setOver] = useState<{ colId: string; index: number } | null>(null);
+  // Arraste de COLUNA (reordenar): id da coluna arrastada + alvo (antes/depois).
+  const [dragColId, setDragColId] = useState<string | null>(null);
+  const [colOver, setColOver] = useState<{ id: string; before: boolean } | null>(null);
 
   // Filtros (client-side): etiquetas selecionadas + responsável GLPI.
   const [fLabels, setFLabels] = useState<Set<string>>(new Set());
@@ -110,6 +114,17 @@ export function QuadroBoard({ board, openCardId = null }: { board: BoardDTO; ope
     // ele sai de uma posição acima do destino na mesma coluna.
     if (d.colId === toColumnId && d.index < index) index -= 1;
     if (d.colId === toColumnId && index === d.index) return; // soltou no mesmo lugar
+    // Aviso do movimento (título do card + coluna destino).
+    const fromCol = board.columns.find((c) => c.id === d.colId);
+    const toCol = board.columns.find((c) => c.id === toColumnId);
+    const card = fromCol?.cards.find((c) => c.id === d.id);
+    const title = card ? (card.title.length > 40 ? card.title.slice(0, 40) + "…" : card.title) : "Cartão";
+    const sameCol = d.colId === toColumnId;
+    emitToast({
+      variant: "success",
+      title: sameCol ? "Cartão reordenado" : "Cartão movido",
+      sub: sameCol ? `“${title}” em ${toCol?.name ?? ""}` : `“${title}” → ${toCol?.name ?? ""}`,
+    });
     run(() => moveCardAction(d.id, toColumnId, index));
   }
 
@@ -151,14 +166,40 @@ export function QuadroBoard({ board, openCardId = null }: { board: BoardDTO; ope
 
       <div style={{ display: "flex", gap: "var(--gap)", overflowX: "auto", paddingBottom: 12, alignItems: "flex-start" }}>
         {board.columns.map((col, colIdx) => {
-          const isOver = over?.colId === col.id;
+          const isOver = over?.colId === col.id && !dragColId;
+          const colTarget = dragColId && dragColId !== col.id && colOver?.id === col.id;
           const visibleCount = filtering ? col.cards.filter(matches).length : col.cards.length;
           return (
             <div
               key={col.id}
-              onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; setOver({ colId: col.id, index: col.cards.length }); }}
+              onDragOver={(e) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = "move";
+                if (dragColId) {
+                  const r = e.currentTarget.getBoundingClientRect();
+                  const before = e.clientX < r.left + r.width / 2;
+                  if (colOver?.id !== col.id || colOver?.before !== before) setColOver({ id: col.id, before });
+                  return;
+                }
+                setOver({ colId: col.id, index: col.cards.length });
+              }}
               onDragLeave={(e) => { if (e.currentTarget === e.target && over?.colId === col.id) setOver(null); }}
-              onDrop={(e) => { e.preventDefault(); drop(col.id, col.cards.length); }}
+              onDrop={(e) => {
+                e.preventDefault();
+                if (dragColId) {
+                  const from = dragColId;
+                  const co = colOver;
+                  setDragColId(null);
+                  setColOver(null);
+                  if (from !== col.id) {
+                    const before = co && co.id === col.id ? co.before : true;
+                    emitToast({ variant: "success", title: "Coluna reordenada", sub: col.name });
+                    run(() => reorderColumnAction(from, col.id, before));
+                  }
+                  return;
+                }
+                drop(col.id, col.cards.length);
+              }}
               style={{
                 flex: "0 0 292px",
                 minWidth: 292,
@@ -167,6 +208,8 @@ export function QuadroBoard({ board, openCardId = null }: { board: BoardDTO; ope
                 border: "1px solid var(--line)",
                 outline: isOver ? "2px dashed var(--primary)" : "none",
                 outlineOffset: 2,
+                boxShadow: colTarget ? (colOver?.before ? "inset 4px 0 0 var(--primary)" : "inset -4px 0 0 var(--primary)") : undefined,
+                opacity: dragColId === col.id ? 0.5 : 1,
                 display: "flex",
                 flexDirection: "column",
                 maxHeight: "calc(100vh - 190px)",
@@ -180,6 +223,8 @@ export function QuadroBoard({ board, openCardId = null }: { board: BoardDTO; ope
                 onRename={(name) => run(() => renameColumnAction(col.id, name), "Coluna renomeada")}
                 onMove={(dir) => run(() => moveColumnAction(col.id, dir))}
                 onDelete={() => run(() => deleteColumnAction(col.id), "Coluna removida")}
+                onDragStart={() => setDragColId(col.id)}
+                onDragEnd={() => { setDragColId(null); setColOver(null); }}
               />
 
               <div style={{ display: "flex", flexDirection: "column", gap: 8, padding: 10, overflowY: "auto", flex: 1 }}>
@@ -241,6 +286,8 @@ function ColumnHeader({
   onRename,
   onMove,
   onDelete,
+  onDragStart,
+  onDragEnd,
 }: {
   name: string;
   badge: string;
@@ -249,6 +296,8 @@ function ColumnHeader({
   onRename: (name: string) => void;
   onMove: (dir: -1 | 1) => void;
   onDelete: () => void;
+  onDragStart: () => void;
+  onDragEnd: () => void;
 }) {
   const [menu, setMenu] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -278,7 +327,14 @@ function ColumnHeader({
   }
 
   return (
-    <div className="row between" style={{ padding: "11px 13px", borderBottom: "1px solid var(--line)", position: "relative" }}>
+    <div
+      className="row between"
+      draggable
+      onDragStart={(e) => { e.dataTransfer.setData("application/x-column", name); e.dataTransfer.effectAllowed = "move"; onDragStart(); }}
+      onDragEnd={onDragEnd}
+      style={{ padding: "11px 13px", borderBottom: "1px solid var(--line)", position: "relative", cursor: "grab" }}
+      title="Arraste para reordenar a coluna"
+    >
       <span style={{ fontWeight: 800, fontSize: 13, color: "var(--ink)", letterSpacing: 0.2 }}>{name}</span>
       <div className="row" style={{ gap: 6, alignItems: "center" }}>
         <span className="badge" style={{ background: "var(--surface-3)", color: "var(--muted)", fontWeight: 800, minWidth: 22, textAlign: "center" }}>{badge}</span>

@@ -242,6 +242,20 @@ export async function moveColumn(columnId: string, dir: -1 | 1): Promise<void> {
   ]);
 }
 
+// Reordena por DnD: coloca a coluna arrastada antes/depois da coluna alvo. Reindexa tudo.
+export async function reorderColumn(draggedId: string, targetId: string, before: boolean): Promise<void> {
+  if (draggedId === targetId) return;
+  const dragged = await db.mktColumn.findUnique({ where: { id: draggedId }, select: { boardId: true } });
+  if (!dragged) return;
+  const cols = await db.mktColumn.findMany({ where: { boardId: dragged.boardId }, orderBy: { order: "asc" }, select: { id: true } });
+  const without = cols.filter((c) => c.id !== draggedId).map((c) => c.id);
+  const ti = without.indexOf(targetId);
+  if (ti < 0) return;
+  const insertAt = before ? ti : ti + 1;
+  const ordered = [...without.slice(0, insertAt), draggedId, ...without.slice(insertAt)];
+  await db.$transaction(ordered.map((id, i) => db.mktColumn.update({ where: { id }, data: { order: i } })));
+}
+
 // ── Anexos ────────────────────────────────────────────────────────────────────
 export const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024; // 20 MB — guardado no Postgres.
 
