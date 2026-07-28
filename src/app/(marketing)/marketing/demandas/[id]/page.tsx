@@ -18,6 +18,16 @@ function when(iso: string | null): string {
   return `${fullLabel(new Date(iso))} · ${hourLabel(new Date(iso))}`;
 }
 
+// Prazo (campo só nosso): rótulo relativo + cor. Vermelho se venceu, âmbar se
+// falta ≤2d — mesmo corte do alerta do sino. Chamado encerrado não colore.
+function dueInfo(iso: string | null, isOpen: boolean): { dias: string | null; tone: string } {
+  if (!iso) return { dias: null, tone: "inherit" };
+  const diff = Math.round((new Date(iso).getTime() - Date.now()) / 86_400_000);
+  const dias = diff < 0 ? `venceu há ${-diff}d` : diff === 0 ? "vence hoje" : `faltam ${diff}d`;
+  if (!isOpen) return { dias, tone: "inherit" };
+  return { dias, tone: diff < 0 ? "var(--st-risk)" : diff <= 2 ? "var(--st-warn, #b45309)" : "inherit" };
+}
+
 // Avatar circular com iniciais + cor estável derivada do nome.
 function Av({ name, size = 30 }: { name: string; size?: number }) {
   return (
@@ -81,6 +91,8 @@ export default async function DemandaDetailPage({ params }: { params: Promise<{ 
   const ageDays = daysSince(t.dateCreation);
   const requester = t.requesterName || "—";
   const assignees = t.assignees ? t.assignees.split(",").map((s) => s.trim()).filter(Boolean) : [];
+
+  const { dias: dueDias, tone: dueTone } = dueInfo(t.dueAt, isOpen);
 
   return (
     <div className="page">
@@ -185,7 +197,7 @@ export default async function DemandaDetailPage({ params }: { params: Promise<{ 
             )}
           </div>
 
-          <TicketActions glpiId={t.glpiId} statusId={t.statusId} assignable={assignable} />
+          <TicketActions glpiId={t.glpiId} statusId={t.statusId} assignable={assignable} dueAt={t.dueAt} />
         </div>
 
         {/* Painel lateral */}
@@ -199,6 +211,13 @@ export default async function DemandaDetailPage({ params }: { params: Promise<{ 
               <MetaRow label="Prioridade" value={PRIORITY_LABEL[t.priority] ?? "—"} />
               <MetaRow label={isOpen ? "Aberto há" : "Aberto em"} value={isOpen ? (ageDays != null ? `${ageDays} dias` : "—") : when(t.dateCreation)} />
               <MetaRow label="Última mov." value={`${idleDays}d atrás`} />
+              {t.dueAt && (
+                <MetaRow
+                  label="Concluir até"
+                  value={<span style={{ color: dueTone }}>{fullLabel(new Date(t.dueAt))}{isOpen && dueDias ? ` · ${dueDias}` : ""}</span>}
+                  badge
+                />
+              )}
               {stale !== "none" && (
                 <MetaRow label="Parada" value={<span style={{ color: staleColor }}>há {idleDays} dias</span>} badge />
               )}

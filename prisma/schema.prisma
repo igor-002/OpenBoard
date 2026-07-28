@@ -701,8 +701,16 @@ model GlpiTicket {
   isDeleted          Boolean   @default(false) // lixeira do GLPI OU sumiu da API
   syncedAt           DateTime  @default(now())
 
+  // Prazo de conclusão. Vive SÓ aqui: o schema Ticket da API v2.1 não tem
+  // time_to_resolve/due_date (só SLA, que esta instância não usa). Ao definir,
+  // postamos um acompanhamento no chamado pra quem só olha o GLPI também ver.
+  // O sync nunca escreve estas colunas — buildTicketData não as inclui.
+  dueAt              DateTime?
+  dueSetById         String? // loose FK -> User.id (quem definiu o prazo)
+
   @@index([requesterId, statusId])
   @@index([dateCreation])
+  @@index([dueAt])
 }
 
 // Log de cada execução do sync GLPI. Separado do SyncRun (IXC) de propósito: o

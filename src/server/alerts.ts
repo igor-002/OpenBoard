@@ -116,11 +116,55 @@ export async function alertQuadroPrazos(): Promise<number> {
   return criados;
 }
 
+// ── Demandas GLPI: prazo (dueAt) em até 2d ou vencido ────────────────────────
+// O prazo é nosso (a API v2.1 não tem o campo), então o alerta também. Ignora
+// chamado já solucionado/fechado. Notifica quem definiu o prazo + admins — o
+// espelho guarda o requerente como id do GLPI, que não casa com User.id daqui.
+const STATUS_ENCERRADOS = [5, 6];
+
+export async function alertGlpiPrazos(): Promise<number> {
+  const horizonte = new Date(Date.now() + 2 * DAY);
+  const tickets = await db.glpiTicket.findMany({
+    where: {
+      dueAt: { not: null, lte: horizonte },
+      isDeleted: false,
+      statusId: { notIn: STATUS_ENCERRADOS },
+    },
+    select: { glpiId: true, name: true, dueAt: true, dueSetById: true },
+  });
+  if (!tickets.length) return 0;
+  const admins = await adminIds();
+  let criados = 0;
+  for (const t of tickets) {
+    const link = `/marketing/demandas/${t.glpiId}`;
+    if (await jaAlertado("glpi_ticket_deadline", link)) continue;
+    const vencido = t.dueAt! < new Date();
+    const dias = Math.abs(Math.round((+t.dueAt! - Date.now()) / DAY));
+    await notify([t.dueSetById, ...admins], {
+      type: "glpi_ticket_deadline",
+      title: vencido ? `Prazo estourado: ${t.name}` : dias === 0 ? `Vence hoje: ${t.name}` : `Prazo em ${dias}d: ${t.name}`,
+      body: `Chamado #${t.glpiId} no GLPI${vencido ? ` — venceu há ${dias} dia${dias > 1 ? "s" : ""}` : ""}.`,
+      link,
+    });
+    criados++;
+  }
+  return criados;
+}
+
 // Orquestra os checks (chamado pelo scheduler; erros não derrubam o tick).
 export async function runAlertsCheck(): Promise<void> {
   try {
-    const [leads, projetos, cards] = await Promise.all([alertLeadsParados(), alertProjetosPrazo(), alertQuadroPrazos()]);
-    if (leads + projetos + cards > 0) console.log(`[alerts] ${leads} lead(s) parado(s), ${projetos} projeto(s) e ${cards} cartão(ões) com prazo em risco.`);
+    const [leads, projetos, cards, chamados] = await Promise.all([
+      alertLeadsParados(),
+      alertProjetosPrazo(),
+      alertQuadroPrazos(),
+      alertGlpiPrazos(),
+    ]);
+    if (leads + projetos + cards + chamados > 0) {
+      console.log(
+        `[alerts] ${leads} lead(s) parado(s), ${projetos} projeto(s), ${cards} cartão(ões) e ${chamados} chamado(s) com prazo em risco.`,
+      );
+    }
   } catch (e) {
     console.error("[alerts] erro no check:", (e as Error).message);
   }

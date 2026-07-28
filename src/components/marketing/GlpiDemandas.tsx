@@ -7,7 +7,7 @@ import { Icon } from "@/components/ui/Icon";
 import { Card } from "@/components/ui/Card";
 import { StatCard } from "@/components/ui/Stat";
 import { fullLabel, hourLabel } from "@/lib/format";
-import { statusColors, PRIORITY_LABEL, staleDays, staleLevel } from "@/lib/glpi-format";
+import { statusColors, PRIORITY_LABEL, staleDays, staleLevel, dueBadge } from "@/lib/glpi-format";
 import { useSyncRun } from "@/lib/useSyncRun";
 import { emitToast } from "@/lib/toast";
 import { runGlpiSyncAction, updateStatusAction } from "@/app/(marketing)/marketing/demandas/actions";
@@ -153,6 +153,7 @@ export function GlpiDemandas({
                     const days = staleDays(t.dateMod, t.dateCreation);
                     const stale = staleLevel(t.statusId, days);
                     const staleColor = stale === "risk" ? "var(--st-risk)" : "var(--st-warn, #b45309)";
+                    const due = dueBadge(t.dueAt, t.statusId);
                     return (
                       <tr key={t.glpiId}>
                         <td className="muted" style={{ width: 56 }}>{t.glpiId}</td>
@@ -165,6 +166,19 @@ export function GlpiDemandas({
                               title={`Sem movimentação há ${days} dias`}
                             >
                               <Icon name="clock" size={11} /> parada {days}d
+                            </span>
+                          )}
+                          {due && due.level !== "none" && (
+                            <span
+                              className="badge"
+                              style={{
+                                marginLeft: 8,
+                                color: due.level === "risk" ? "var(--st-risk)" : "var(--st-warn, #b45309)",
+                                background: "color-mix(in srgb, currentColor 12%, transparent)",
+                              }}
+                              title={due.title}
+                            >
+                              <Icon name="calendar" size={11} /> {due.label}
                             </span>
                           )}
                         </td>
@@ -290,6 +304,7 @@ function KanbanBoard({ tickets }: { tickets: GlpiReport["tickets"] }) {
                     const days = staleDays(t.dateMod, t.dateCreation);
                     const stale = staleLevel(t.statusId, days);
                     const staleColor = stale === "risk" ? "var(--st-risk)" : "var(--st-warn, #b45309)";
+                    const due = dueBadge(t.dueAt, t.statusId);
                     return (
                       <div
                         key={t.glpiId}
@@ -301,11 +316,26 @@ function KanbanBoard({ tickets }: { tickets: GlpiReport["tickets"] }) {
                       >
                         <div className="row between" style={{ alignItems: "center", marginBottom: 4 }}>
                           <Link href={`/marketing/demandas/${t.glpiId}`} draggable={false} className="muted" style={{ fontSize: 11.5 }} onClick={(e) => e.stopPropagation()}>#{t.glpiId}</Link>
-                          {stale !== "none" && (
-                            <span className="badge" style={{ color: staleColor, background: "color-mix(in srgb, currentColor 12%, transparent)", fontSize: 10.5 }} title={`Sem movimentação há ${days} dias`}>
-                              <Icon name="clock" size={10} /> {days}d
-                            </span>
-                          )}
+                          <span className="row gap8" style={{ alignItems: "center" }}>
+                            {due && due.level !== "none" && (
+                              <span
+                                className="badge"
+                                style={{
+                                  color: due.level === "risk" ? "var(--st-risk)" : "var(--st-warn, #b45309)",
+                                  background: "color-mix(in srgb, currentColor 12%, transparent)",
+                                  fontSize: 10.5,
+                                }}
+                                title={due.title}
+                              >
+                                <Icon name="calendar" size={10} /> {due.label}
+                              </span>
+                            )}
+                            {stale !== "none" && (
+                              <span className="badge" style={{ color: staleColor, background: "color-mix(in srgb, currentColor 12%, transparent)", fontSize: 10.5 }} title={`Sem movimentação há ${days} dias`}>
+                                <Icon name="clock" size={10} /> {days}d
+                              </span>
+                            )}
+                          </span>
                         </div>
                         <Link href={`/marketing/demandas/${t.glpiId}`} draggable={false} onClick={(e) => e.stopPropagation()} style={{ display: "block", fontWeight: 600, fontSize: 13, color: "var(--ink)", lineHeight: 1.35, marginBottom: 6, textDecoration: "none" }}>
                           {t.name}

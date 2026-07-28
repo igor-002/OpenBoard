@@ -50,6 +50,7 @@ export interface TicketRow {
   dateCreation: string; // ISO
   dateMod: string | null;
   resolutionDuration: number | null;
+  dueAt: string | null; // prazo — campo só nosso (a API v2.1 do GLPI não tem)
 }
 
 export interface UserTab {
@@ -203,6 +204,7 @@ export async function getGlpiReport(opts: { requesterId?: number | null; status?
     dateCreation: t.dateCreation.toISOString(),
     dateMod: t.dateMod?.toISOString() ?? null,
     resolutionDuration: t.resolutionDuration,
+    dueAt: t.dueAt?.toISOString() ?? null,
   }));
 
   const lastRun = await db.glpiSyncRun.findFirst({ orderBy: { startedAt: "desc" } });

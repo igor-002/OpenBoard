@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/auth";
 import { requireModuleUser } from "@/lib/permissions";
 import { runGlpiSync } from "@/server/glpi/sync";
-import { addFollowup, createTicket, updateStatus, setAssignee, removeAssignee, type CreateTicketInput } from "@/server/glpi/write";
+import { addFollowup, createTicket, updateStatus, setAssignee, removeAssignee, setTicketDue, type CreateTicketInput } from "@/server/glpi/write";
 
 export type GlpiSyncState = { ok?: boolean; error?: string };
 
@@ -43,11 +43,24 @@ export async function addFollowupAction(glpiId: number, content: string, isPriva
 }
 
 export async function createDemandaAction(input: CreateTicketInput): Promise<WriteState> {
-  await requireModuleUser("marketing");
+  const user = await requireModuleUser("marketing");
   try {
-    const id = await createTicket(input);
+    // dueSetById vem do usuário logado — o que o cliente mandar é descartado.
+    const id = await createTicket({ ...input, dueSetById: user.id });
     revalidate(id ?? undefined);
     return { ok: true, id: id ?? undefined };
+  } catch (e) {
+    return fail(e);
+  }
+}
+
+// Define/remove o prazo de conclusão (vive no espelho local; anuncia no GLPI).
+export async function setPrazoAction(glpiId: number, dueAt: string | null): Promise<WriteState> {
+  const user = await requireModuleUser("marketing");
+  try {
+    await setTicketDue(glpiId, dueAt, user.id);
+    revalidate(glpiId);
+    return { ok: true };
   } catch (e) {
     return fail(e);
   }

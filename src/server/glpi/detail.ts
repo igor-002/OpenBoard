@@ -3,6 +3,7 @@
 import "server-only";
 import { glpiGetOne, glpiGet, glpiDate, glpiConfigured } from "@/lib/glpi";
 import { htmlToText } from "@/lib/glpi-format";
+import { db } from "@/lib/db";
 
 type Ref = { id: number; name: string } | null;
 type RawTicket = {
@@ -69,6 +70,7 @@ export interface TicketDetail {
   dateMod: string | null;
   dateSolve: string | null;
   dateClose: string | null;
+  dueAt: string | null; // prazo — só existe no espelho local (a API v2.1 não tem o campo)
   timeline: TimelineEntry[];
 }
 
@@ -121,6 +123,9 @@ export async function getTicketDetail(glpiId: number): Promise<TicketDetail | nu
     timeline = [];
   }
 
+  // Prazo mora só no espelho local — o chamado ao vivo não tem esse campo.
+  const local = await db.glpiTicket.findUnique({ where: { glpiId }, select: { dueAt: true } });
+
   return {
     glpiId: t.id,
     name: t.name ?? "",
@@ -141,6 +146,7 @@ export async function getTicketDetail(glpiId: number): Promise<TicketDetail | nu
     dateMod: glpiDate(t.date_mod)?.toISOString() ?? null,
     dateSolve: glpiDate(t.date_solve)?.toISOString() ?? null,
     dateClose: glpiDate(t.date_close)?.toISOString() ?? null,
+    dueAt: local?.dueAt?.toISOString() ?? null,
     timeline,
   };
 }

@@ -1,6 +1,6 @@
 import { requireUser } from "@/lib/auth";
 import { getGlpiReport, glpiConfigured, type StatusFilter } from "@/server/glpi/queries";
-import { getTrackedUsers } from "@/server/glpi/users";
+import { getTrackedUsers, getAssignableUsers } from "@/server/glpi/users";
 import { Icon } from "@/components/ui/Icon";
 import { GlpiDemandas } from "@/components/marketing/GlpiDemandas";
 import { NovaDemanda } from "@/components/marketing/NovaDemanda";
@@ -18,12 +18,13 @@ export default async function DemandasPage({
   const status = (VALID_STATUS.includes(sp.status as StatusFilter) ? sp.status : "abertos") as StatusFilter;
   const configured = glpiConfigured();
 
-  const [report, trackedUsers] = configured
+  const [report, trackedUsers, assignable] = configured
     ? await Promise.all([
         getGlpiReport({ requesterId: Number.isInteger(requesterId) ? requesterId : null, status }),
         getTrackedUsers(),
+        getAssignableUsers(),
       ])
-    : [null, []];
+    : [null, [], []];
 
   return (
     <div className="page">
@@ -35,7 +36,7 @@ export default async function DemandasPage({
             sincronizado automaticamente.
           </p>
         </div>
-        {configured && trackedUsers.length > 0 && <NovaDemanda trackedUsers={trackedUsers} />}
+        {configured && trackedUsers.length > 0 && <NovaDemanda trackedUsers={trackedUsers} assignable={assignable} />}
       </div>
 
       {!configured ? (

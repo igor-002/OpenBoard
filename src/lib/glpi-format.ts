@@ -79,3 +79,19 @@ export function staleLevel(statusId: number, days: number): StaleLevel {
   if (days >= 3) return "warn";
   return "none";
 }
+
+// Prazo de conclusão (campo só do OpenBoard — a API v2.1 do GLPI não tem due date).
+// Vencido = risco, ≤2d = atenção — mesmo corte do alerta do sino. Chamado já
+// encerrado não sinaliza. `null` quando não há prazo.
+export function dueBadge(
+  dueAtIso: string | null,
+  statusId: number,
+): { level: StaleLevel; label: string; title: string } | null {
+  if (!dueAtIso) return null;
+  const diff = Math.round((new Date(dueAtIso).getTime() - Date.now()) / 86_400_000);
+  const label = diff < 0 ? `venceu ${-diff}d` : diff === 0 ? "vence hoje" : `${diff}d`;
+  const title =
+    diff < 0 ? `Prazo venceu há ${-diff} dia(s)` : diff === 0 ? "Prazo vence hoje" : `Faltam ${diff} dia(s) para o prazo`;
+  if (!isOpenStatus(statusId)) return { level: "none", label, title };
+  return { level: diff < 0 ? "risk" : diff <= 2 ? "warn" : "none", label, title };
+}
