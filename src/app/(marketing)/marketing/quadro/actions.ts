@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/auth";
+import { db } from "@/lib/db";
 import {
   ensureDefaultBoard,
   createCard,
@@ -123,6 +124,26 @@ export async function uploadAttachmentAction(form: FormData): Promise<Attachment
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Falha no upload." };
   }
+}
+
+export type GlpiHit = { id: number; name: string; statusName: string };
+
+// Autocomplete pro campo GLPI do card: busca no espelho local por nº ou título.
+export async function searchGlpiTicketsAction(q: string): Promise<GlpiHit[]> {
+  await requireUser();
+  const term = q.trim();
+  if (term.length < 2) return [];
+  const n = Number(term);
+  const isNum = Number.isInteger(n) && n > 0;
+  const rows = await db.glpiTicket.findMany({
+    where: isNum
+      ? { OR: [{ glpiId: n }, { name: { contains: term, mode: "insensitive" } }] }
+      : { name: { contains: term, mode: "insensitive" } },
+    select: { glpiId: true, name: true, statusName: true },
+    orderBy: { glpiId: "desc" },
+    take: 8,
+  });
+  return rows.map((r) => ({ id: r.glpiId, name: r.name, statusName: r.statusName }));
 }
 
 export async function deleteAttachmentAction(id: string): Promise<BoardActionState> {

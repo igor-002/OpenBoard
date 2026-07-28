@@ -18,6 +18,8 @@ import {
   createLabelAction,
   uploadAttachmentAction,
   deleteAttachmentAction,
+  searchGlpiTicketsAction,
+  type GlpiHit,
 } from "@/app/(marketing)/marketing/quadro/actions";
 
 const LABEL_SWATCHES = ["#f59e0b", "#f2691f", "#e5484d", "#16a34a", "#0d9488", "#2d6ff2", "#7a5ae0", "#db2777", "#6b7280"];
@@ -500,9 +502,9 @@ function CardModal({
               <label>Prazo</label>
               <input className="input" type="date" value={due} onChange={(e) => setDue(e.target.value)} />
             </div>
-            <div className="field" style={{ flex: "1 1 160px" }}>
-              <label>Chamado GLPI (nº)</label>
-              <input className="input" inputMode="numeric" value={glpiId} onChange={(e) => setGlpiId(e.target.value)} placeholder="ex.: 36130" />
+            <div className="field" style={{ flex: "1 1 220px" }}>
+              <label>Chamado GLPI</label>
+              <GlpiPicker value={glpiId} onChange={setGlpiId} />
             </div>
           </div>
 
@@ -568,6 +570,64 @@ function CardModal({
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+// ── Autocomplete de chamado GLPI (busca no espelho local) ──────────────────────
+// Aceita nº direto (vira glpiId na hora) OU busca por título e escolhe na lista.
+function GlpiPicker({ value, onChange }: { value: string; onChange: (id: string) => void }) {
+  const [label, setLabel] = useState(value ? `#${value}` : "");
+  const [results, setResults] = useState<GlpiHit[]>([]);
+  const [open, setOpen] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function search(term: string) {
+    if (term.trim().length < 2) { setResults([]); return; }
+    searchGlpiTicketsAction(term).then((r) => { setResults(r); setOpen(true); }).catch(() => {});
+  }
+  function onInput(v: string) {
+    setLabel(v);
+    const t = v.trim();
+    const n = Number(t);
+    onChange(Number.isInteger(n) && n > 0 ? t : ""); // nº puro linka direto; texto livre só linka ao escolher
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => search(t), 250);
+  }
+  function pick(h: GlpiHit) {
+    onChange(String(h.id));
+    setLabel(`#${h.id} · ${h.name}`);
+    setResults([]);
+    setOpen(false);
+  }
+  return (
+    <div style={{ position: "relative" }}>
+      <input
+        className="input"
+        value={label}
+        placeholder="nº ou título do chamado…"
+        onChange={(e) => onInput(e.target.value)}
+        onFocus={() => { if (results.length) setOpen(true); }}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+      />
+      {open && results.length > 0 && (
+        <div style={{ position: "absolute", top: "100%", left: 0, right: 0, zIndex: 10, background: "var(--surface, #fff)", border: "1px solid var(--line)", borderRadius: "var(--r-md)", marginTop: 4, maxHeight: 220, overflowY: "auto", boxShadow: "var(--shadow-md, 0 6px 20px rgba(0,0,0,.15))" }}>
+          {results.map((h) => (
+            <button
+              key={h.id}
+              type="button"
+              onMouseDown={(e) => e.preventDefault()} // evita blur antes do click
+              onClick={() => pick(h)}
+              className="row"
+              style={{ width: "100%", textAlign: "left", gap: 8, padding: "7px 10px", background: "transparent", border: "none", borderBottom: "1px solid var(--line)", cursor: "pointer", alignItems: "center" }}
+            >
+              <span className="muted" style={{ fontWeight: 700, fontSize: 12, flex: "0 0 auto" }}>#{h.id}</span>
+              <span style={{ fontSize: 12.5, flex: 1, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{h.name}</span>
+              {h.statusName && <span className="muted" style={{ fontSize: 10.5, flex: "0 0 auto" }}>{h.statusName}</span>}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
