@@ -11,7 +11,6 @@ import { Modal } from "@/components/ui/Modal";
 import { emitToast } from "@/lib/toast";
 import { statusColors } from "@/lib/glpi-format";
 import type { BoardDTO, CardDTO, LabelDTO, AttachmentDTO } from "@/server/marketing/board";
-import type { GlpiUserOpt } from "@/server/glpi/users";
 import {
   createCardAction,
   updateCardAction,
@@ -43,25 +42,11 @@ const GLPI_STATUS_OPTS: { id: number; label: string }[] = [
 const GLPI_STATUS_LABEL: Record<number, string> = Object.fromEntries(GLPI_STATUS_OPTS.map((s) => [s.id, s.label]));
 const normalizaStatus = (id: number | undefined) => (id === 3 ? 2 : id);
 
-// O que o GLPI exige pra chegar num status. Como `status` não é gravável na v2.1,
-// a gente provoca a CAUSA: atribuir alguém vira "Em atendimento", tirar o
-// responsável volta pra "Novo", registrar solução vira "Solucionado". Pendente e
-// Fechado não têm caminho — `null`. Espelha `statusPrecisaDe` do servidor.
-function statusExige(statusId: number): "nada" | "responsavel" | "solucao" | null {
-  if (statusId === 1) return "nada";
-  if (statusId === 2 || statusId === 3) return "responsavel";
-  if (statusId === 5) return "solucao";
-  return null;
-}
+// Só concluir precisa de dado extra: a solução. Os outros status a API v1 grava
+// direto. Espelha `statusPrecisaDe` do servidor.
+const statusExige = (statusId: number): "nada" | "solucao" => (statusId === 5 ? "solucao" : "nada");
 
-type StatusPrompt = {
-  cardId: string;
-  glpiId: number;
-  toColumnId: string;
-  index: number;
-  colName: string;
-  exige: "responsavel" | "solucao";
-};
+type StatusPrompt = { cardId: string; glpiId: number; toColumnId: string; index: number; colName: string };
 
 const LABEL_SWATCHES = ["#f59e0b", "#f2691f", "#e5484d", "#16a34a", "#0d9488", "#2d6ff2", "#7a5ae0", "#db2777", "#6b7280"];
 
@@ -86,15 +71,7 @@ function fmtSize(n: number): string {
 
 type ModalState = { mode: "create"; columnId: string } | { mode: "edit"; card: CardDTO };
 
-export function QuadroBoard({
-  board,
-  openCardId = null,
-  assignable = [],
-}: {
-  board: BoardDTO;
-  openCardId?: string | null;
-  assignable?: GlpiUserOpt[];
-}) {
+export function QuadroBoard({ board, openCardId = null }: { board: BoardDTO; openCardId?: string | null }) {
   const router = useRouter();
   const [, start] = useTransition();
   // Chegou por link de notificação (?card=<id>) → abre o card direto (init lazy, sem efeito).
@@ -169,22 +146,11 @@ export function QuadroBoard({
     const alvo = toCol?.glpiStatusId ?? null;
     const escreveGlpi = !sameCol && card?.glpiId != null && alvo != null && normalizaStatus(card.glpi?.statusId) !== alvo;
 
-    if (escreveGlpi) {
-      const exige = statusExige(alvo!);
-      // 4 Pendente e 6 Fechado não têm como ser aplicados pela API v2.1.
-      if (exige === null) {
-        emitToast({
-          variant: "error",
-          title: `Não dá pra mover para ${toCol!.name}`,
-          sub: `A API do GLPI não permite marcar como “${GLPI_STATUS_LABEL[alvo!]}” — só pela tela do GLPI.`,
-        });
-        return;
-      }
-      // Precisa de um dado a mais: pergunta antes de mover.
-      if (exige !== "nada") {
-        setStatusPrompt({ cardId: d.id, glpiId: card!.glpiId!, toColumnId, index, colName: toCol!.name, exige });
-        return;
-      }
+    // Concluir registra a SOLUÇÃO no GLPI (é ela que leva o chamado a Solucionado
+    // e fica na linha do tempo), então pede o texto antes de mover.
+    if (escreveGlpi && statusExige(alvo!) === "solucao") {
+      setStatusPrompt({ cardId: d.id, glpiId: card!.glpiId!, toColumnId, index, colName: toCol!.name });
+      return;
     }
 
     emitToast({
@@ -363,7 +329,6 @@ export function QuadroBoard({
       {statusPrompt && (
         <StatusPromptModal
           prompt={statusPrompt}
-          assignable={assignable}
           onCancel={() => setStatusPrompt(null)}
           onConfirm={(extra) => {
             const p = statusPrompt;
@@ -391,67 +356,44 @@ export function QuadroBoard({
   );
 }
 
-// ── Pergunta o que o GLPI exige antes de mover ────────────────────────────────
-// "Em atendimento" precisa de um responsável e "Solucionado" precisa do texto da
-// solução, porque é ATRIBUIR e RESOLVER que mudam o status — não existe gravar
-// status direto na v2.1.
+// ── Concluir: pede a solução ─────────────────────────────────────────────────
+// A v1 até aceitaria marcar "Solucionado" direto, mas aí o chamado ficaria
+// resolvido SEM registro do que foi feito. Registrar a solução leva o status a 5
+// sozinho e ainda deixa o histórico — por isso o texto é pedido aqui.
 function StatusPromptModal({
   prompt,
-  assignable,
   onCancel,
   onConfirm,
 }: {
   prompt: StatusPrompt;
-  assignable: GlpiUserOpt[];
   onCancel: () => void;
-  onConfirm: (extra: { assigneeId?: number; solucao?: string }) => void;
+  onConfirm: (extra: { solucao: string }) => void;
 }) {
-  const [assigneeId, setAssigneeId] = useState(assignable[0] ? String(assignable[0].id) : "");
   const [solucao, setSolucao] = useState("");
-  const pedeResponsavel = prompt.exige === "responsavel";
-  const podeConfirmar = pedeResponsavel ? !!assigneeId : solucao.trim().length > 0;
 
   return (
     <Modal title={`Mover para ${prompt.colName}`} onClose={onCancel} maxWidth={470}>
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         <p className="muted" style={{ margin: 0, fontSize: 12.5, lineHeight: 1.5 }}>
-          {pedeResponsavel
-            ? `No GLPI o chamado #${prompt.glpiId} entra em atendimento quando ganha um responsável.`
-            : `No GLPI o chamado #${prompt.glpiId} é dado como solucionado quando recebe uma solução.`}
+          No GLPI o chamado #{prompt.glpiId} é dado como solucionado ao receber uma solução.
         </p>
-
-        {pedeResponsavel ? (
-          <div>
-            <label className="muted" style={{ fontSize: 12, fontWeight: 600 }}>Atribuir a</label>
-            <select className="input" value={assigneeId} onChange={(e) => setAssigneeId(e.target.value)} style={{ width: "100%", marginTop: 6 }}>
-              {assignable.length === 0 && <option value="">(nenhum usuário disponível)</option>}
-              {assignable.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
-            </select>
-          </div>
-        ) : (
-          <div>
-            <label className="muted" style={{ fontSize: 12, fontWeight: 600 }}>Solução</label>
-            <textarea
-              className="input"
-              autoFocus
-              value={solucao}
-              onChange={(e) => setSolucao(e.target.value)}
-              rows={4}
-              placeholder="O que foi feito para resolver…"
-              style={{ width: "100%", marginTop: 6, resize: "vertical" }}
-            />
-            <span className="muted" style={{ fontSize: 11.5 }}>Fica registrado na linha do tempo do chamado.</span>
-          </div>
-        )}
-
+        <div>
+          <label className="muted" style={{ fontSize: 12, fontWeight: 600 }}>Solução</label>
+          <textarea
+            className="input"
+            autoFocus
+            value={solucao}
+            onChange={(e) => setSolucao(e.target.value)}
+            rows={4}
+            placeholder="O que foi feito para resolver…"
+            style={{ width: "100%", marginTop: 6, resize: "vertical" }}
+          />
+          <span className="muted" style={{ fontSize: 11.5 }}>Fica registrado na linha do tempo do chamado.</span>
+        </div>
         <div className="row gap8" style={{ justifyContent: "flex-end", marginTop: 4 }}>
           <button className="btn btn-ghost" onClick={onCancel}>Cancelar</button>
-          <button
-            className="btn btn-primary"
-            disabled={!podeConfirmar}
-            onClick={() => onConfirm(pedeResponsavel ? { assigneeId: Number(assigneeId) } : { solucao })}
-          >
-            {pedeResponsavel ? "Atribuir e mover" : "Concluir e mover"}
+          <button className="btn btn-primary" disabled={!solucao.trim()} onClick={() => onConfirm({ solucao })}>
+            Concluir e mover
           </button>
         </div>
       </div>

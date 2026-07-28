@@ -1,6 +1,5 @@
 import { requireUser } from "@/lib/auth";
 import { getBoard } from "@/server/marketing/board";
-import { getAssignableUsers } from "@/server/glpi/users";
 import { QuadroBoard } from "@/components/marketing/QuadroBoard";
 
 export const dynamic = "force-dynamic";
@@ -15,12 +14,7 @@ export default async function QuadroPage({
   // ?card=<id> (link da notificação de prazo) abre o card; ?concluidas=1 revela as
   // concluídas antigas, escondidas por padrão.
   const { card, concluidas } = await searchParams;
-  // `assignable` alimenta o "atribuir a quem?" ao mover um chamado pra coluna de
-  // atendimento — no GLPI é a atribuição que muda o status, não um campo de status.
-  const [board, assignable] = await Promise.all([
-    getBoard({ includeDone: concluidas === "1" }),
-    getAssignableUsers(),
-  ]);
+  const board = await getBoard({ includeDone: concluidas === "1" });
 
   return (
     <div className="page">
@@ -33,7 +27,7 @@ export default async function QuadroPage({
           </p>
         </div>
       </div>
-      <QuadroBoard board={board} openCardId={card ?? null} assignable={assignable} />
+      <QuadroBoard board={board} openCardId={card ?? null} />
     </div>
   );
 }

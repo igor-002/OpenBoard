@@ -3,7 +3,8 @@
 // Requer que o perfil do usuário de serviço tenha DIREITO DE ESCRITA no GLPI
 // (o v1 era só-leitura); sem isso a API responde ERROR_RIGHT_MISSING.
 import "server-only";
-import { glpiPost, glpiPatch, glpiDelete, glpiGet, DEFAULT_ENTITY_ID, TRACKED_USER_IDS } from "@/lib/glpi";
+import { glpiPost, glpiDelete, DEFAULT_ENTITY_ID, TRACKED_USER_IDS } from "@/lib/glpi";
+import { v1SetTicketStatus } from "@/lib/glpi-v1";
 import { db } from "@/lib/db";
 import { syncOneTicket } from "./sync";
 
@@ -98,20 +99,21 @@ function parseDue(v: string | null | undefined): Date | null {
 
 // Muda o status do chamado (1 Novo, 2 Em atend., 4 Pendente, 5 Solucionado, 6 Fechado).
 //
-// CONFERE O RESULTADO. A API v2.1 marca `status.id` como readOnly: o PATCH volta
-// 200 OK e o status NÃO muda — verificado com 5 formatos de payload × 5 status de
-// destino (`urgency` no mesmo PATCH muda normal, então não é permissão; pela tela
-// do GLPI o mesmo usuário consegue). Sem esta conferência a escrita "dá certo"
-// silenciosamente, o espelho ressincroniza com o valor velho e quem chamou acha
-// que mudou — foi assim que o arrastar do quadro passou a mentir.
+// Vai pela API v1: a V2.1 marca `status.id` como readOnly e o PATCH devolve 200
+// OK sem mudar nada — verificado com 5 formatos de payload × 5 status de destino
+// (no MESMO PATCH o `urgency` muda normal, então não era permissão). Sem
+// conferência isso "dava certo" em silêncio: o espelho ressincronizava com o
+// valor velho e o quadro passava a mentir. `v1SetTicketStatus` relê e reclama.
+//
+// Usado pelo kanban de /marketing/demandas e pelo botão Aplicar do detalhe. O
+// quadro usa `aplicarStatus`, que registra solução de verdade ao concluir.
 export async function updateStatus(glpiId: number, statusId: number): Promise<void> {
-  await glpiPatch(`/Assistance/Ticket/${glpiId}`, { status: { id: statusId } });
+  await v1SetTicketStatus(glpiId, statusId);
   await syncOneTicket(glpiId); // relê o chamado → espelho com o status REAL de agora
   const agora = await db.glpiTicket.findUnique({ where: { glpiId }, select: { statusId: true } });
   if (agora && agora.statusId !== statusId && !mesmoAtendimento(agora.statusId, statusId)) {
     throw new Error(
-      `O GLPI aceitou a requisição mas manteve o status em "${STATUS_NOME[agora.statusId] ?? agora.statusId}". ` +
-        `A API v2.1 não permite gravar status direto.`,
+      `A escrita foi aceita mas o GLPI manteve o status em "${STATUS_NOME[agora.statusId] ?? agora.statusId}".`,
     );
   }
 }
@@ -128,43 +130,31 @@ const STATUS_NOME: Record<number, string> = {
   6: "Fechado",
 };
 
-// ── Status pelos MECANISMOS do GLPI ──────────────────────────────────────────
-// Como `status` não é gravável, o jeito certo é provocar a CAUSA e deixar o GLPI
-// calcular o status. Testado nesta instância em 2026-07-28:
+// ── Mudança de status ────────────────────────────────────────────────────────
+// A V2.1 não grava `status` (readOnly no schema), então quem escreve é a API v1
+// — testada nesta instância gravando 1, 2, 4 e 6.
 //
-//   remover o atribuído          → 1 Novo
-//   atribuir um técnico          → 2 Em atendimento
-//   registrar uma solução        → 5 Solucionado
-//
-// 4 (Pendente) e 6 (Fechado) não têm mecanismo equivalente na v2.1 — dependem da
-// API v1 (ver glpi-api-v1-referencia.md). Uma vez Solucionado, atribuir/desatribuir
-// deixa de mexer no status: o GLPI para de recalcular depois da resolução.
-export type StatusMecanismo =
-  | { status: 1 }
-  | { status: 2; assigneeId: number }
-  | { status: 5; solucao: string };
+// EXCEÇÃO deliberada: "Solucionado" NÃO passa pela v1. A v1 até aceita marcar 5
+// direto, mas isso deixa o chamado resolvido SEM registro de solução — some a
+// informação de o que foi feito, que é justamente o que o time consulta depois.
+// Registrar a solução (`Timeline/Solution`) já leva o status a 5 sozinho, então o
+// caminho nativo entrega as duas coisas. Por isso Concluído pede o texto.
+export type StatusMecanismo = { status: number } | { status: 5; solucao: string };
 
-export function statusPrecisaDe(statusId: number): "nada" | "responsavel" | "solucao" | null {
-  if (statusId === 1) return "nada";
-  if (statusId === 2 || statusId === 3) return "responsavel";
+// O que a UI precisa coletar antes de mover. `null` nunca acontece hoje — a v1
+// cobre todos os status —, mas mantém a porta pro caso de algum ficar sem caminho.
+export function statusPrecisaDe(statusId: number): "nada" | "solucao" | null {
   if (statusId === 5) return "solucao";
-  return null; // 4 e 6: sem caminho na v2.1
+  return "nada";
 }
 
 export async function aplicarStatus(glpiId: number, m: StatusMecanismo): Promise<void> {
-  if (m.status === 1) {
-    const atuais = await glpiGet<{ id: number; role: string }>(`/Assistance/Ticket/${glpiId}/TeamMember`);
-    const atribuidos = atuais.data.filter((x) => String(x.role ?? "").toLowerCase().includes("assigned"));
-    if (!atribuidos.length) throw new Error("O chamado já está sem responsável — nada a fazer pra voltar a Novo.");
-    for (const a of atribuidos) {
-      await glpiDelete(`/Assistance/Ticket/${glpiId}/TeamMember`, { type: "User", id: a.id, role: "assigned" });
-    }
-  } else if (m.status === 2) {
-    await addTeamMember(glpiId, m.assigneeId, "assigned");
-  } else {
-    const texto = m.solucao.trim();
+  if (m.status === 5) {
+    const texto = "solucao" in m ? m.solucao.trim() : "";
     if (!texto) throw new Error("A solução não pode ficar vazia.");
     await glpiPost(`/Assistance/Ticket/${glpiId}/Timeline/Solution`, { content: texto });
+  } else {
+    await v1SetTicketStatus(glpiId, m.status);
   }
 
   await syncOneTicket(glpiId);

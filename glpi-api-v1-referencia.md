@@ -25,9 +25,16 @@ O que a V2.1 **consegue** fazer (testado, funcionando):
 Faltam **4 Pendente** e **6 Fechado** — sem mecanismo nativo conhecido na V2.1.
 É esse buraco que a v1 pode fechar, via `PUT /Ticket/{id}` com `input.status`.
 
-> ⚠️ Hipótese ainda **NÃO validada**: sem o App-Token não dá pra testar. Existe
-> chance real de a v1 também recusar 1 e 2, porque no núcleo do GLPI esses dois são
-> **derivados da atribuição**, não campo livre. Testar antes de desenhar em cima.
+> ✅ **VALIDADO em 2026-07-28.** A v1 grava **todos** os status testados — 1, 2, 4 e 6
+> — com `PUT /Ticket/{id}` `{"input":{"status":N}}`, respondendo
+> `[{"36220":true,"message":""}]` e o valor realmente mudando na releitura.
+> É o que `src/lib/glpi-v1.ts` usa.
+>
+> **Exceção de projeto:** "Solucionado" (5) NÃO passa pela v1, embora ela aceite.
+> Marcar 5 direto deixa o chamado resolvido **sem registro de solução** — some o
+> que foi feito, justamente o que o time consulta depois. `Timeline/Solution` já
+> leva o status a 5 e ainda grava o histórico, então concluir usa o caminho nativo
+> e pede o texto da solução.
 
 ---
 
@@ -215,16 +222,21 @@ itemtype, inclusive `ITILCategory` — ver seção 5.
 
 ---
 
-## 6. Configuração pendente (lado GLPI)
+## 6. Configuração (lado GLPI) — FEITA em dev, PENDENTE na VPS
 
-1. `Configurar > Geral > API` → habilitar API REST
-2. Criar cliente de API (ex.: "OpenBoard") e gerar o **App-Token**
-3. Restringir o cliente pelo **IPv4 da VPS**
-4. Guardar como `GLPI_APP_TOKEN` no `.env` / `.env.production` — **nunca no código**
+1. `Configurar > Geral > API` → API REST habilitada ✅
+2. Cliente de API criado → **App-Token** ✅ (`GLPI_APP_TOKEN`)
+3. `Administração > Usuários > integracaomkt` → campo **"Token de API"** →
+   Re-gerar + salvar ✅ (`GLPI_USER_TOKEN`)
+4. **Perfil padrão** do `integracaomkt` = Super-Admin ✅ — a API entra com o perfil
+   PADRÃO, não com o mais alto; foi essa a causa do `ERROR_RIGHT_MISSING` antigo
+5. [ ] Repetir os dois tokens no `.env.production` da VPS
+6. [ ] Restringir o cliente de API pelo **IPv4 da VPS** (depois de validar em prod —
+   antes disso o teste de fora falharia com `ERROR_NOT_ALLOWED_IP`)
 
-Reaproveitar `GLPI_USERNAME` / `GLPI_PASSWORD` que já existem, ou (melhor) gerar um
-**user_token** (Remote access key) pro usuário de serviço e usar `GLPI_USER_TOKEN`,
-evitando trafegar senha.
+Login por usuário/senha está **desabilitado** nesta instância
+(`ERROR_LOGIN_WITH_CREDENTIALS_DISABLED`), então é `user_token` obrigatoriamente —
+o que também evita trafegar a senha.
 
 > Segurança: `client_secret` do OAuth e a senha do `integracaomkt` já vazaram em
 > chat — rotacionar os dois segue pendente no roadmap. Não repetir o padrão com o

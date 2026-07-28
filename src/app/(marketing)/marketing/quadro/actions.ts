@@ -88,7 +88,7 @@ export async function moveCardAction(
   cardId: string,
   toColumnId: string,
   toIndex: number,
-  extra?: { assigneeId?: number; solucao?: string },
+  extra?: { solucao?: string },
 ): Promise<BoardActionState> {
   await requireUser();
   let escrever: { glpiId: number; statusId: number } | null = null;
@@ -101,25 +101,12 @@ export async function moveCardAction(
   if (!escrever) return { ok: true };
 
   const { glpiId, statusId } = escrever;
-  const exige = statusPrecisaDe(statusId);
-  if (exige === null) {
-    return {
-      ok: false,
-      error:
-        `Card movido, mas o chamado #${glpiId} continua no status anterior: a API do GLPI não permite ` +
-        `marcar como "${statusId === 4 ? "Pendente" : "Fechado"}" — isso só pela tela do GLPI.`,
-    };
-  }
-
   let mecanismo: StatusMecanismo;
-  if (exige === "responsavel") {
-    if (!extra?.assigneeId) return { ok: false, error: "Escolha o responsável para colocar o chamado em atendimento." };
-    mecanismo = { status: 2, assigneeId: extra.assigneeId };
-  } else if (exige === "solucao") {
+  if (statusPrecisaDe(statusId) === "solucao") {
     if (!extra?.solucao?.trim()) return { ok: false, error: "Descreva a solução para concluir o chamado." };
     mecanismo = { status: 5, solucao: extra.solucao };
   } else {
-    mecanismo = { status: 1 };
+    mecanismo = { status: statusId };
   }
 
   try {
