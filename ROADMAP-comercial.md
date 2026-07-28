@@ -80,6 +80,31 @@ Upgrade envia: CPF/CNPJ, razão social, plano antigo, plano novo, valor a adicio
 - [x] tsc + eslint limpos
 - [ ] Teste manual no browser (Igor) + push + deploy VPS
 
+## 11. Status do GLPI pela API v1 (2026-07-28)  ✅ FUNCIONANDO EM PROD
+Arrastar card no quadro "dava certo" e o card voltava sozinho. Causa: a **V2.1 não
+grava `status`** — `status.id` é `readOnly` no OpenAPI e o PATCH devolve **200 OK
+sem mudar nada**, em 5 formatos de payload × 5 status. Não era permissão: no MESMO
+PATCH o `urgency` mudava, e pela tela do GLPI o `integracaomkt` conseguia.
+- [x] `src/lib/glpi-v1.ts` — cliente da v1 (`apirest.php`) SÓ pra status. Leitura
+  toda continua na V2.1. Auth = **App-Token + user_token** (login por usuário/senha
+  está desabilitado: `ERROR_LOGIN_WITH_CREDENTIALS_DISABLED`).
+- [x] Sessão da v1 é **read-only por padrão** → `session_write=true`; e em modo
+  escrita ela **serializa** as chamadas → sessão curta por operação, `killSession`
+  no `finally`, em vez de uma global que viraria gargalo.
+- [x] Toda escrita **relê e confere** — a v1 responde `[{"36220":true}]` só dizendo
+  que aceitou, igual a V2.1 fazia. Sem conferir, volta a mentir.
+- [x] **Concluído é exceção de projeto:** a v1 aceitaria marcar 5 direto, mas o
+  chamado ficaria resolvido SEM registro de solução. `Timeline/Solution` leva a 5 e
+  grava o histórico → concluir pede o texto num modal.
+- [x] `compose.prod.yml` enumera env var a var: sem adicionar `GLPI_APP_TOKEN`/
+  `GLPI_USER_TOKEN` lá, pôr no `.env.production` não bastava (commit 42843ff).
+- [x] Conserta de tabela o kanban de `/marketing/demandas` e o botão "Aplicar" do
+  detalhe, quebrados em silêncio desde sempre.
+- [ ] **Rotacionar** App-Token + user_token (apareceram no chat) e restringir o
+  cliente de API pelo IPv4 da VPS.
+- [ ] (agora possível) **Categoria de serviço**: a v1 lista `ITILCategory`, que a
+  V2.1 não expõe — era o pedido do marketing que ficou de fora.
+
 ## 10. Unificação dos dois kanbans (2026-07-28)  🔨 FEITO (falta testar no browser + deploy)
 Problema: `/marketing/quadro` (visão "Status GLPI") e `/marketing/demandas` (kanban)
 agrupavam igual mas com populações diferentes — e o chamado só entrava no quadro se
