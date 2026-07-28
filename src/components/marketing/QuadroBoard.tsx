@@ -27,6 +27,17 @@ import {
   reorderColumnAction,
   type GlpiHit,
 } from "@/app/(marketing)/marketing/quadro/actions";
+import { updateStatusAction } from "@/app/(marketing)/marketing/demandas/actions";
+
+// Colunas por status do GLPI (2 e 3 = "Em atendimento") — usadas na visão "Status GLPI".
+const GLPI_STATUS_COLS: { key: string; label: string; ids: number[] }[] = [
+  { key: "novo", label: "Novo", ids: [1] },
+  { key: "atend", label: "Em atendimento", ids: [2, 3] },
+  { key: "pendente", label: "Pendente", ids: [4] },
+  { key: "solucionado", label: "Solucionado", ids: [5] },
+  { key: "fechado", label: "Fechado", ids: [6] },
+];
+const glpiColOf = (statusId: number) => GLPI_STATUS_COLS.find((c) => c.ids.includes(statusId))?.key ?? "novo";
 
 const LABEL_SWATCHES = ["#f59e0b", "#f2691f", "#e5484d", "#16a34a", "#0d9488", "#2d6ff2", "#7a5ae0", "#db2777", "#6b7280"];
 
@@ -55,6 +66,8 @@ export function QuadroBoard({ board, openCardId = null }: { board: BoardDTO; ope
   const router = useRouter();
   const [, start] = useTransition();
   const [modal, setModal] = useState<ModalState | null>(null);
+  // Visão do board: "flow" = fluxo do time (colunas próprias) | "glpi" = agrupado por status GLPI.
+  const [boardView, setBoardView] = useState<"flow" | "glpi">("flow");
   // Card sendo arrastado (origem) + posição de inserção ao vivo (coluna + índice na lista exibida).
   const [drag, setDrag] = useState<{ id: string; colId: string; index: number } | null>(null);
   const [over, setOver] = useState<{ colId: string; index: number } | null>(null);
@@ -131,39 +144,59 @@ export function QuadroBoard({ board, openCardId = null }: { board: BoardDTO; ope
 
   return (
     <>
-      {/* Barra de filtros — etiquetas + responsável */}
-      {(board.labels.length > 0 || assignees.length > 0) && (
-        <div className="row gap8" style={{ flexWrap: "wrap", alignItems: "center", marginBottom: "var(--gap)" }}>
-          <span className="muted" style={{ fontSize: 11.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.4 }}>
-            <Icon name="filter" size={13} /> Filtrar
-          </span>
-          {board.labels.map((l) => {
-            const on = fLabels.has(l.id);
-            return (
-              <button
-                key={l.id}
-                onClick={() => toggleFLabel(l.id)}
-                style={{ fontSize: 11, fontWeight: 800, color: "#fff", background: l.color, padding: "3px 10px", borderRadius: 999, border: on ? "2px solid var(--ink)" : "2px solid transparent", cursor: "pointer", opacity: on ? 1 : 0.4, transition: "opacity .12s" }}
-              >
-                {l.name}
+      {/* Controles: filtros (etiqueta/responsável) + toggle de visão (fluxo × status GLPI) */}
+      <div className="row gap8" style={{ flexWrap: "wrap", alignItems: "center", marginBottom: "var(--gap)" }}>
+        {(board.labels.length > 0 || assignees.length > 0) && (
+          <>
+            <span className="muted" style={{ fontSize: 11.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.4 }}>
+              <Icon name="filter" size={13} /> Filtrar
+            </span>
+            {board.labels.map((l) => {
+              const on = fLabels.has(l.id);
+              return (
+                <button
+                  key={l.id}
+                  onClick={() => toggleFLabel(l.id)}
+                  style={{ fontSize: 11, fontWeight: 800, color: "#fff", background: l.color, padding: "3px 10px", borderRadius: 999, border: on ? "2px solid var(--ink)" : "2px solid transparent", cursor: "pointer", opacity: on ? 1 : 0.4, transition: "opacity .12s" }}
+                >
+                  {l.name}
+                </button>
+              );
+            })}
+            {assignees.length > 0 && (
+              <select className="input" value={fAssignee} onChange={(e) => setFAssignee(e.target.value)} style={{ padding: "4px 8px", fontSize: 12.5, width: "auto" }}>
+                <option value="">Responsável: todos</option>
+                {assignees.map((a) => (
+                  <option key={a} value={a}>{a}</option>
+                ))}
+              </select>
+            )}
+            {filtering && (
+              <button className="btn btn-ghost" style={{ padding: "3px 10px", fontSize: 12 }} onClick={() => { setFLabels(new Set()); setFAssignee(""); }}>
+                Limpar ✕
               </button>
-            );
-          })}
-          {assignees.length > 0 && (
-            <select className="input" value={fAssignee} onChange={(e) => setFAssignee(e.target.value)} style={{ padding: "4px 8px", fontSize: 12.5, width: "auto" }}>
-              <option value="">Responsável: todos</option>
-              {assignees.map((a) => (
-                <option key={a} value={a}>{a}</option>
-              ))}
-            </select>
-          )}
-          {filtering && (
-            <button className="btn btn-ghost" style={{ padding: "3px 10px", fontSize: 12 }} onClick={() => { setFLabels(new Set()); setFAssignee(""); }}>
-              Limpar ✕
-            </button>
-          )}
+            )}
+          </>
+        )}
+        <div className="seg" style={{ marginLeft: "auto" }}>
+          <button className={boardView === "flow" ? "on" : ""} onClick={() => setBoardView("flow")}>
+            <Icon name="kanban" size={14} /> Fluxo do time
+          </button>
+          <button className={boardView === "glpi" ? "on" : ""} onClick={() => setBoardView("glpi")}>
+            <Icon name="inbox" size={14} /> Status GLPI
+          </button>
         </div>
-      )}
+      </div>
+
+      {boardView === "glpi" ? (
+        <GlpiStatusView
+          board={board}
+          matches={matches}
+          filtering={filtering}
+          onOpenCard={(card) => setModal({ mode: "edit", card })}
+          onWrote={() => router.refresh()}
+        />
+      ) : (
 
       <div style={{ display: "flex", gap: "var(--gap)", overflowX: "auto", paddingBottom: 12, alignItems: "flex-start" }}>
         {board.columns.map((col, colIdx) => {
@@ -263,6 +296,7 @@ export function QuadroBoard({ board, openCardId = null }: { board: BoardDTO; ope
         })}
         <AddColumn onCreate={(name) => run(() => createColumnAction(name), "Coluna criada")} />
       </div>
+      )}
 
       {modal && (
         <CardModal
@@ -275,6 +309,170 @@ export function QuadroBoard({ board, openCardId = null }: { board: BoardDTO; ope
         />
       )}
     </>
+  );
+}
+
+// ── Visão "Status GLPI": mesmos cards, agrupados por status do chamado ─────────
+// Só cards vinculados ao GLPI (com espelho). Arrastar entre colunas escreve o
+// status no GLPI (updateStatusAction) — override otimista + revert em erro.
+// Cards internos ficam na visão "Fluxo do time".
+function GlpiStatusView({
+  board,
+  matches,
+  filtering,
+  onOpenCard,
+  onWrote,
+}: {
+  board: BoardDTO;
+  matches: (c: CardDTO) => boolean;
+  filtering: boolean;
+  onOpenCard: (card: CardDTO) => void;
+  onWrote: () => void;
+}) {
+  const [pending, start] = useTransition();
+  const [overrides, setOverrides] = useState<Record<number, number>>({});
+  const [dragId, setDragId] = useState<number | null>(null);
+  const [overCol, setOverCol] = useState<string | null>(null);
+
+  const allCards = board.columns.flatMap((c) => c.cards);
+  const glpiCards = allCards.filter((c) => c.kind === "glpi" && c.glpi && c.glpiId != null && (!filtering || matches(c)));
+  const internalCount = allCards.filter((c) => c.kind !== "glpi" || !c.glpi).length;
+
+  const effStatus = (c: CardDTO) => overrides[c.glpiId!] ?? c.glpi!.statusId;
+  const byCol = new Map<string, CardDTO[]>();
+  for (const col of GLPI_STATUS_COLS) byCol.set(col.key, []);
+  for (const c of glpiCards) byCol.get(glpiColOf(effStatus(c)))!.push(c);
+
+  function drop(col: (typeof GLPI_STATUS_COLS)[number]) {
+    const id = dragId;
+    setDragId(null);
+    setOverCol(null);
+    if (id == null) return;
+    if (col.key === "novo") return; // "Novo" não é destino válido
+    const card = glpiCards.find((c) => c.glpiId === id);
+    if (!card) return;
+    if (glpiColOf(effStatus(card)) === col.key) return;
+    const target = col.ids[0];
+    const prev = effStatus(card);
+    setOverrides((o) => ({ ...o, [id]: target })); // otimista
+    emitToast({ variant: "info", title: `Movendo chamado #${id}…`, sub: `→ ${col.label}` });
+    start(async () => {
+      const r = await updateStatusAction(id, target);
+      if (!r.ok) {
+        setOverrides((o) => ({ ...o, [id]: prev }));
+        emitToast({ variant: "error", title: `Chamado #${id} — falha ao mover`, sub: r.error });
+      } else {
+        emitToast({ variant: "success", title: `Chamado #${id} movido`, sub: `agora em ${col.label}` });
+        onWrote();
+      }
+    });
+  }
+
+  if (glpiCards.length === 0) {
+    return (
+      <div className="card card-pad muted">
+        Nenhum cartão vinculado ao GLPI{filtering ? " neste filtro" : ""}.
+        {internalCount > 0 && ` ${internalCount} cartões internos ficam na visão “Fluxo do time”.`}
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <div style={{ display: "flex", gap: "var(--gap)", overflowX: "auto", paddingBottom: 12, alignItems: "flex-start", opacity: pending ? 0.75 : 1 }}>
+        {GLPI_STATUS_COLS.map((col) => {
+          const items = byCol.get(col.key) ?? [];
+          const accent = statusColors(col.ids[0]);
+          const noDrop = col.key === "novo";
+          const isOver = overCol === col.key && !noDrop;
+          return (
+            <div
+              key={col.key}
+              onDragOver={(e) => {
+                e.preventDefault();
+                if (noDrop) { e.dataTransfer.dropEffect = "none"; return; }
+                e.dataTransfer.dropEffect = "move";
+                if (overCol !== col.key) setOverCol(col.key);
+              }}
+              onDragLeave={(e) => { if (e.currentTarget === e.target) setOverCol(null); }}
+              onDrop={(e) => { e.preventDefault(); drop(col); }}
+              style={{ flex: "0 0 280px", minWidth: 280, background: "var(--surface-2)", borderRadius: "var(--r-lg, 12px)", border: "1px solid var(--line)", outline: isOver ? `2px dashed ${accent.color}` : "none", outlineOffset: 2, display: "flex", flexDirection: "column", maxHeight: "calc(100vh - 190px)" }}
+            >
+              <div className="row between" style={{ padding: "11px 13px", borderBottom: `2px solid ${accent.color}` }}>
+                <span style={{ fontWeight: 800, fontSize: 13, color: "var(--ink)" }}>{col.label}</span>
+                <span className="badge" style={{ color: accent.color, background: accent.bg, fontWeight: 800, minWidth: 22, textAlign: "center" }}>{items.length}</span>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, padding: 10, overflowY: "auto", flex: 1 }}>
+                {items.length === 0 ? (
+                  <div className="muted" style={{ fontSize: 12, textAlign: "center", padding: "10px 0", opacity: 0.6 }}>{isOver ? "Soltar aqui" : "—"}</div>
+                ) : (
+                  items.map((c) => (
+                    <GlpiStatusCard
+                      key={c.id}
+                      card={c}
+                      dragging={dragId === c.glpiId}
+                      onDragStart={() => setDragId(c.glpiId!)}
+                      onDragEnd={() => { setDragId(null); setOverCol(null); }}
+                      onOpen={() => onOpenCard(c)}
+                    />
+                  ))
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>
+        <Icon name="inbox" size={12} /> Arraste um cartão GLPI entre as colunas pra mudar o status no GLPI.
+        {internalCount > 0 && ` · ${internalCount} cartões internos ficam na visão “Fluxo do time”.`}
+      </p>
+    </>
+  );
+}
+
+function GlpiStatusCard({
+  card,
+  dragging,
+  onDragStart,
+  onDragEnd,
+  onOpen,
+}: {
+  card: CardDTO;
+  dragging: boolean;
+  onDragStart: () => void;
+  onDragEnd: () => void;
+  onOpen: () => void;
+}) {
+  const st = card.glpi ? statusColors(card.glpi.statusId) : null;
+  const due = dueMeta(card.dueAt);
+  return (
+    <div
+      draggable
+      onDragStart={(e) => { e.dataTransfer.setData("text/plain", String(card.glpiId)); e.dataTransfer.effectAllowed = "move"; onDragStart(); }}
+      onDragEnd={onDragEnd}
+      onClick={onOpen}
+      className="card"
+      style={{ padding: 11, paddingLeft: 13, borderLeft: `4px solid ${st?.color ?? "var(--c3)"}`, cursor: "grab", opacity: dragging ? 0.5 : 1, transition: "box-shadow .15s" }}
+      onMouseEnter={(e) => { e.currentTarget.style.boxShadow = "var(--shadow-md, 0 4px 14px rgba(0,0,0,.12))"; }}
+      onMouseLeave={(e) => { e.currentTarget.style.boxShadow = ""; }}
+    >
+      {card.labels.length > 0 && (
+        <div className="row" style={{ gap: 5, flexWrap: "wrap", marginBottom: 7 }}>
+          {card.labels.map((l) => (
+            <span key={l.id} title={l.name} style={{ fontSize: 10, fontWeight: 800, color: "#fff", background: l.color, padding: "2px 8px", borderRadius: 999, letterSpacing: 0.3 }}>{l.name}</span>
+          ))}
+        </div>
+      )}
+      <div style={{ fontWeight: 600, fontSize: 13, color: "var(--ink)", lineHeight: 1.35 }}>
+        <span className="muted" style={{ fontWeight: 700 }}>#{card.glpiId} · </span>{card.title}
+      </div>
+      {due && (
+        <div className="row" style={{ gap: 6, flexWrap: "wrap", marginTop: 7 }}>
+          <span className="badge" style={{ fontSize: 10, color: due.color, background: due.bg, fontWeight: 700 }}><Icon name="clock" size={10} /> {due.label}</span>
+        </div>
+      )}
+      {card.glpi?.assignees && <div className="muted" style={{ fontSize: 11, marginTop: 6 }}>→ {card.glpi.assignees}</div>}
+    </div>
   );
 }
 
