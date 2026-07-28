@@ -43,7 +43,10 @@ status GLPI), card interno OU linkado a chamado GLPI (puxa status/atribuído do 
   `20260727154208_mkt_card_attachment`, cap 20 MB, upload multi-arquivo via server action
   (FormData), preview de imagem, rota autenticada `/marketing/quadro/anexo/[id]` (guard módulo
   `marketing`). Cria o card → libera anexar. tsc limpo. Falta deploy VPS.
-- [ ] FASE 2 — prazo + notificação de vencimento (campo dueAt já existe; falta cron + toast/sino).
+- [x] FASE 2 — notificação de prazo (2026-07-27): `alertQuadroPrazos()` em `server/alerts.ts`
+  (reusa o scheduler in-process, tick 6h, dedup 7d). Card com dueAt ≤2d/vencido → sino pro
+  criador + admins; ignora colunas de saída (Concluído/Material Pronto). Notificação linka
+  `?card=<id>` e a página abre o card no modal. tsc limpo, validado. Falta deploy.
 - [ ] FASE 3 — anexo do card → também **espelhar no GLPI** + descrição (API de documentos GLPI).
       (upload local no card já feito; falta o push pro GLPI.)
 - [ ] Reorder dentro da coluna (hoje drop só joga no fim); colunas customizáveis (add/rename/reorder).
