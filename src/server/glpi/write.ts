@@ -3,7 +3,7 @@
 // Requer que o perfil do usuário de serviço tenha DIREITO DE ESCRITA no GLPI
 // (o v1 era só-leitura); sem isso a API responde ERROR_RIGHT_MISSING.
 import "server-only";
-import { glpiPost, glpiPatch, glpiDelete, DEFAULT_ENTITY_ID, TRACKED_USER_IDS } from "@/lib/glpi";
+import { glpiPost, glpiPatch, glpiDelete, glpiGet, DEFAULT_ENTITY_ID, TRACKED_USER_IDS } from "@/lib/glpi";
 import { db } from "@/lib/db";
 import { syncOneTicket } from "./sync";
 
@@ -127,6 +127,55 @@ const STATUS_NOME: Record<number, string> = {
   5: "Solucionado",
   6: "Fechado",
 };
+
+// ── Status pelos MECANISMOS do GLPI ──────────────────────────────────────────
+// Como `status` não é gravável, o jeito certo é provocar a CAUSA e deixar o GLPI
+// calcular o status. Testado nesta instância em 2026-07-28:
+//
+//   remover o atribuído          → 1 Novo
+//   atribuir um técnico          → 2 Em atendimento
+//   registrar uma solução        → 5 Solucionado
+//
+// 4 (Pendente) e 6 (Fechado) não têm mecanismo equivalente na v2.1 — dependem da
+// API v1 (ver glpi-api-v1-referencia.md). Uma vez Solucionado, atribuir/desatribuir
+// deixa de mexer no status: o GLPI para de recalcular depois da resolução.
+export type StatusMecanismo =
+  | { status: 1 }
+  | { status: 2; assigneeId: number }
+  | { status: 5; solucao: string };
+
+export function statusPrecisaDe(statusId: number): "nada" | "responsavel" | "solucao" | null {
+  if (statusId === 1) return "nada";
+  if (statusId === 2 || statusId === 3) return "responsavel";
+  if (statusId === 5) return "solucao";
+  return null; // 4 e 6: sem caminho na v2.1
+}
+
+export async function aplicarStatus(glpiId: number, m: StatusMecanismo): Promise<void> {
+  if (m.status === 1) {
+    const atuais = await glpiGet<{ id: number; role: string }>(`/Assistance/Ticket/${glpiId}/TeamMember`);
+    const atribuidos = atuais.data.filter((x) => String(x.role ?? "").toLowerCase().includes("assigned"));
+    if (!atribuidos.length) throw new Error("O chamado já está sem responsável — nada a fazer pra voltar a Novo.");
+    for (const a of atribuidos) {
+      await glpiDelete(`/Assistance/Ticket/${glpiId}/TeamMember`, { type: "User", id: a.id, role: "assigned" });
+    }
+  } else if (m.status === 2) {
+    await addTeamMember(glpiId, m.assigneeId, "assigned");
+  } else {
+    const texto = m.solucao.trim();
+    if (!texto) throw new Error("A solução não pode ficar vazia.");
+    await glpiPost(`/Assistance/Ticket/${glpiId}/Timeline/Solution`, { content: texto });
+  }
+
+  await syncOneTicket(glpiId);
+  const agora = await db.glpiTicket.findUnique({ where: { glpiId }, select: { statusId: true } });
+  if (agora && agora.statusId !== m.status && !mesmoAtendimento(agora.statusId, m.status)) {
+    throw new Error(
+      `A ação foi aplicada, mas o GLPI deixou o chamado em "${STATUS_NOME[agora.statusId] ?? agora.statusId}" ` +
+        `em vez de "${STATUS_NOME[m.status]}".`,
+    );
+  }
+}
 
 // Atribui um técnico (role=assigned) ao chamado.
 export async function setAssignee(glpiId: number, userId: number, role = "assigned"): Promise<void> {

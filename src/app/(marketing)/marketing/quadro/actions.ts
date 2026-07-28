@@ -21,7 +21,7 @@ import {
   setColumnGlpiStatus,
   type AttachmentDTO,
 } from "@/server/marketing/board";
-import { updateStatus } from "@/server/glpi/write";
+import { aplicarStatus, statusPrecisaDe, type StatusMecanismo } from "@/server/glpi/write";
 
 export type BoardActionState = { ok: boolean; error?: string; id?: string };
 export type AttachmentActionState = { ok: boolean; error?: string; attachment?: AttachmentDTO };
@@ -77,11 +77,19 @@ export async function deleteCardAction(cardId: string): Promise<BoardActionState
   }
 }
 
-// Mover card. Se for card de chamado e a coluna destino estiver mapeada num
-// status, o status também é escrito no GLPI. A falha no GLPI NÃO desfaz o move
-// local — o card fica onde o usuário soltou e a mensagem avisa que o chamado
-// seguiu no status antigo (desfazer em silêncio seria pior de entender).
-export async function moveCardAction(cardId: string, toColumnId: string, toIndex: number): Promise<BoardActionState> {
+// Mover card. Card de chamado indo pra coluna mapeada também muda o status no
+// GLPI — mas como `status` não é gravável na v2.1, isso acontece provocando a
+// CAUSA (atribuir alguém, remover o responsável, registrar solução). Por isso o
+// cliente manda `extra` quando a coluna exige responsável ou solução.
+//
+// Falha no GLPI NÃO desfaz o move local: o card fica onde o usuário soltou e a
+// mensagem explica. Desfazer em silêncio foi justamente o que escondeu o bug.
+export async function moveCardAction(
+  cardId: string,
+  toColumnId: string,
+  toIndex: number,
+  extra?: { assigneeId?: number; solucao?: string },
+): Promise<BoardActionState> {
   await requireUser();
   let escrever: { glpiId: number; statusId: number } | null = null;
   try {
@@ -91,14 +99,37 @@ export async function moveCardAction(cardId: string, toColumnId: string, toIndex
     return fail(e);
   }
   if (!escrever) return { ok: true };
+
+  const { glpiId, statusId } = escrever;
+  const exige = statusPrecisaDe(statusId);
+  if (exige === null) {
+    return {
+      ok: false,
+      error:
+        `Card movido, mas o chamado #${glpiId} continua no status anterior: a API do GLPI não permite ` +
+        `marcar como "${statusId === 4 ? "Pendente" : "Fechado"}" — isso só pela tela do GLPI.`,
+    };
+  }
+
+  let mecanismo: StatusMecanismo;
+  if (exige === "responsavel") {
+    if (!extra?.assigneeId) return { ok: false, error: "Escolha o responsável para colocar o chamado em atendimento." };
+    mecanismo = { status: 2, assigneeId: extra.assigneeId };
+  } else if (exige === "solucao") {
+    if (!extra?.solucao?.trim()) return { ok: false, error: "Descreva a solução para concluir o chamado." };
+    mecanismo = { status: 5, solucao: extra.solucao };
+  } else {
+    mecanismo = { status: 1 };
+  }
+
   try {
-    await updateStatus(escrever.glpiId, escrever.statusId);
+    await aplicarStatus(glpiId, mecanismo);
     revalidatePath(P);
     revalidatePath("/marketing/demandas");
     return { ok: true };
   } catch (e) {
     const msg = e instanceof Error ? e.message : "erro desconhecido";
-    return { ok: false, error: `Card movido, mas o chamado #${escrever.glpiId} não mudou de status no GLPI: ${msg}` };
+    return { ok: false, error: `Card movido, mas o chamado #${glpiId} não mudou de status: ${msg}` };
   }
 }
 
