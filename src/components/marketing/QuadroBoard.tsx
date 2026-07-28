@@ -434,6 +434,8 @@ function CardTile({
 }) {
   const due = dueMeta(card.dueAt);
   const st = card.glpi ? statusColors(card.glpi.statusId) : null;
+  // Marcação de card GLPI: faixa colorida na esquerda (cor do status, ou azul GLPI padrão).
+  const glpiAccent = card.kind === "glpi" ? st?.color ?? "var(--c3)" : null;
   return (
     <div
       draggable
@@ -448,7 +450,7 @@ function CardTile({
       }}
       onClick={onOpen}
       className="card"
-      style={{ padding: 11, cursor: "grab", opacity: dragging ? 0.5 : 1, transition: "box-shadow .15s, transform .15s" }}
+      style={{ padding: 11, paddingLeft: glpiAccent ? 13 : 11, borderLeft: glpiAccent ? `4px solid ${glpiAccent}` : undefined, cursor: "grab", opacity: dragging ? 0.5 : 1, transition: "box-shadow .15s, transform .15s" }}
       onMouseEnter={(e) => { e.currentTarget.style.boxShadow = "var(--shadow-md, 0 4px 14px rgba(0,0,0,.12))"; }}
       onMouseLeave={(e) => { e.currentTarget.style.boxShadow = ""; }}
     >
