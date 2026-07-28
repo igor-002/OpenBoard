@@ -3,19 +3,17 @@
 ## 🔭 Melhorias & possibilidades (backlog, não urgente)
 
 **Quadro de Demandas (Trello-like) — evoluções:**
-- [ ] **Sync quadro ↔ status GLPI** (opção): mover um card GLPI de coluna pode
-  mudar o status do chamado no GLPI (ex.: coluna "Concluído" → status Solucionado).
-  Hoje os fluxos são separados de propósito (coluna do quadro ≠ status GLPI).
-  Seria um mapeamento coluna→status opcional por coluna. Decidir se automático ou botão.
-- [ ] Reorder fino dentro da coluna (hoje o drop joga o card no fim da coluna destino).
-- [ ] Colunas customizáveis: adicionar / renomear / reordenar / excluir colunas na UI.
-- [ ] DnD em **touch/mobile** (hoje é só desktop — HTML5 drag nativo não pega touch;
-  precisaria lib de DnD com suporte a toque).
-- [ ] Vincular card GLPI por busca (autocomplete do espelho) em vez de digitar o nº.
-- [ ] Filtro por etiqueta / responsável no quadro.
+- [x] Reorder fino dentro da coluna — 2026-07-28.
+- [x] Colunas customizáveis (add/renomear/mover/excluir + DnD) — 2026-07-28.
+- [x] Vincular card GLPI por autocomplete do espelho — 2026-07-28.
+- [x] Filtro por etiqueta / responsável — 2026-07-28.
+- [x] Unificação via toggle "Status GLPI" (substitui a ideia de sync coluna→status;
+  na visão Status GLPI arrastar já muda o status no GLPI) — 2026-07-28.
+- [ ] DnD touch/mobile (hoje só desktop — HTML5 drag nativo não pega touch).
+- [ ] (opção) mapear coluna→status GLPI também na visão Fluxo do time.
 
 **Kanban de status GLPI (/marketing/demandas):**
-- [ ] Bloquear/ocultar "Novo" como destino de arraste (não faz sentido voltar pra Novo).
+- [x] Bloquear "Novo" como destino de arraste — 2026-07-28.
 - [ ] DnD touch/mobile.
 
 **Segurança (pendências soltas):**
@@ -47,9 +45,16 @@ status GLPI), card interno OU linkado a chamado GLPI (puxa status/atribuído do 
   (reusa o scheduler in-process, tick 6h, dedup 7d). Card com dueAt ≤2d/vencido → sino pro
   criador + admins; ignora colunas de saída (Concluído/Material Pronto). Notificação linka
   `?card=<id>` e a página abre o card no modal. tsc limpo, validado. Falta deploy.
-- [ ] FASE 3 — anexo do card → também **espelhar no GLPI** + descrição (API de documentos GLPI).
-      (upload local no card já feito; falta o push pro GLPI.)
-- [ ] Reorder dentro da coluna (hoje drop só joga no fim); colunas customizáveis (add/rename/reorder).
+- [x] Reorder dentro da coluna (drop na posição do cursor) — 2026-07-28.
+- [x] Colunas customizáveis: add/renomear/mover(botões)/excluir(só vazia) + DnD de coluna — 2026-07-28.
+- [x] Filtro por etiqueta + responsável no quadro — 2026-07-28.
+- [x] Vincular card GLPI por autocomplete no espelho — 2026-07-28.
+- [x] Marcação visual de card GLPI (faixa colorida por status) — 2026-07-28.
+- [x] Toast ao mover card — 2026-07-28.
+- [x] UNIFICAÇÃO: toggle "Status GLPI" no quadro (reagrupa cards GLPI por status, DnD escreve no GLPI) — 2026-07-28.
+- [ ] **FASE 3 — DEFERIDA** anexo do card → espelhar no GLPI. Contrato de upload da API v2.1
+      não está documentado no repo + testar escreve em ticket de produção. Precisa endpoint + ticket de teste.
+- [ ] DnD touch/mobile (hoje só desktop). Mapeamento opcional coluna→status GLPI na visão Fluxo.
 
 
 ## 7. Largura 100% + feedback de sync (toast + tempo)  ✅ FEITO (falta deploy)
