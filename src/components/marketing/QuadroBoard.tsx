@@ -3,7 +3,7 @@
 // Quadro de Demandas do Marketing (Kanban tipo Trello). Colunas próprias (não são
 // status do GLPI). Card interno OU linkado a um chamado GLPI. Drag-and-drop nativo
 // (desktop), etiquetas coloridas, prazo, anexos. Criar/editar card num modal rico.
-import { useState, useTransition, useRef, useEffect, Fragment } from "react";
+import { useState, useTransition, useRef, useEffect, useMemo, Fragment } from "react";
 import { useRouter } from "next/navigation";
 import { Icon } from "@/components/ui/Icon";
 import { emitToast } from "@/lib/toast";
@@ -51,6 +51,30 @@ export function QuadroBoard({ board, openCardId = null }: { board: BoardDTO; ope
   const [drag, setDrag] = useState<{ id: string; colId: string; index: number } | null>(null);
   const [over, setOver] = useState<{ colId: string; index: number } | null>(null);
 
+  // Filtros (client-side): etiquetas selecionadas + responsável GLPI.
+  const [fLabels, setFLabels] = useState<Set<string>>(new Set());
+  const [fAssignee, setFAssignee] = useState("");
+  const assignees = useMemo(() => {
+    const s = new Set<string>();
+    for (const col of board.columns)
+      for (const c of col.cards)
+        if (c.glpi?.assignees) for (const a of c.glpi.assignees.split(",").map((x) => x.trim())) if (a) s.add(a);
+    return [...s].sort((a, b) => a.localeCompare(b, "pt-BR"));
+  }, [board]);
+  const filtering = fLabels.size > 0 || fAssignee !== "";
+  function matches(c: CardDTO): boolean {
+    const labelOk = fLabels.size === 0 || c.labels.some((l) => fLabels.has(l.id));
+    const assigneeOk = !fAssignee || (c.glpi?.assignees ?? "").split(",").map((x) => x.trim()).includes(fAssignee);
+    return labelOk && assigneeOk;
+  }
+  function toggleFLabel(id: string) {
+    setFLabels((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
   // Chegou por link de notificação (?card=<id>) → abre o card direto.
   useEffect(() => {
     if (!openCardId) return;
@@ -85,9 +109,44 @@ export function QuadroBoard({ board, openCardId = null }: { board: BoardDTO; ope
 
   return (
     <>
+      {/* Barra de filtros — etiquetas + responsável */}
+      {(board.labels.length > 0 || assignees.length > 0) && (
+        <div className="row gap8" style={{ flexWrap: "wrap", alignItems: "center", marginBottom: "var(--gap)" }}>
+          <span className="muted" style={{ fontSize: 11.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.4 }}>
+            <Icon name="filter" size={13} /> Filtrar
+          </span>
+          {board.labels.map((l) => {
+            const on = fLabels.has(l.id);
+            return (
+              <button
+                key={l.id}
+                onClick={() => toggleFLabel(l.id)}
+                style={{ fontSize: 11, fontWeight: 800, color: "#fff", background: l.color, padding: "3px 10px", borderRadius: 999, border: on ? "2px solid var(--ink)" : "2px solid transparent", cursor: "pointer", opacity: on ? 1 : 0.4, transition: "opacity .12s" }}
+              >
+                {l.name}
+              </button>
+            );
+          })}
+          {assignees.length > 0 && (
+            <select className="input" value={fAssignee} onChange={(e) => setFAssignee(e.target.value)} style={{ padding: "4px 8px", fontSize: 12.5, width: "auto" }}>
+              <option value="">Responsável: todos</option>
+              {assignees.map((a) => (
+                <option key={a} value={a}>{a}</option>
+              ))}
+            </select>
+          )}
+          {filtering && (
+            <button className="btn btn-ghost" style={{ padding: "3px 10px", fontSize: 12 }} onClick={() => { setFLabels(new Set()); setFAssignee(""); }}>
+              Limpar ✕
+            </button>
+          )}
+        </div>
+      )}
+
       <div style={{ display: "flex", gap: "var(--gap)", overflowX: "auto", paddingBottom: 12, alignItems: "flex-start" }}>
         {board.columns.map((col) => {
           const isOver = over?.colId === col.id;
+          const visibleCount = filtering ? col.cards.filter(matches).length : col.cards.length;
           return (
             <div
               key={col.id}
@@ -109,26 +168,31 @@ export function QuadroBoard({ board, openCardId = null }: { board: BoardDTO; ope
             >
               <div className="row between" style={{ padding: "11px 13px", borderBottom: "1px solid var(--line)" }}>
                 <span style={{ fontWeight: 800, fontSize: 13, color: "var(--ink)", letterSpacing: 0.2 }}>{col.name}</span>
-                <span className="badge" style={{ background: "var(--surface-3)", color: "var(--muted)", fontWeight: 800, minWidth: 22, textAlign: "center" }}>{col.cards.length}</span>
+                <span className="badge" style={{ background: "var(--surface-3)", color: "var(--muted)", fontWeight: 800, minWidth: 22, textAlign: "center" }}>
+                  {filtering ? `${visibleCount}/${col.cards.length}` : col.cards.length}
+                </span>
               </div>
 
               <div style={{ display: "flex", flexDirection: "column", gap: 8, padding: 10, overflowY: "auto", flex: 1 }}>
-                {col.cards.map((c, i) => (
-                  <Fragment key={c.id}>
-                    {isOver && over?.index === i && <DropLine />}
-                    <CardTile
-                      card={c}
-                      dragging={drag?.id === c.id}
-                      onDragStart={() => setDrag({ id: c.id, colId: col.id, index: i })}
-                      onDragEnd={() => { setDrag(null); setOver(null); }}
-                      onOver={(before) => setOver({ colId: col.id, index: before ? i : i + 1 })}
-                      onOpen={() => setModal({ mode: "edit", card: c })}
-                    />
-                  </Fragment>
-                ))}
+                {col.cards.map((c, i) => {
+                  if (filtering && !matches(c)) return null;
+                  return (
+                    <Fragment key={c.id}>
+                      {isOver && over?.index === i && <DropLine />}
+                      <CardTile
+                        card={c}
+                        dragging={drag?.id === c.id}
+                        onDragStart={() => setDrag({ id: c.id, colId: col.id, index: i })}
+                        onDragEnd={() => { setDrag(null); setOver(null); }}
+                        onOver={(before) => setOver({ colId: col.id, index: before ? i : i + 1 })}
+                        onOpen={() => setModal({ mode: "edit", card: c })}
+                      />
+                    </Fragment>
+                  );
+                })}
                 {isOver && over?.index === col.cards.length && col.cards.length > 0 && <DropLine />}
-                {col.cards.length === 0 && (
-                  <div className="muted" style={{ fontSize: 12, textAlign: "center", padding: "10px 0", opacity: 0.6 }}>{isOver ? "Soltar aqui" : "Sem cartões"}</div>
+                {visibleCount === 0 && (
+                  <div className="muted" style={{ fontSize: 12, textAlign: "center", padding: "10px 0", opacity: 0.6 }}>{isOver ? "Soltar aqui" : filtering ? "Nada no filtro" : "Sem cartões"}</div>
                 )}
               </div>
 
