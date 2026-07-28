@@ -63,6 +63,37 @@ async function comSessao<T>(fn: (headers: Record<string, string>) => Promise<T>)
   }
 }
 
+// Categorias ITIL da entidade (Marketing). A V2.1 NÃO expõe ITILCategory —
+// `/Dropdowns/` só tem Location, State, Manufacturer e Calendar, e toda rota
+// ITILCategory dá 404. A v1 lê.
+//
+// Filtra pela entidade porque no GLPI a categoria é POR ENTIDADE: a instância tem
+// 168 no total (a maioria de TI, de outras entidades), e só 13 são do Marketing.
+export interface GlpiCategoria {
+  id: number;
+  nome: string;
+}
+
+const ENTITY_ID = Number(process.env.GLPI_ENTITY_ID) || 54;
+
+export async function v1ListCategories(): Promise<GlpiCategoria[]> {
+  if (!glpiV1Configured()) return [];
+  try {
+    return await comSessao(async (headers) => {
+      const r = await fetch(`${API}/ITILCategory?range=0-999`, { headers, cache: "no-store" });
+      if (!r.ok) return [];
+      const raw = (await r.json()) as { id: number; entities_id: number; completename?: string; name?: string }[];
+      if (!Array.isArray(raw)) return [];
+      return raw
+        .filter((c) => c.entities_id === ENTITY_ID)
+        .map((c) => ({ id: c.id, nome: c.completename || c.name || String(c.id) }))
+        .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+    });
+  } catch {
+    return []; // categoria é opcional no formulário — sem ela o resto segue
+  }
+}
+
 // Grava o status do chamado e CONFERE relendo. O corpo de sucesso da v1
 // (`[{"36220":true}]`) diz que a operação foi aceita, não que o campo ficou com o
 // valor pedido — a V2.1 já nos enganou exatamente assim.

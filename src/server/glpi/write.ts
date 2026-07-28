@@ -22,6 +22,7 @@ export interface CreateTicketInput {
   requesterId: number; // deve ser um dos GLPI_TRACKED_USER_IDS (senão some do mirror no próximo full sync)
   assigneeId?: number; // técnico que já sai atribuído (opcional)
   type?: number; // 1 Incidente, 2 Requisição (default)
+  categoryId?: number | null; // ITILCategory da entidade Marketing (lista vem da v1)
   urgency?: number; // 1..5 (default 3)
   dueAt?: string | null; // prazo "YYYY-MM-DD". Guardado local + acompanhamento no GLPI.
   dueSetById?: string | null; // preenchido pela action com o usuário logado (nunca pelo cliente)
@@ -52,6 +53,9 @@ export async function createTicket(input: CreateTicketInput): Promise<number | n
     // O GLPI normalmente recalcula priority a partir de urgency × impact; mandamos
     // junto pra escolha do formulário valer quando o cálculo estiver desligado.
     priority: urgency,
+    // `category.id` é gravável na V2.1 (ao contrário de `status.id`); só a leitura
+    // da LISTA de categorias é que precisa da v1.
+    ...(input.categoryId ? { category: { id: input.categoryId } } : {}),
   });
   const newId = created?.id ?? null;
   if (!newId) return null;

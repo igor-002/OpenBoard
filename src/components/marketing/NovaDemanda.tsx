@@ -21,9 +21,15 @@ const PRIORIDADES = [
 export function NovaDemanda({
   trackedUsers,
   assignable,
+  categorias = [],
+  irParaDetalhe = true,
 }: {
   trackedUsers: GlpiUserOpt[];
   assignable: GlpiUserOpt[];
+  categorias?: { id: number; nome: string }[];
+  // No quadro, criar e ser jogado pro detalhe tira o usuário do lugar: lá o chamado
+  // novo já aparece sozinho na coluna "Novos", então só recarrega.
+  irParaDetalhe?: boolean;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -35,6 +41,7 @@ export function NovaDemanda({
   const [requesterId, setRequesterId] = useState(trackedUsers[0] ? String(trackedUsers[0].id) : "");
   const [assigneeId, setAssigneeId] = useState("");
   const [type, setType] = useState("2");
+  const [categoryId, setCategoryId] = useState("");
   const [urgency, setUrgency] = useState("3");
   const [dueAt, setDueAt] = useState("");
 
@@ -47,6 +54,7 @@ export function NovaDemanda({
         requesterId: Number(requesterId),
         assigneeId: assigneeId ? Number(assigneeId) : undefined,
         type: Number(type),
+        categoryId: categoryId ? Number(categoryId) : null,
         urgency: Number(urgency),
         dueAt: dueAt || null,
       });
@@ -55,8 +63,9 @@ export function NovaDemanda({
         setName("");
         setContent("");
         setAssigneeId("");
+        setCategoryId("");
         setDueAt("");
-        if (r.id) router.push(`/marketing/demandas/${r.id}`);
+        if (r.id && irParaDetalhe) router.push(`/marketing/demandas/${r.id}`);
         else router.refresh();
       } else {
         setErr(r.error || "Falha ao criar o chamado.");
@@ -95,6 +104,15 @@ export function NovaDemanda({
                 </select>
               </div>
             </div>
+            {categorias.length > 0 && (
+              <div>
+                <label className="muted" style={{ fontSize: 12, fontWeight: 600 }}>Categoria de serviço</label>
+                <select className="input" value={categoryId} onChange={(e) => setCategoryId(e.target.value)} style={{ width: "100%", marginTop: 6 }}>
+                  <option value="">Sem categoria</option>
+                  {categorias.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                </select>
+              </div>
+            )}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
               <div>
                 <label className="muted" style={{ fontSize: 12, fontWeight: 600 }}>Tipo</label>
