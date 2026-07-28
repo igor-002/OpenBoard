@@ -3,7 +3,7 @@
 // Quadro de Demandas do Marketing (Kanban tipo Trello). Colunas próprias (não são
 // status do GLPI). Card interno OU linkado a um chamado GLPI. Drag-and-drop nativo
 // (desktop), etiquetas coloridas, prazo, anexos. Criar/editar card num modal rico.
-import { useState, useTransition, useRef } from "react";
+import { useState, useTransition, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Icon } from "@/components/ui/Icon";
 import { emitToast } from "@/lib/toast";
@@ -43,12 +43,19 @@ function fmtSize(n: number): string {
 
 type ModalState = { mode: "create"; columnId: string } | { mode: "edit"; card: CardDTO };
 
-export function QuadroBoard({ board }: { board: BoardDTO }) {
+export function QuadroBoard({ board, openCardId = null }: { board: BoardDTO; openCardId?: string | null }) {
   const router = useRouter();
   const [, start] = useTransition();
   const [modal, setModal] = useState<ModalState | null>(null);
   const [dragId, setDragId] = useState<string | null>(null);
   const [overCol, setOverCol] = useState<string | null>(null);
+
+  // Chegou por link de notificação (?card=<id>) → abre o card direto.
+  useEffect(() => {
+    if (!openCardId) return;
+    const card = board.columns.flatMap((c) => c.cards).find((c) => c.id === openCardId);
+    if (card) setModal({ mode: "edit", card });
+  }, [openCardId, board]);
 
   function run(action: () => Promise<{ ok: boolean; error?: string }>, okMsg?: string) {
     start(async () => {
