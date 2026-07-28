@@ -105,8 +105,15 @@ Vieram de `demandas/marketing/` (3 prints + descricao.md).
   Destravar = liberar o scope de GraphQL no cliente OAuth **ou** gerar um App-Token.
 - [ ] Rodar a migração (Docker local estava parado — SQL escrito à mão, aditivo),
   testar no browser, push e deploy.
-- [ ] Chamados JÁ criados pelo app estão órfãos (sem requester rastreado) e somem
-  no próximo full sync. Ex.: #36758. Precisa backfill do TeamMember requester.
+- [x] **Órfãos resolvidos (2026-07-28).** Sonda na entidade 54: 261 ativos, 26 sem
+  dono pela regra antiga. Só **1** (#36758) tinha sido criado pelo app — corrigido
+  por backfill (`scripts/glpi-backfill-requester.ts --apply --only-app`, escreveu
+  o TeamMember requester = atribuído). Os outros **20** eram antigos: quando alguém
+  de fora abre chamado PARA o marketing, esta instância põe a pessoa só como
+  `assigned`, sem `requester` — nunca apareceram. Resolvido **sem escrever no GLPI**:
+  `attributedTrackedId` agora cai pro atribuído rastreado (3ª opção, depois de
+  requerente e autor). Verificado: 235 → 255 com dono (+20). Sobram 6 corretamente
+  fora (5 sem atribuído, 1 atribuído a alguém de fora do time).
 
 ## 2. Escrita GLPI (interação pelo sistema)  ✅ FUNCIONANDO
 Fase de escrita codada+pushada (3acbeb8). Bloqueio 403 resolvido: causa era

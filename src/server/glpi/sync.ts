@@ -64,14 +64,23 @@ async function resolveTrackedUsers(): Promise<Map<number, { login: string; name:
 const hasRole = (m: TeamMember, role: "requester" | "assigned") =>
   String(m.role ?? "").toLowerCase().includes(role);
 
-// Usuário de marketing (rastreado) a quem a demanda pertence: 1º um REQUERENTE
-// rastreado (chamado aberto PARA ele); senão o AUTOR, se for rastreado. null =
-// não é demanda de ninguém do marketing → o chamado é descartado no sync.
+// Usuário de marketing (rastreado) a quem a demanda pertence, em ordem de força:
+// 1º um REQUERENTE rastreado (chamado aberto PARA ele); 2º o AUTOR, se rastreado;
+// 3º um ATRIBUÍDO rastreado. null = não é demanda de ninguém do marketing → o
+// chamado é descartado no sync.
+//
+// O 3º caso não é teoria: quando alguém de fora abre um chamado PARA o marketing,
+// esta instância põe a pessoa do marketing no team só como `assigned`, sem
+// `requester` nenhum — 20 chamados reais da entidade Marketing ficavam invisíveis
+// por isso. Como o pool já é "autor rastreado OU entidade Marketing", cair pro
+// atribuído não amplia o escopo além do que é demanda do time.
 function attributedTrackedId(t: GlpiTicketRaw): number | null {
-  const req = (t.team ?? []).find((m) => hasRole(m, "requester") && TRACKED_USER_IDS.includes(m.id));
+  const team = t.team ?? [];
+  const req = team.find((m) => hasRole(m, "requester") && TRACKED_USER_IDS.includes(m.id));
   if (req) return req.id;
   const authorId = t.user_recipient?.id ?? 0;
-  return TRACKED_USER_IDS.includes(authorId) ? authorId : null;
+  if (TRACKED_USER_IDS.includes(authorId)) return authorId;
+  return team.find((m) => hasRole(m, "assigned") && TRACKED_USER_IDS.includes(m.id))?.id ?? null;
 }
 
 // Mapeia o ticket cru do GLPI → colunas do GlpiTicket (mesma forma no sync completo
