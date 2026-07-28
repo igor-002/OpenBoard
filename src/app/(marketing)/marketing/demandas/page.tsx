@@ -24,7 +24,6 @@ export default async function DemandasPage({
         getTrackedUsers(),
       ])
     : [null, []];
-  const glpiBase = (process.env.GLPI_URL ?? "").replace(/\/$/, "");
 
   return (
     <div className="page">
@@ -56,7 +55,6 @@ export default async function DemandasPage({
           report={report!}
           requesterId={Number.isInteger(requesterId) ? requesterId : null}
           status={status}
-          glpiBase={glpiBase}
           isAdmin={user.role === "admin"}
         />
       )}

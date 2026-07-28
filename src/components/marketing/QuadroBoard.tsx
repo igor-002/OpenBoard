@@ -924,6 +924,7 @@ function CardModal({
                     <div key={a.id} className="row between" style={{ gap: 8, background: "var(--surface-2)", borderRadius: "var(--r-md)", padding: "7px 10px", border: "1px solid var(--line)" }}>
                       <a href={`/marketing/quadro/anexo/${a.id}`} target="_blank" rel="noopener noreferrer" className="row" style={{ gap: 9, minWidth: 0, flex: 1, textDecoration: "none", color: "var(--ink)" }}>
                         {img ? (
+                          // eslint-disable-next-line @next/next/no-img-element -- rota autenticada por cookie; o otimizador do next/image busca no servidor e não levaria a sessão
                           <img src={`/marketing/quadro/anexo/${a.id}`} alt="" style={{ width: 34, height: 34, objectFit: "cover", borderRadius: 6, flex: "0 0 auto" }} />
                         ) : (
                           <span style={{ width: 34, height: 34, display: "grid", placeItems: "center", background: "var(--surface-3)", borderRadius: 6, flex: "0 0 auto", color: "var(--muted)" }}><Icon name="paperclip" size={15} /></span>

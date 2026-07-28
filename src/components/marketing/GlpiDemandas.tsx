@@ -34,13 +34,11 @@ export function GlpiDemandas({
   report,
   requesterId,
   status,
-  glpiBase,
   isAdmin,
 }: {
   report: GlpiReport;
   requesterId: number | null;
   status: StatusFilter;
-  glpiBase: string;
   isAdmin: boolean;
 }) {
   const router = useRouter();
