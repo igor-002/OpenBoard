@@ -6,6 +6,7 @@
 import { useState, useTransition, useRef, useEffect, useMemo, Fragment } from "react";
 import { useRouter } from "next/navigation";
 import { Icon, type IconName } from "@/components/ui/Icon";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { emitToast } from "@/lib/toast";
 import { statusColors } from "@/lib/glpi-format";
 import type { BoardDTO, CardDTO, LabelDTO, AttachmentDTO } from "@/server/marketing/board";
@@ -301,6 +302,7 @@ function ColumnHeader({
 }) {
   const [menu, setMenu] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [confirming, setConfirming] = useState(false);
   const [val, setVal] = useState(name);
 
   function commit() {
@@ -349,10 +351,19 @@ function ColumnHeader({
             <MenuItem label="Renomear" icon="check" onClick={() => { setMenu(false); setVal(name); setEditing(true); }} />
             {!isFirst && <MenuItem label="Mover para esquerda" icon="chevLeft" onClick={() => { setMenu(false); onMove(-1); }} />}
             {!isLast && <MenuItem label="Mover para direita" icon="chevRight" onClick={() => { setMenu(false); onMove(1); }} />}
-            <MenuItem label="Excluir coluna" icon="trash" danger onClick={() => { setMenu(false); onDelete(); }} />
+            <MenuItem label="Excluir coluna" icon="trash" danger onClick={() => { setMenu(false); setConfirming(true); }} />
           </div>
         </>
       )}
+      <ConfirmDialog
+        open={confirming}
+        danger
+        title={`Excluir a coluna “${name}”?`}
+        message="A coluna precisa estar vazia. Cartões nela impedem a exclusão."
+        confirmLabel="Excluir coluna"
+        onConfirm={() => { setConfirming(false); onDelete(); }}
+        onCancel={() => setConfirming(false)}
+      />
     </div>
   );
 }
@@ -531,6 +542,7 @@ function CardModal({
   const [newLabel, setNewLabel] = useState("");
   const [newColor, setNewColor] = useState(LABEL_SWATCHES[0]);
   const [busy, setBusy] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const fileRef = useRef<HTMLInputElement | null>(null);
 
   const isCreate = !cardId;
@@ -614,6 +626,7 @@ function CardModal({
   }
 
   return (
+    <>
     <div
       onClick={onClose}
       style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", backdropFilter: "blur(2px)", zIndex: 300, display: "grid", placeItems: "start center", padding: "6vh 16px", overflowY: "auto" }}
@@ -748,7 +761,7 @@ function CardModal({
             </>
           ) : (
             <>
-              <button className="btn btn-ghost" style={{ color: "var(--st-risk)" }} onClick={() => { run(() => deleteCardAction(cardId!)); onClose(); }}>
+              <button className="btn btn-ghost" style={{ color: "var(--st-risk)" }} onClick={() => setConfirmDelete(true)}>
                 <Icon name="trash" size={14} /> Excluir
               </button>
               <div className="row gap8">
@@ -760,6 +773,16 @@ function CardModal({
         </div>
       </div>
     </div>
+    <ConfirmDialog
+      open={confirmDelete}
+      danger
+      title="Excluir este cartão?"
+      message={initialCard?.title ? `“${initialCard.title}” será removido do quadro.` : "O cartão será removido do quadro."}
+      confirmLabel="Excluir cartão"
+      onConfirm={() => { setConfirmDelete(false); if (cardId) run(() => deleteCardAction(cardId)); onClose(); }}
+      onCancel={() => setConfirmDelete(false)}
+    />
+    </>
   );
 }
 

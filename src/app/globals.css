@@ -741,6 +741,29 @@ a {
   50% { opacity: 0.45; transform: scale(0.92); }
 }
 
+/* Sino com não-lidas: anel pulsante pra chamar atenção */
+@keyframes bell-ring-pulse {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--primary) 55%, transparent); }
+  70% { box-shadow: 0 0 0 7px color-mix(in srgb, var(--primary) 0%, transparent); }
+  100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--primary) 0%, transparent); }
+}
+.bell-badge-alert {
+  animation: bell-ring-pulse 1.8s ease-out infinite;
+}
+@keyframes bell-swing {
+  0%, 90%, 100% { transform: rotate(0); }
+  93% { transform: rotate(12deg); }
+  96% { transform: rotate(-9deg); }
+  98% { transform: rotate(5deg); }
+}
+.bell-icon-alert {
+  animation: bell-swing 3s ease-in-out infinite;
+  transform-origin: 50% 15%;
+}
+@media (prefers-reduced-motion: reduce) {
+  .bell-badge-alert, .bell-icon-alert { animation: none; }
+}
+
 /* Selo "dados de exemplo / estimado" */
 .est-badge {
   display: inline-flex;

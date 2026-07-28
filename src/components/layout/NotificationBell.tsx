@@ -38,21 +38,24 @@ export function NotificationBell({ items, unread }: { items: NotificationItem[];
 
   return (
     <div style={{ position: "relative" }}>
-      <button className="icon-btn" title="Notificações" onClick={toggle}>
-        <Icon name="bell" size={18} />
+      <button className="icon-btn" title={unread > 0 ? `${unread} não lida(s)` : "Notificações"} onClick={toggle}>
+        <span className={unread > 0 ? "bell-icon-alert" : undefined} style={{ display: "inline-grid", placeItems: "center" }}>
+          <Icon name="bell" size={18} />
+        </span>
         {unread > 0 && (
           <span
+            className="bell-badge-alert"
             style={{
               position: "absolute",
-              top: 4,
-              right: 4,
-              minWidth: 16,
-              height: 16,
+              top: 3,
+              right: 3,
+              minWidth: 17,
+              height: 17,
               padding: "0 4px",
               borderRadius: 999,
               background: "var(--primary)",
               color: "#fff",
-              fontSize: 10,
+              fontSize: 10.5,
               fontWeight: 800,
               display: "grid",
               placeItems: "center",
