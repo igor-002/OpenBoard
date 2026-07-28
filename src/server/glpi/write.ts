@@ -97,10 +97,36 @@ function parseDue(v: string | null | undefined): Date | null {
 }
 
 // Muda o status do chamado (1 Novo, 2 Em atend., 4 Pendente, 5 Solucionado, 6 Fechado).
+//
+// CONFERE O RESULTADO. A API v2.1 marca `status.id` como readOnly: o PATCH volta
+// 200 OK e o status NÃO muda — verificado com 5 formatos de payload × 5 status de
+// destino (`urgency` no mesmo PATCH muda normal, então não é permissão; pela tela
+// do GLPI o mesmo usuário consegue). Sem esta conferência a escrita "dá certo"
+// silenciosamente, o espelho ressincroniza com o valor velho e quem chamou acha
+// que mudou — foi assim que o arrastar do quadro passou a mentir.
 export async function updateStatus(glpiId: number, statusId: number): Promise<void> {
   await glpiPatch(`/Assistance/Ticket/${glpiId}`, { status: { id: statusId } });
-  await syncOneTicket(glpiId);
+  await syncOneTicket(glpiId); // relê o chamado → espelho com o status REAL de agora
+  const agora = await db.glpiTicket.findUnique({ where: { glpiId }, select: { statusId: true } });
+  if (agora && agora.statusId !== statusId && !mesmoAtendimento(agora.statusId, statusId)) {
+    throw new Error(
+      `O GLPI aceitou a requisição mas manteve o status em "${STATUS_NOME[agora.statusId] ?? agora.statusId}". ` +
+        `A API v2.1 não permite gravar status direto.`,
+    );
+  }
 }
+
+// 2 e 3 são "Em atendimento" (atribuído/planejado) — o GLPI escolhe entre os dois.
+const mesmoAtendimento = (a: number, b: number) => [2, 3].includes(a) && [2, 3].includes(b);
+
+const STATUS_NOME: Record<number, string> = {
+  1: "Novo",
+  2: "Em atendimento",
+  3: "Em atendimento",
+  4: "Pendente",
+  5: "Solucionado",
+  6: "Fechado",
+};
 
 // Atribui um técnico (role=assigned) ao chamado.
 export async function setAssignee(glpiId: number, userId: number, role = "assigned"): Promise<void> {
