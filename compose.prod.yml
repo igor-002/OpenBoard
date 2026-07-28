@@ -69,6 +69,11 @@ services:
       GLPI_PASSWORD: ${GLPI_PASSWORD:-}
       GLPI_TRACKED_USER_IDS: ${GLPI_TRACKED_USER_IDS:-}
       GLPI_SYNC_INTERVAL_MIN: ${GLPI_SYNC_INTERVAL_MIN:-}
+      # API v1 (apirest.php) — só pra MUDAR STATUS de chamado: a V2.1 marca
+      # `status.id` como readOnly e devolve 200 sem gravar. Sem estas duas, mover
+      # card entre colunas de status falha com "tokens ausentes".
+      GLPI_APP_TOKEN: ${GLPI_APP_TOKEN:-}
+      GLPI_USER_TOKEN: ${GLPI_USER_TOKEN:-}
       # Webhook de ingest de leads do chat de atendimento (POST /api/comercial/leads).
       LEADS_INGEST_TOKEN: ${LEADS_INGEST_TOKEN:-}
       # Análise IA da conversa (OpenAI). Sem OPENAI_API_KEY o botão de análise fica off.
