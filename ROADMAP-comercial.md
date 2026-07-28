@@ -102,8 +102,9 @@ PATCH o `urgency` mudava, e pela tela do GLPI o `integracaomkt` conseguia.
   detalhe, quebrados em silêncio desde sempre.
 - [ ] **Rotacionar** App-Token + user_token (apareceram no chat) e restringir o
   cliente de API pelo IPv4 da VPS.
-- [ ] (agora possível) **Categoria de serviço**: a v1 lista `ITILCategory`, que a
-  V2.1 não expõe — era o pedido do marketing que ficou de fora.
+- [x] **Categoria de serviço FEITA** (commit 90cce54): a v1 lista `ITILCategory` e
+  `category.id` é gravável na V2.1 → lista vem da v1, criação segue na V2.1. Filtra
+  pela entidade: 168 categorias na instância, só 13 são do Marketing.
 
 ## 10. Unificação dos dois kanbans (2026-07-28)  🔨 FEITO (falta testar no browser + deploy)
 Problema: `/marketing/quadro` (visão "Status GLPI") e `/marketing/demandas` (kanban)
@@ -150,13 +151,10 @@ Vieram de `demandas/marketing/` (3 prints + descricao.md).
   acompanhamento no chamado pra quem acompanha pelo GLPI ver.
 - [x] "Quem abriu / quem recebeu" no topo do chamado — já existia; passa a ficar
   correto agora que o create grava requester + assigned.
-- [ ] **Categoria de serviço — BLOQUEADA.** A v2.1 não expõe ITILCategory
-  (`/Dropdowns/` só tem Location, State, Manufacturer, Calendar; todas as rotas
-  ITILCategory dão 404). GraphQL existe mas responde 403 (`ERROR_RIGHT_MISSING` —
-  falta scope no Cliente OAuth). `apirest.php` v1 está ligado mas exige `app_token`.
-  Destravar = liberar o scope de GraphQL no cliente OAuth **ou** gerar um App-Token.
-- [ ] Rodar a migração (Docker local estava parado — SQL escrito à mão, aditivo),
-  testar no browser, push e deploy.
+- [x] **Categoria de serviço DESTRAVADA** (commit 90cce54) — a v2.1 não expõe
+  ITILCategory (404 em toda rota; GraphQL 403 por falta de scope), mas a **v1
+  lista**. Ver seção 11.
+- [x] Migração rodada em dev; push feito. Falta o deploy na VPS.
 - [x] **Órfãos resolvidos (2026-07-28).** Sonda na entidade 54: 261 ativos, 26 sem
   dono pela regra antiga. Só **1** (#36758) tinha sido criado pelo app — corrigido
   por backfill (`scripts/glpi-backfill-requester.ts --apply --only-app`, escreveu
