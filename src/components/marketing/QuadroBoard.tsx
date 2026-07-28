@@ -3,7 +3,7 @@
 // Quadro de Demandas do Marketing (Kanban tipo Trello). Colunas próprias (não são
 // status do GLPI). Card interno OU linkado a um chamado GLPI. Drag-and-drop nativo
 // (desktop), etiquetas coloridas, prazo, anexos. Criar/editar card num modal rico.
-import { useState, useTransition, useRef, useEffect } from "react";
+import { useState, useTransition, useRef, useEffect, Fragment } from "react";
 import { useRouter } from "next/navigation";
 import { Icon } from "@/components/ui/Icon";
 import { emitToast } from "@/lib/toast";
@@ -47,8 +47,9 @@ export function QuadroBoard({ board, openCardId = null }: { board: BoardDTO; ope
   const router = useRouter();
   const [, start] = useTransition();
   const [modal, setModal] = useState<ModalState | null>(null);
-  const [dragId, setDragId] = useState<string | null>(null);
-  const [overCol, setOverCol] = useState<string | null>(null);
+  // Card sendo arrastado (origem) + posição de inserção ao vivo (coluna + índice na lista exibida).
+  const [drag, setDrag] = useState<{ id: string; colId: string; index: number } | null>(null);
+  const [over, setOver] = useState<{ colId: string; index: number } | null>(null);
 
   // Chegou por link de notificação (?card=<id>) → abre o card direto.
   useEffect(() => {
@@ -66,24 +67,32 @@ export function QuadroBoard({ board, openCardId = null }: { board: BoardDTO; ope
     });
   }
 
-  function drop(toColumnId: string, toIndex: number) {
-    const id = dragId;
-    setDragId(null);
-    setOverCol(null);
-    if (!id) return;
-    run(() => moveCardAction(id, toColumnId, toIndex));
+  // `endIndex` = fim da coluna (fallback quando o cursor não está sobre nenhum card).
+  function drop(toColumnId: string, endIndex: number) {
+    const d = drag;
+    const o = over;
+    setDrag(null);
+    setOver(null);
+    if (!d) return;
+    // Índice de inserção na lista exibida (inclui o card arrastado).
+    let index = o && o.colId === toColumnId ? o.index : endIndex;
+    // moveCard indexa entre os "outros" cards (exclui o arrastado): compensa quando
+    // ele sai de uma posição acima do destino na mesma coluna.
+    if (d.colId === toColumnId && d.index < index) index -= 1;
+    if (d.colId === toColumnId && index === d.index) return; // soltou no mesmo lugar
+    run(() => moveCardAction(d.id, toColumnId, index));
   }
 
   return (
     <>
       <div style={{ display: "flex", gap: "var(--gap)", overflowX: "auto", paddingBottom: 12, alignItems: "flex-start" }}>
         {board.columns.map((col) => {
-          const isOver = overCol === col.id;
+          const isOver = over?.colId === col.id;
           return (
             <div
               key={col.id}
-              onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; if (overCol !== col.id) setOverCol(col.id); }}
-              onDragLeave={(e) => { if (e.currentTarget === e.target) setOverCol(null); }}
+              onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; setOver({ colId: col.id, index: col.cards.length }); }}
+              onDragLeave={(e) => { if (e.currentTarget === e.target && over?.colId === col.id) setOver(null); }}
               onDrop={(e) => { e.preventDefault(); drop(col.id, col.cards.length); }}
               style={{
                 flex: "0 0 292px",
@@ -104,18 +113,22 @@ export function QuadroBoard({ board, openCardId = null }: { board: BoardDTO; ope
               </div>
 
               <div style={{ display: "flex", flexDirection: "column", gap: 8, padding: 10, overflowY: "auto", flex: 1 }}>
-                {col.cards.map((c) => (
-                  <CardTile
-                    key={c.id}
-                    card={c}
-                    dragging={dragId === c.id}
-                    onDragStart={() => setDragId(c.id)}
-                    onDragEnd={() => { setDragId(null); setOverCol(null); }}
-                    onOpen={() => setModal({ mode: "edit", card: c })}
-                  />
+                {col.cards.map((c, i) => (
+                  <Fragment key={c.id}>
+                    {isOver && over?.index === i && <DropLine />}
+                    <CardTile
+                      card={c}
+                      dragging={drag?.id === c.id}
+                      onDragStart={() => setDrag({ id: c.id, colId: col.id, index: i })}
+                      onDragEnd={() => { setDrag(null); setOver(null); }}
+                      onOver={(before) => setOver({ colId: col.id, index: before ? i : i + 1 })}
+                      onOpen={() => setModal({ mode: "edit", card: c })}
+                    />
+                  </Fragment>
                 ))}
+                {isOver && over?.index === col.cards.length && col.cards.length > 0 && <DropLine />}
                 {col.cards.length === 0 && (
-                  <div className="muted" style={{ fontSize: 12, textAlign: "center", padding: "10px 0", opacity: 0.6 }}>Sem cartões</div>
+                  <div className="muted" style={{ fontSize: 12, textAlign: "center", padding: "10px 0", opacity: 0.6 }}>{isOver ? "Soltar aqui" : "Sem cartões"}</div>
                 )}
               </div>
 
@@ -145,18 +158,25 @@ export function QuadroBoard({ board, openCardId = null }: { board: BoardDTO; ope
   );
 }
 
+// Linha de inserção mostrada entre cards durante o arraste.
+function DropLine() {
+  return <div style={{ height: 3, background: "var(--primary)", borderRadius: 2, margin: "-1px 2px", boxShadow: "0 0 0 1px color-mix(in srgb, var(--primary) 40%, transparent)" }} />;
+}
+
 // ── Card no quadro ─────────────────────────────────────────────────────────────
 function CardTile({
   card,
   dragging,
   onDragStart,
   onDragEnd,
+  onOver,
   onOpen,
 }: {
   card: CardDTO;
   dragging: boolean;
   onDragStart: () => void;
   onDragEnd: () => void;
+  onOver: (before: boolean) => void;
   onOpen: () => void;
 }) {
   const due = dueMeta(card.dueAt);
@@ -166,6 +186,13 @@ function CardTile({
       draggable
       onDragStart={(e) => { e.dataTransfer.setData("text/plain", card.id); e.dataTransfer.effectAllowed = "move"; onDragStart(); }}
       onDragEnd={onDragEnd}
+      onDragOver={(e) => {
+        e.preventDefault();
+        e.stopPropagation(); // impede o handler da coluna de sobrescrever com "fim"
+        e.dataTransfer.dropEffect = "move";
+        const r = e.currentTarget.getBoundingClientRect();
+        onOver(e.clientY < r.top + r.height / 2);
+      }}
       onClick={onOpen}
       className="card"
       style={{ padding: 11, cursor: "grab", opacity: dragging ? 0.5 : 1, transition: "box-shadow .15s, transform .15s" }}

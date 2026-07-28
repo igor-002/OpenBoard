@@ -229,6 +229,7 @@ function KanbanBoard({ tickets }: { tickets: GlpiReport["tickets"] }) {
     setDragId(null);
     setOverCol(null);
     if (id == null) return;
+    if (col.key === "novo") return; // "Novo" não é destino válido (não faz sentido voltar pra Novo)
     const t = tickets.find((x) => x.glpiId === id);
     if (!t) return;
     if (colOfStatus(effStatus(t)) === col.key) return; // já está na coluna
@@ -261,11 +262,17 @@ function KanbanBoard({ tickets }: { tickets: GlpiReport["tickets"] }) {
         {KANBAN_COLS.map((col) => {
           const items = byCol.get(col.key) ?? [];
           const accent = statusColors(col.ids[0]);
-          const isOver = overCol === col.key;
+          const noDrop = col.key === "novo"; // "Novo" não aceita drop
+          const isOver = overCol === col.key && !noDrop;
           return (
             <div
               key={col.key}
-              onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; if (overCol !== col.key) setOverCol(col.key); }}
+              onDragOver={(e) => {
+                e.preventDefault();
+                if (noDrop) { e.dataTransfer.dropEffect = "none"; return; }
+                e.dataTransfer.dropEffect = "move";
+                if (overCol !== col.key) setOverCol(col.key);
+              }}
               onDragLeave={(e) => { if (e.currentTarget === e.target) setOverCol(null); }}
               onDrop={(e) => { e.preventDefault(); drop(col); }}
               style={{ flex: "0 0 268px", minWidth: 268, borderRadius: "var(--r-md)", outline: isOver ? `2px dashed ${accent.color}` : "none", outlineOffset: 2, transition: "outline .12s" }}
