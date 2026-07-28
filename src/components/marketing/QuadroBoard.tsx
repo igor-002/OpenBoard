@@ -3,7 +3,7 @@
 // Quadro de Demandas do Marketing (Kanban tipo Trello). Colunas próprias (não são
 // status do GLPI). Card interno OU linkado a um chamado GLPI. Drag-and-drop nativo
 // (desktop), etiquetas coloridas, prazo, anexos. Criar/editar card num modal rico.
-import { useState, useTransition, useRef, useEffect, useMemo, Fragment } from "react";
+import { useState, useTransition, useRef, useMemo, Fragment } from "react";
 import { useRouter } from "next/navigation";
 import { Icon, type IconName } from "@/components/ui/Icon";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
@@ -65,7 +65,12 @@ type ModalState = { mode: "create"; columnId: string } | { mode: "edit"; card: C
 export function QuadroBoard({ board, openCardId = null }: { board: BoardDTO; openCardId?: string | null }) {
   const router = useRouter();
   const [, start] = useTransition();
-  const [modal, setModal] = useState<ModalState | null>(null);
+  // Chegou por link de notificação (?card=<id>) → abre o card direto (init lazy, sem efeito).
+  const [modal, setModal] = useState<ModalState | null>(() => {
+    if (!openCardId) return null;
+    const card = board.columns.flatMap((c) => c.cards).find((c) => c.id === openCardId);
+    return card ? { mode: "edit", card } : null;
+  });
   // Visão do board: "flow" = fluxo do time (colunas próprias) | "glpi" = agrupado por status GLPI.
   const [boardView, setBoardView] = useState<"flow" | "glpi">("flow");
   // Card sendo arrastado (origem) + posição de inserção ao vivo (coluna + índice na lista exibida).
@@ -98,13 +103,6 @@ export function QuadroBoard({ board, openCardId = null }: { board: BoardDTO; ope
       return next;
     });
   }
-
-  // Chegou por link de notificação (?card=<id>) → abre o card direto.
-  useEffect(() => {
-    if (!openCardId) return;
-    const card = board.columns.flatMap((c) => c.cards).find((c) => c.id === openCardId);
-    if (card) setModal({ mode: "edit", card });
-  }, [openCardId, board]);
 
   function run(action: () => Promise<{ ok: boolean; error?: string }>, okMsg?: string) {
     start(async () => {
