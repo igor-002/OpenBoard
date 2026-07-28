@@ -205,6 +205,43 @@ export async function createLabel(boardId: string, name: string, color: string):
   });
 }
 
+// ── Colunas (gerenciáveis pela UI) ─────────────────────────────────────────────
+export async function createColumn(boardId: string, name: string): Promise<{ id: string }> {
+  const n = name.trim();
+  if (!n) throw new Error("Nome da coluna obrigatório.");
+  const last = await db.mktColumn.findFirst({ where: { boardId }, orderBy: { order: "desc" }, select: { order: true } });
+  return db.mktColumn.create({ data: { boardId, name: n, order: (last?.order ?? -1) + 1 }, select: { id: true } });
+}
+
+export async function renameColumn(columnId: string, name: string): Promise<void> {
+  const n = name.trim();
+  if (!n) throw new Error("Nome da coluna não pode ficar vazio.");
+  await db.mktColumn.update({ where: { id: columnId }, data: { name: n } });
+}
+
+// Só remove coluna vazia — evita apagar cards por engano.
+export async function deleteColumn(columnId: string): Promise<void> {
+  const count = await db.mktCard.count({ where: { columnId } });
+  if (count > 0) throw new Error("Mova ou exclua os cartões antes de remover a coluna.");
+  await db.mktColumn.delete({ where: { id: columnId } });
+}
+
+// Move a coluna uma posição pra esquerda (-1) ou direita (+1), trocando `order` com a vizinha.
+export async function moveColumn(columnId: string, dir: -1 | 1): Promise<void> {
+  const col = await db.mktColumn.findUnique({ where: { id: columnId }, select: { id: true, boardId: true, order: true } });
+  if (!col) return;
+  const neighbor = await db.mktColumn.findFirst({
+    where: { boardId: col.boardId, order: dir < 0 ? { lt: col.order } : { gt: col.order } },
+    orderBy: { order: dir < 0 ? "desc" : "asc" },
+    select: { id: true, order: true },
+  });
+  if (!neighbor) return; // já é a primeira/última
+  await db.$transaction([
+    db.mktColumn.update({ where: { id: col.id }, data: { order: neighbor.order } }),
+    db.mktColumn.update({ where: { id: neighbor.id }, data: { order: col.order } }),
+  ]);
+}
+
 // ── Anexos ────────────────────────────────────────────────────────────────────
 export const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024; // 20 MB — guardado no Postgres.
 

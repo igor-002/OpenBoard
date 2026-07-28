@@ -5,7 +5,7 @@
 // (desktop), etiquetas coloridas, prazo, anexos. Criar/editar card num modal rico.
 import { useState, useTransition, useRef, useEffect, useMemo, Fragment } from "react";
 import { useRouter } from "next/navigation";
-import { Icon } from "@/components/ui/Icon";
+import { Icon, type IconName } from "@/components/ui/Icon";
 import { emitToast } from "@/lib/toast";
 import { statusColors } from "@/lib/glpi-format";
 import type { BoardDTO, CardDTO, LabelDTO, AttachmentDTO } from "@/server/marketing/board";
@@ -19,6 +19,10 @@ import {
   uploadAttachmentAction,
   deleteAttachmentAction,
   searchGlpiTicketsAction,
+  createColumnAction,
+  renameColumnAction,
+  deleteColumnAction,
+  moveColumnAction,
   type GlpiHit,
 } from "@/app/(marketing)/marketing/quadro/actions";
 
@@ -146,7 +150,7 @@ export function QuadroBoard({ board, openCardId = null }: { board: BoardDTO; ope
       )}
 
       <div style={{ display: "flex", gap: "var(--gap)", overflowX: "auto", paddingBottom: 12, alignItems: "flex-start" }}>
-        {board.columns.map((col) => {
+        {board.columns.map((col, colIdx) => {
           const isOver = over?.colId === col.id;
           const visibleCount = filtering ? col.cards.filter(matches).length : col.cards.length;
           return (
@@ -168,12 +172,15 @@ export function QuadroBoard({ board, openCardId = null }: { board: BoardDTO; ope
                 maxHeight: "calc(100vh - 190px)",
               }}
             >
-              <div className="row between" style={{ padding: "11px 13px", borderBottom: "1px solid var(--line)" }}>
-                <span style={{ fontWeight: 800, fontSize: 13, color: "var(--ink)", letterSpacing: 0.2 }}>{col.name}</span>
-                <span className="badge" style={{ background: "var(--surface-3)", color: "var(--muted)", fontWeight: 800, minWidth: 22, textAlign: "center" }}>
-                  {filtering ? `${visibleCount}/${col.cards.length}` : col.cards.length}
-                </span>
-              </div>
+              <ColumnHeader
+                name={col.name}
+                badge={filtering ? `${visibleCount}/${col.cards.length}` : String(col.cards.length)}
+                isFirst={colIdx === 0}
+                isLast={colIdx === board.columns.length - 1}
+                onRename={(name) => run(() => renameColumnAction(col.id, name), "Coluna renomeada")}
+                onMove={(dir) => run(() => moveColumnAction(col.id, dir))}
+                onDelete={() => run(() => deleteColumnAction(col.id), "Coluna removida")}
+              />
 
               <div style={{ display: "flex", flexDirection: "column", gap: 8, padding: 10, overflowY: "auto", flex: 1 }}>
                 {col.cards.map((c, i) => {
@@ -208,6 +215,7 @@ export function QuadroBoard({ board, openCardId = null }: { board: BoardDTO; ope
             </div>
           );
         })}
+        <AddColumn onCreate={(name) => run(() => createColumnAction(name), "Coluna criada")} />
       </div>
 
       {modal && (
@@ -221,6 +229,129 @@ export function QuadroBoard({ board, openCardId = null }: { board: BoardDTO; ope
         />
       )}
     </>
+  );
+}
+
+// ── Header da coluna: nome + badge + menu (renomear / mover / excluir) ─────────
+function ColumnHeader({
+  name,
+  badge,
+  isFirst,
+  isLast,
+  onRename,
+  onMove,
+  onDelete,
+}: {
+  name: string;
+  badge: string;
+  isFirst: boolean;
+  isLast: boolean;
+  onRename: (name: string) => void;
+  onMove: (dir: -1 | 1) => void;
+  onDelete: () => void;
+}) {
+  const [menu, setMenu] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [val, setVal] = useState(name);
+
+  function commit() {
+    const t = val.trim();
+    setEditing(false);
+    if (t && t !== name) onRename(t);
+    else setVal(name);
+  }
+
+  if (editing) {
+    return (
+      <div className="row gap8" style={{ padding: "9px 11px", borderBottom: "1px solid var(--line)" }}>
+        <input
+          className="input"
+          autoFocus
+          value={val}
+          onChange={(e) => setVal(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") commit(); if (e.key === "Escape") { setVal(name); setEditing(false); } }}
+          onBlur={commit}
+          style={{ fontSize: 13, fontWeight: 700, padding: "4px 8px" }}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="row between" style={{ padding: "11px 13px", borderBottom: "1px solid var(--line)", position: "relative" }}>
+      <span style={{ fontWeight: 800, fontSize: 13, color: "var(--ink)", letterSpacing: 0.2 }}>{name}</span>
+      <div className="row" style={{ gap: 6, alignItems: "center" }}>
+        <span className="badge" style={{ background: "var(--surface-3)", color: "var(--muted)", fontWeight: 800, minWidth: 22, textAlign: "center" }}>{badge}</span>
+        <button className="btn btn-ghost" style={{ padding: "2px 6px", lineHeight: 1 }} onClick={() => setMenu((m) => !m)} aria-label="Opções da coluna">
+          <Icon name="more" size={16} />
+        </button>
+      </div>
+      {menu && (
+        <>
+          <div onClick={() => setMenu(false)} style={{ position: "fixed", inset: 0, zIndex: 40 }} />
+          <div style={{ position: "absolute", top: "100%", right: 8, zIndex: 41, background: "var(--surface, #fff)", border: "1px solid var(--line)", borderRadius: "var(--r-md)", boxShadow: "var(--shadow-md, 0 6px 20px rgba(0,0,0,.15))", minWidth: 160, overflow: "hidden" }}>
+            <MenuItem label="Renomear" icon="check" onClick={() => { setMenu(false); setVal(name); setEditing(true); }} />
+            {!isFirst && <MenuItem label="Mover para esquerda" icon="chevLeft" onClick={() => { setMenu(false); onMove(-1); }} />}
+            {!isLast && <MenuItem label="Mover para direita" icon="chevRight" onClick={() => { setMenu(false); onMove(1); }} />}
+            <MenuItem label="Excluir coluna" icon="trash" danger onClick={() => { setMenu(false); onDelete(); }} />
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function MenuItem({ label, icon, onClick, danger }: { label: string; icon: IconName; onClick: () => void; danger?: boolean }) {
+  return (
+    <button
+      onClick={onClick}
+      className="row"
+      style={{ width: "100%", gap: 9, padding: "8px 11px", background: "transparent", border: "none", borderBottom: "1px solid var(--line)", cursor: "pointer", fontSize: 12.5, fontWeight: 600, color: danger ? "var(--st-risk)" : "var(--ink)", textAlign: "left" }}
+    >
+      <Icon name={icon} size={14} /> {label}
+    </button>
+  );
+}
+
+// ── Botão/entrada de "Adicionar coluna" no fim do quadro ───────────────────────
+function AddColumn({ onCreate }: { onCreate: (name: string) => void }) {
+  const [adding, setAdding] = useState(false);
+  const [val, setVal] = useState("");
+
+  function commit() {
+    const t = val.trim();
+    if (t) onCreate(t);
+    setVal("");
+    setAdding(false);
+  }
+
+  if (!adding) {
+    return (
+      <button
+        className="btn btn-ghost"
+        onClick={() => setAdding(true)}
+        style={{ flex: "0 0 220px", minWidth: 220, justifyContent: "flex-start", padding: "11px 13px", fontSize: 12.5, fontWeight: 700, color: "var(--muted)", border: "1px dashed var(--line)", borderRadius: "var(--r-lg, 12px)", background: "transparent", alignSelf: "flex-start" }}
+      >
+        <Icon name="plus" size={15} /> Adicionar coluna
+      </button>
+    );
+  }
+  return (
+    <div style={{ flex: "0 0 260px", minWidth: 260, background: "var(--surface-2)", borderRadius: "var(--r-lg, 12px)", border: "1px solid var(--line)", padding: 10 }}>
+      <input
+        className="input"
+        autoFocus
+        value={val}
+        onChange={(e) => setVal(e.target.value)}
+        onKeyDown={(e) => { if (e.key === "Enter") commit(); if (e.key === "Escape") { setVal(""); setAdding(false); } }}
+        placeholder="Nome da coluna…"
+        style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}
+      />
+      <div className="row gap8">
+        <button className="btn btn-primary" style={{ padding: "5px 12px", fontSize: 12.5 }} onClick={commit} disabled={!val.trim()}>Adicionar</button>
+        <button className="btn btn-ghost" style={{ padding: "5px 12px", fontSize: 12.5 }} onClick={() => { setVal(""); setAdding(false); }}>Cancelar</button>
+      </div>
+    </div>
   );
 }
 

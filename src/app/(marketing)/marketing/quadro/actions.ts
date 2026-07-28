@@ -13,6 +13,10 @@ import {
   createLabel,
   addAttachment,
   deleteAttachment,
+  createColumn,
+  renameColumn,
+  deleteColumn,
+  moveColumn,
   type AttachmentDTO,
 } from "@/server/marketing/board";
 
@@ -123,6 +127,51 @@ export async function uploadAttachmentAction(form: FormData): Promise<Attachment
     return { ok: true, attachment };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Falha no upload." };
+  }
+}
+
+export async function createColumnAction(name: string): Promise<BoardActionState> {
+  await requireUser();
+  try {
+    const boardId = await ensureDefaultBoard();
+    const r = await createColumn(boardId, name);
+    revalidatePath(P);
+    return { ok: true, id: r.id };
+  } catch (e) {
+    return fail(e);
+  }
+}
+
+export async function renameColumnAction(columnId: string, name: string): Promise<BoardActionState> {
+  await requireUser();
+  try {
+    await renameColumn(columnId, name);
+    revalidatePath(P);
+    return { ok: true };
+  } catch (e) {
+    return fail(e);
+  }
+}
+
+export async function deleteColumnAction(columnId: string): Promise<BoardActionState> {
+  await requireUser();
+  try {
+    await deleteColumn(columnId);
+    revalidatePath(P);
+    return { ok: true };
+  } catch (e) {
+    return fail(e);
+  }
+}
+
+export async function moveColumnAction(columnId: string, dir: -1 | 1): Promise<BoardActionState> {
+  await requireUser();
+  try {
+    await moveColumn(columnId, dir);
+    revalidatePath(P);
+    return { ok: true };
+  } catch (e) {
+    return fail(e);
   }
 }
 
