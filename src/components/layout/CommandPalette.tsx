@@ -176,6 +176,7 @@ export function CommandPalette() {
   return (
     <div
       onClick={fechar}
+      className="palette-backdrop"
       style={{
         position: "fixed",
         inset: 0,
@@ -190,11 +191,11 @@ export function CommandPalette() {
       <div
         onClick={(e) => e.stopPropagation()}
         onKeyDown={onKeyDown}
-        className="card"
+        className="card palette-panel"
         style={{ width: "100%", maxWidth: 560, padding: 0, overflow: "hidden" }}
       >
         {/* Campo de texto */}
-        <div className="row gap8" style={{ alignItems: "center", padding: "12px 14px", borderBottom: "1px solid var(--line)" }}>
+        <div className="row gap8 palette-content" style={{ alignItems: "center", padding: "12px 14px", borderBottom: "1px solid var(--line)" }}>
           <span className="muted"><Icon name={modo === "busca" ? "search" : "plus"} size={16} /></span>
           <input
             ref={inputRef}
@@ -209,7 +210,7 @@ export function CommandPalette() {
         </div>
 
         {modo === "busca" && (
-          <div style={{ maxHeight: "50vh", overflowY: "auto" }}>
+          <div className="palette-content" style={{ maxHeight: "50vh", overflowY: "auto" }}>
             {!temTexto && (
               <div className="muted" style={{ padding: "18px 16px", fontSize: 12.5, lineHeight: 1.7 }}>
                 Digite para buscar projetos, tarefas, clientes e chamados.
@@ -219,7 +220,7 @@ export function CommandPalette() {
             )}
 
             {acoes.map((a, i) => (
-              <Linha key={a.id} ativo={sel === i} onClick={() => executar(i)} onHover={() => setSel(i)}>
+              <Linha key={a.id} ativo={sel === i} ordem={i} onClick={() => executar(i)} onHover={() => setSel(i)}>
                 <span style={{ color: "var(--primary)" }}><Icon name={a.icon} size={15} /></span>
                 <span style={{ fontWeight: 600, fontSize: 13.5 }}>{a.label}</span>
               </Linha>
@@ -228,7 +229,7 @@ export function CommandPalette() {
             {hitsVisiveis.map((h, i) => {
               const idx = acoes.length + i;
               return (
-                <Linha key={`${h.kind}-${h.id}`} ativo={sel === idx} onClick={() => executar(idx)} onHover={() => setSel(idx)}>
+                <Linha key={`${h.kind}-${h.id}`} ativo={sel === idx} ordem={idx} onClick={() => executar(idx)} onHover={() => setSel(idx)}>
                   <span className="muted"><Icon name={ICONE[h.kind]} size={15} /></span>
                   <span style={{ minWidth: 0, flex: 1 }}>
                     <span style={{ display: "block", fontSize: 13.5, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
@@ -286,11 +287,15 @@ export function CommandPalette() {
 
 function Linha({
   ativo,
+  ordem = 0,
   onClick,
   onHover,
   children,
 }: {
   ativo: boolean;
+  // Posição na lista → atraso da entrada, pra a lista "correr" de cima pra baixo.
+  // Trava em 8 pra uma busca cheia não virar espera.
+  ordem?: number;
   onClick: () => void;
   onHover: () => void;
   children: React.ReactNode;
@@ -299,13 +304,14 @@ function Linha({
     <div
       onClick={onClick}
       onMouseEnter={onHover}
-      className="row gap8"
+      className="row gap8 palette-row"
       style={{
         alignItems: "center",
         padding: "9px 14px",
         cursor: "pointer",
         background: ativo ? "var(--surface-2)" : "transparent",
         borderLeft: `2px solid ${ativo ? "var(--primary)" : "transparent"}`,
+        animationDelay: `${Math.min(ordem, 8) * 28}ms`,
       }}
     >
       {children}

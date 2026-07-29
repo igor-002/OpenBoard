@@ -889,6 +889,52 @@ a {
   .toast-pop { animation: none; }
 }
 
+/* Paleta de comandos (Ctrl+K) — nasce como uma LINHA lá embaixo e sobe abrindo.
+   `scaleY` a partir do topo faz o painel "desdobrar"; o translateY dá a subida.
+   A linha inicial é fina de propósito (0.04) em vez de zero: some por completo
+   ficaria um piscar, e não um movimento. */
+@keyframes palette-open {
+  0%   { opacity: 0; transform: translateY(26px) scaleY(0.04); }
+  55%  { opacity: 1; transform: translateY(0) scaleY(1.02); }
+  100% { opacity: 1; transform: translateY(0) scaleY(1); }
+}
+.palette-panel {
+  transform-origin: top center;
+  animation: palette-open 0.34s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+/* O conteúdo entra depois do painel abrir, senão o texto estica junto com o scaleY. */
+@keyframes palette-content-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.palette-content {
+  animation: palette-content-in 0.26s cubic-bezier(0.22, 1, 0.36, 1) 0.12s both;
+}
+/* Fundo escurece junto, sem competir com o painel. */
+@keyframes palette-backdrop-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.palette-backdrop {
+  animation: palette-backdrop-in 0.22s ease-out both;
+}
+/* Cada resultado sobe em sequência — a lista "corre" de cima pra baixo. */
+@keyframes palette-row-in {
+  from { opacity: 0; transform: translateY(7px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.palette-row {
+  animation: palette-row-in 0.2s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .palette-panel,
+  .palette-content,
+  .palette-backdrop,
+  .palette-row {
+    animation: none;
+  }
+}
+
 /* Spinner (ícone girando) — usado no botão de análise IA. */
 @keyframes spin { to { transform: rotate(360deg); } }
 .spin { animation: spin 0.9s linear infinite; transform-origin: center; }

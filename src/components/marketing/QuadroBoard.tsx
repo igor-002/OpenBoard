@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation";
 import { Icon, type IconName } from "@/components/ui/Icon";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Modal } from "@/components/ui/Modal";
+import { GlpiCardDetail } from "./GlpiCardDetail";
 import { emitToast } from "@/lib/toast";
 import { statusColors } from "@/lib/glpi-format";
 import type { BoardDTO, CardDTO, LabelDTO, AttachmentDTO } from "@/server/marketing/board";
@@ -696,6 +697,9 @@ function CardModal({
   const [desc, setDesc] = useState(initialCard?.description ?? "");
   const [due, setDue] = useState(initialCard?.dueAt ? initialCard.dueAt.slice(0, 10) : "");
   const [glpiId, setGlpiId] = useState(initialCard?.glpiId != null ? String(initialCard.glpiId) : "");
+  // Card já salvo e vinculado a chamado → mostra o chamado ao vivo no topo.
+  // Em "criar", initialCard é null, então não há chamado a carregar.
+  const chamadoId = initialCard?.glpiId ?? null;
   const [labelIds, setLabelIds] = useState<string[]>(initialCard?.labels.map((l) => l.id) ?? []);
   const [attachments, setAttachments] = useState<AttachmentDTO[]>(initialCard?.attachments ?? []);
   const [newLabel, setNewLabel] = useState("");
@@ -793,7 +797,8 @@ function CardModal({
       <div
         onClick={(e) => e.stopPropagation()}
         className="card"
-        style={{ width: "100%", maxWidth: 580, padding: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}
+        // Card de chamado carrega descrição + histórico: precisa de mais largura.
+        style={{ width: "100%", maxWidth: chamadoId ? 720 : 580, padding: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}
       >
         {/* Header */}
         <div style={{ padding: "16px 20px 12px", borderBottom: "1px solid var(--line)", background: "var(--surface-2)" }}>
@@ -816,6 +821,17 @@ function CardModal({
         </div>
 
         <div style={{ padding: 20, display: "flex", flexDirection: "column", gap: 16 }}>
+          {/* Chamado do GLPI ao vivo: informações, histórico e acompanhamento */}
+          {chamadoId != null && (
+            <>
+              <GlpiCardDetail glpiId={chamadoId} onWrote={refresh} />
+              <div style={{ borderTop: "1px solid var(--line)" }} />
+              <div className="muted" style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, marginTop: -4 }}>
+                Controles do quadro
+              </div>
+            </>
+          )}
+
           {/* Etiquetas */}
           <div>
             <div className="muted" style={{ fontSize: 11.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 6 }}>Etiquetas</div>
@@ -851,10 +867,21 @@ function CardModal({
             </div>
           </div>
 
-          {/* Descrição */}
+          {/* Descrição. No card de chamado vira "nota interna": a descrição de
+              verdade é a do GLPI, logo acima — duas caixas com o mesmo nome
+              confundiriam sobre onde escrever. */}
           <div>
-            <div className="muted" style={{ fontSize: 11.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 6 }}>Descrição</div>
-            <textarea className="input" rows={4} value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="Detalhes da demanda…" style={{ resize: "vertical" }} />
+            <div className="muted" style={{ fontSize: 11.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 6 }}>
+              {chamadoId != null ? "Nota interna (não vai pro GLPI)" : "Descrição"}
+            </div>
+            <textarea
+              className="input"
+              rows={chamadoId != null ? 2 : 4}
+              value={desc}
+              onChange={(e) => setDesc(e.target.value)}
+              placeholder={chamadoId != null ? "Anotação do time sobre este cartão…" : "Detalhes da demanda…"}
+              style={{ resize: "vertical" }}
+            />
           </div>
 
           {/* Prazo + GLPI */}

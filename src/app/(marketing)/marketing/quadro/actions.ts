@@ -22,6 +22,7 @@ import {
   type AttachmentDTO,
 } from "@/server/marketing/board";
 import { aplicarStatus, statusPrecisaDe, type StatusMecanismo } from "@/server/glpi/write";
+import { getTicketDetail, type TicketDetail } from "@/server/glpi/detail";
 
 export type BoardActionState = { ok: boolean; error?: string; id?: string };
 export type AttachmentActionState = { ok: boolean; error?: string; attachment?: AttachmentDTO };
@@ -117,6 +118,18 @@ export async function moveCardAction(
   } catch (e) {
     const msg = e instanceof Error ? e.message : "erro desconhecido";
     return { ok: false, error: `Card movido, mas o chamado #${glpiId} não mudou de status: ${msg}` };
+  }
+}
+
+// Detalhe AO VIVO do chamado, pro card do quadro mostrar descrição e linha do
+// tempo sem mandar o usuário pra outra tela. Busca no GLPI (não no espelho), que
+// é onde as interações ficam.
+export async function carregarChamadoAction(glpiId: number): Promise<TicketDetail | null> {
+  await requireUser();
+  try {
+    return await getTicketDetail(glpiId);
+  } catch {
+    return null;
   }
 }
 
