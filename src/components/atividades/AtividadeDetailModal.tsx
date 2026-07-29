@@ -10,7 +10,9 @@ import { Icon } from "@/components/ui/Icon";
 import { PriorityBadge } from "@/components/ui/Badge";
 import { KANBAN_COLS, ORIGEM_META } from "@/lib/meta";
 import { moveTask, addTaskComment, deleteTaskComment } from "@/app/(app)/kanban/actions";
-import { concludeAtividade, updateReport } from "@/app/(app)/atividades/actions";
+import { concludeAtividade, updateReport, editAtividade, deleteAtividade, opcoesAtividadeAction, type OpcoesAtividade } from "@/app/(app)/atividades/actions";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { emitToast } from "@/lib/toast";
 import type { AtividadeRow, AtividadeComment } from "@/server/atividades";
 import type { TaskColumn, AvatarUser } from "@/lib/types";
 
@@ -42,7 +44,26 @@ export function AtividadeDetailModal({
   const [column, setColumn] = useState<TaskColumn>(a.column);
   const [concluding, setConcluding] = useState(false);
   const [editingReport, setEditingReport] = useState(false);
+  const [editando, setEditando] = useState(false);
+  const [confirmarExclusao, setConfirmarExclusao] = useState(false);
+  const [opcoes, setOpcoes] = useState<OpcoesAtividade>({ tipos: [], projetos: [], usuarios: [] });
   const [, startMove] = useTransition();
+
+  // Carrega tipos/projetos/pessoas só quando entra em edição.
+  function abrirEdicao() {
+    setEditando(true);
+    if (!opcoes.tipos.length) void opcoesAtividadeAction().then(setOpcoes);
+  }
+
+  function excluir() {
+    setConfirmarExclusao(false);
+    void deleteAtividade(a.id).then((r) => {
+      if (r.error) return emitToast({ variant: "error", title: "Não deu pra excluir", sub: r.error });
+      emitToast({ variant: "success", title: "Atividade excluída", sub: a.title });
+      onClose();
+      router.refresh();
+    });
+  }
 
   // Timeline otimista (mesmo padrão do EditTaskModal do kanban).
   const [coms, setComs] = useState<AtividadeComment[]>(a.comments);
@@ -93,8 +114,37 @@ export function AtividadeDetailModal({
               </span>
             )}
           </div>
-          <div style={{ fontSize: 17, fontWeight: 700, lineHeight: 1.35 }}>{a.title}</div>
+          <div className="row between" style={{ alignItems: "flex-start", gap: 10 }}>
+            <div style={{ fontSize: 17, fontWeight: 700, lineHeight: 1.35, flex: 1 }}>{a.title}</div>
+            {!editando && !concluding && (
+              <div className="row gap8" style={{ flex: "0 0 auto" }}>
+                <button type="button" className="btn" style={{ padding: "3px 10px", fontSize: 12 }} onClick={abrirEdicao}>
+                  <Icon name="edit" size={13} /> Editar
+                </button>
+                <button
+                  type="button"
+                  className="btn"
+                  style={{ padding: "3px 10px", fontSize: 12, color: "var(--st-risk)" }}
+                  onClick={() => setConfirmarExclusao(true)}
+                >
+                  <Icon name="trash" size={13} /> Excluir
+                </button>
+              </div>
+            )}
+          </div>
         </div>
+
+        {editando && (
+          <EditForm
+            atividade={a}
+            opcoes={opcoes}
+            onCancel={() => setEditando(false)}
+            onSaved={() => {
+              setEditando(false);
+              router.refresh();
+            }}
+          />
+        )}
 
         {/* Meta */}
         <div className="card" style={{ padding: 14, background: "var(--surface-3)", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, fontSize: 13 }}>
@@ -192,6 +242,15 @@ export function AtividadeDetailModal({
           </div>
         </div>
       </div>
+      <ConfirmDialog
+        open={confirmarExclusao}
+        danger
+        title="Excluir esta atividade?"
+        message={`“${a.title}” sai do quadro, dos relatórios e do histórico. Não dá pra desfazer.`}
+        confirmLabel="Excluir atividade"
+        onConfirm={excluir}
+        onCancel={() => setConfirmarExclusao(false)}
+      />
     </Modal>
   );
 }
@@ -249,6 +308,126 @@ function ReportEditor({ taskId, initial, onSaved, onCancel }: { taskId: string; 
         <button type="button" className="btn" onClick={onCancel}>Cancelar</button>
         <button type="button" className="btn btn-primary" onClick={save} disabled={pending}>
           {pending ? "Salvando…" : "Salvar"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// Edição da atividade. Campo em branco = limpa (projeto, cliente, prazo). O
+// "tempo real" só aparece em atividade concluída: ele reposiciona o início pra
+// que fim − início bata com o informado, que é como o sistema mede duração.
+function EditForm({
+  atividade: a,
+  opcoes,
+  onCancel,
+  onSaved,
+}: {
+  atividade: AtividadeRow;
+  opcoes: OpcoesAtividade;
+  onCancel: () => void;
+  onSaved: () => void;
+}) {
+  const [title, setTitle] = useState(a.title);
+  const [tipoId, setTipoId] = useState(a.tipoId ?? "");
+  const [priority, setPriority] = useState(a.priority);
+  const [origem, setOrigem] = useState(a.origem);
+  const [projectId, setProjectId] = useState(a.projectId ?? "");
+  const [assigneeId, setAssigneeId] = useState(a.assigneeId ?? "");
+  const [estimado, setEstimado] = useState(a.estimatedMinutes ? String(a.estimatedMinutes) : "");
+  const [real, setReal] = useState(a.realMinutes != null ? String(a.realMinutes) : "");
+  const [dueDate, setDueDate] = useState(a.dueDate ? new Date(a.dueDate).toISOString().slice(0, 10) : "");
+  const [salvando, setSalvando] = useState(false);
+
+  function salvar() {
+    setSalvando(true);
+    void editAtividade(a.id, {
+      title,
+      tipoId: tipoId || undefined,
+      priority,
+      origem,
+      projectId: projectId || null,
+      assigneeId: assigneeId || undefined,
+      estimatedMinutes: estimado ? Number(estimado) : null,
+      realMinutes: a.doneAt && real ? Number(real) : undefined,
+      dueDate: dueDate || null,
+    }).then((r) => {
+      setSalvando(false);
+      if (r.error) return emitToast({ variant: "error", title: "Não deu pra salvar", sub: r.error });
+      emitToast({ variant: "success", title: "Atividade atualizada" });
+      onSaved();
+    });
+  }
+
+  return (
+    <div className="card" style={{ padding: 14, background: "var(--surface-3)", display: "flex", flexDirection: "column", gap: 12 }}>
+      <div className="field">
+        <label>Título</label>
+        <input className="input" value={title} onChange={(e) => setTitle(e.target.value)} />
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        <div className="field">
+          <label>Tipo</label>
+          <select className="input" value={tipoId} onChange={(e) => setTipoId(e.target.value)}>
+            {opcoes.tipos.length === 0 && <option value="">carregando…</option>}
+            {opcoes.tipos.map((t) => <option key={t.id} value={t.id}>{t.nome}</option>)}
+          </select>
+        </div>
+        <div className="field">
+          <label>Prioridade</label>
+          <select className="input" value={priority} onChange={(e) => setPriority(e.target.value as typeof priority)}>
+            <option value="high">Alta</option>
+            <option value="med">Média</option>
+            <option value="low">Baixa</option>
+          </select>
+        </div>
+        <div className="field">
+          <label>Origem</label>
+          <select className="input" value={origem} onChange={(e) => setOrigem(e.target.value as typeof origem)}>
+            <option value="planejada">Planejada</option>
+            <option value="avulsa">Avulsa</option>
+            <option value="presencial">Presencial</option>
+          </select>
+        </div>
+        <div className="field">
+          <label>Responsável</label>
+          <select className="input" value={assigneeId} onChange={(e) => setAssigneeId(e.target.value)}>
+            {opcoes.usuarios.length === 0 && <option value="">carregando…</option>}
+            {opcoes.usuarios.map((u) => <option key={u.id} value={u.id}>{u.nome}</option>)}
+          </select>
+        </div>
+      </div>
+
+      <div className="field">
+        <label>Projeto</label>
+        <select className="input" value={projectId} onChange={(e) => setProjectId(e.target.value)}>
+          <option value="">Avulsa (sem projeto)</option>
+          {opcoes.projetos.map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}
+        </select>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: a.doneAt ? "1fr 1fr 1fr" : "1fr 1fr", gap: 12 }}>
+        <div className="field">
+          <label>Estimado (min)</label>
+          <input className="input" type="number" min={1} value={estimado} onChange={(e) => setEstimado(e.target.value)} placeholder="—" />
+        </div>
+        {a.doneAt && (
+          <div className="field">
+            <label>Tempo real (min)</label>
+            <input className="input" type="number" min={1} value={real} onChange={(e) => setReal(e.target.value)} placeholder="—" />
+          </div>
+        )}
+        <div className="field">
+          <label>Prazo</label>
+          <input className="input" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+        </div>
+      </div>
+
+      <div className="row gap8" style={{ justifyContent: "flex-end" }}>
+        <button type="button" className="btn" onClick={onCancel} disabled={salvando}>Cancelar</button>
+        <button type="button" className="btn btn-primary" onClick={salvar} disabled={salvando || !title.trim()}>
+          {salvando ? "Salvando…" : "Salvar"}
         </button>
       </div>
     </div>

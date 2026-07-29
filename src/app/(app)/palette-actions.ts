@@ -95,10 +95,19 @@ export async function paletteCriarTarefaAction(input: {
 
 // Atividade da equipe: exige `tipo` (é o que os relatórios agrupam), então a
 // paleta pede o tipo — sem ele o registro não serve pro /reports.
+//
+// `realMinutes` liga o registro retroativo: a atividade já nasce concluída e o
+// startedAt é ancorado pra trás (doneAt − duração), que é como o resto do sistema
+// calcula tempo real. Sem isso, lançar algo já feito daria um tempo errado,
+// contado da criação até o clique em concluir.
 export async function paletteCriarAtividadeAction(input: {
   title: string;
   tipoId: string;
+  projectId?: string | null;
   clienteId?: string | null;
+  priority?: "high" | "med" | "low";
+  estimatedMinutes?: number | null;
+  realMinutes?: number | null;
 }): Promise<PaletteCreateState> {
   const user = await requireUser();
   const title = input.title.trim();
@@ -114,19 +123,36 @@ export async function paletteCriarAtividadeAction(input: {
     ixcClienteId = c.id;
   }
 
+  let projectId: string | null = null;
+  if (input.projectId) {
+    const p = await db.project.findFirst({ where: { id: input.projectId, workspaceId: user.workspaceId }, select: { id: true } });
+    if (!p) return { ok: false, error: "Projeto inválido." };
+    projectId = p.id;
+  }
+
+  const jaFeita = !!input.realMinutes && input.realMinutes > 0;
+  const agora = new Date();
+
   await db.task.create({
     data: {
       workspaceId: user.workspaceId,
+      projectId,
       title,
-      column: "todo",
+      column: jaFeita ? "done" : "todo",
+      priority: input.priority ?? "med",
       assigneeId: user.id,
       origem: "avulsa",
       tipoId: tipo.id,
       ixcClienteId,
+      estimatedMinutes: input.estimatedMinutes ?? null,
+      startedAt: jaFeita ? new Date(agora.getTime() - input.realMinutes! * 60_000) : null,
+      doneAt: jaFeita ? agora : null,
+      report: jaFeita ? title : null,
     },
   });
 
   revalidatePath("/atividades");
+  revalidatePath("/reports");
   return { ok: true, href: "/atividades" };
 }
 

@@ -19,6 +19,7 @@ import {
 import type { PaletteHit, PaletteKind } from "@/server/palette";
 
 type Modo = "busca" | "tarefa" | "atividade";
+type Prioridade = "high" | "med" | "low";
 
 const ICONE: Record<PaletteKind, IconName> = {
   projeto: "folder",
@@ -47,6 +48,10 @@ export function CommandPalette() {
   const [projectId, setProjectId] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [tipoId, setTipoId] = useState("");
+  const [prioridade, setPrioridade] = useState<Prioridade>("med");
+  const [estimativa, setEstimativa] = useState("");
+  const [jaFeita, setJaFeita] = useState(false);
+  const [minutosReais, setMinutosReais] = useState("");
 
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -58,6 +63,10 @@ export function CommandPalette() {
     setSel(0);
     setProjectId("");
     setDueDate("");
+    setEstimativa("");
+    setJaFeita(false);
+    setMinutosReais("");
+    setPrioridade("med");
   }, []);
 
   // Atalho global de abertura.
@@ -162,7 +171,14 @@ export function CommandPalette() {
 
   function criarAtividade() {
     setBusy(true);
-    void paletteCriarAtividadeAction({ title: q, tipoId }).then((r) => {
+    void paletteCriarAtividadeAction({
+      title: q,
+      tipoId,
+      projectId: projectId || null,
+      priority: prioridade,
+      estimatedMinutes: !jaFeita && estimativa ? Number(estimativa) : null,
+      realMinutes: jaFeita && minutosReais ? Number(minutosReais) : null,
+    }).then((r) => {
       setBusy(false);
       if (!r.ok) return emitToast({ variant: "error", title: "Não deu pra criar", sub: r.error });
       emitToast({ variant: "success", title: "Atividade criada", sub: q.trim() });
@@ -269,15 +285,78 @@ export function CommandPalette() {
 
         {modo === "atividade" && (
           <div style={{ padding: 14, display: "flex", flexDirection: "column", gap: 12 }}>
-            <div>
-              <label className="muted" style={{ fontSize: 12, fontWeight: 600 }}>Tipo</label>
-              <select className="input" value={tipoId} onChange={(e) => setTipoId(e.target.value)} style={{ width: "100%", marginTop: 6 }}>
-                {opcoes.tipos.length === 0 && <option value="">(nenhum tipo cadastrado)</option>}
-                {opcoes.tipos.map((t) => <option key={t.id} value={t.id}>{t.nome}</option>)}
-              </select>
-              <span className="muted" style={{ fontSize: 11.5 }}>O tipo é o que os relatórios agrupam.</span>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <div>
+                <label className="muted" style={{ fontSize: 12, fontWeight: 600 }}>Tipo</label>
+                <select className="input" value={tipoId} onChange={(e) => setTipoId(e.target.value)} style={{ width: "100%", marginTop: 6 }}>
+                  {opcoes.tipos.length === 0 && <option value="">(nenhum tipo cadastrado)</option>}
+                  {opcoes.tipos.map((t) => <option key={t.id} value={t.id}>{t.nome}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="muted" style={{ fontSize: 12, fontWeight: 600 }}>Prioridade</label>
+                <select className="input" value={prioridade} onChange={(e) => setPrioridade(e.target.value as Prioridade)} style={{ width: "100%", marginTop: 6 }}>
+                  <option value="high">Alta</option>
+                  <option value="med">Média</option>
+                  <option value="low">Baixa</option>
+                </select>
+              </div>
             </div>
-            <Rodape onVoltar={() => setModo("busca")} onConfirmar={criarAtividade} busy={busy} podeConfirmar={!!q.trim() && !!tipoId} rotulo="Criar atividade" />
+
+            <div>
+              <label className="muted" style={{ fontSize: 12, fontWeight: 600 }}>Projeto</label>
+              <select className="input" value={projectId} onChange={(e) => setProjectId(e.target.value)} style={{ width: "100%", marginTop: 6 }}>
+                <option value="">Sem projeto</option>
+                {opcoes.projetos.map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}
+              </select>
+            </div>
+
+            {/* Registrar algo JÁ FEITO. O tempo informado vira a duração real
+                ancorando o início pra trás — é assim que o resto do sistema
+                calcula (fim − início), então relatório e média já pegam certo. */}
+            <label className="row gap8" style={{ alignItems: "center", fontSize: 12.5, fontWeight: 600 }}>
+              <input type="checkbox" checked={jaFeita} onChange={(e) => setJaFeita(e.target.checked)} />
+              Já fiz esta atividade
+            </label>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              {jaFeita ? (
+                <div>
+                  <label className="muted" style={{ fontSize: 12, fontWeight: 600 }}>Quanto tempo levou (min)</label>
+                  <input
+                    className="input"
+                    type="number"
+                    min={1}
+                    value={minutosReais}
+                    onChange={(e) => setMinutosReais(e.target.value)}
+                    placeholder="ex.: 45"
+                    style={{ width: "100%", marginTop: 6 }}
+                  />
+                  <span className="muted" style={{ fontSize: 11.5 }}>Entra como concluída agora.</span>
+                </div>
+              ) : (
+                <div>
+                  <label className="muted" style={{ fontSize: 12, fontWeight: 600 }}>Estimativa (min)</label>
+                  <input
+                    className="input"
+                    type="number"
+                    min={1}
+                    value={estimativa}
+                    onChange={(e) => setEstimativa(e.target.value)}
+                    placeholder="opcional"
+                    style={{ width: "100%", marginTop: 6 }}
+                  />
+                </div>
+              )}
+            </div>
+
+            <Rodape
+              onVoltar={() => setModo("busca")}
+              onConfirmar={criarAtividade}
+              busy={busy}
+              podeConfirmar={!!q.trim() && !!tipoId && (!jaFeita || Number(minutosReais) > 0)}
+              rotulo={jaFeita ? "Registrar como feita" : "Criar atividade"}
+            />
           </div>
         )}
       </div>
