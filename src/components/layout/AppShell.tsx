@@ -7,6 +7,7 @@ import { TweaksPanel } from "@/components/tweaks/TweaksPanel";
 import { FloatingTimer } from "@/components/time/FloatingTimer";
 import { FirstAccessModal } from "@/components/account/FirstAccessModal";
 import { ToastHost } from "./ToastHost";
+import { CommandPalette } from "./CommandPalette";
 import type { AvatarUser } from "@/lib/types";
 import type { NotificationItem } from "@/server/notifications";
 import type { ActiveTimer } from "@/server/time";
@@ -40,6 +41,7 @@ export function AppShell({
       <FloatingTimer timer={activeTimer} />
       <FirstAccessModal mustChange={mustChangePassword} />
       <ToastHost />
+      <CommandPalette />
     </div>
   );
 }
