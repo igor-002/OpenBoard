@@ -19,6 +19,8 @@ import {
   moveCardAction,
   setCardLabelsAction,
   createLabelAction,
+  deleteLabelAction,
+  contarCardsDaEtiquetaAction,
   uploadAttachmentAction,
   deleteAttachmentAction,
   searchGlpiTicketsAction,
@@ -702,6 +704,9 @@ function CardModal({
   const chamadoId = initialCard?.glpiId ?? null;
   const [labelIds, setLabelIds] = useState<string[]>(initialCard?.labels.map((l) => l.id) ?? []);
   const [attachments, setAttachments] = useState<AttachmentDTO[]>(initialCard?.attachments ?? []);
+  // Etiqueta na fila de exclusão + em quantos cartões ela está (buscado na hora
+  // de perguntar, não a cada render).
+  const [excluirEtiqueta, setExcluirEtiqueta] = useState<{ label: LabelDTO; emCards: number } | null>(null);
   const [newLabel, setNewLabel] = useState("");
   const [newColor, setNewColor] = useState(LABEL_SWATCHES[0]);
   const [busy, setBusy] = useState(false);
@@ -714,6 +719,12 @@ function CardModal({
     const next = labelIds.includes(id) ? labelIds.filter((x) => x !== id) : [...labelIds, id];
     setLabelIds(next);
     if (cardId) run(() => setCardLabelsAction(cardId, next)); // em create só guarda local
+  }
+
+  // Antes de excluir, descobre em quantos cartões a etiqueta está — o aviso fica
+  // concreto ("sai de 7 cartões") em vez de genérico.
+  function pedirExclusaoEtiqueta(label: LabelDTO) {
+    void contarCardsDaEtiquetaAction(label.id).then((emCards) => setExcluirEtiqueta({ label, emCards }));
   }
 
   async function create() {
@@ -821,13 +832,18 @@ function CardModal({
         </div>
 
         <div style={{ padding: 20, display: "flex", flexDirection: "column", gap: 16 }}>
-          {/* Chamado do GLPI ao vivo: informações, histórico e acompanhamento */}
+          {/* Chamado do GLPI ao vivo: informações, conversa e resposta */}
           {chamadoId != null && (
             <>
               <GlpiCardDetail glpiId={chamadoId} onWrote={refresh} />
-              <div style={{ borderTop: "1px solid var(--line)" }} />
-              <div className="muted" style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, marginTop: -4 }}>
-                Controles do quadro
+              {/* Fronteira entre "o chamado no GLPI" e "o cartão aqui no quadro" —
+                  sem ela, os campos do cartão pareciam continuar o chamado. */}
+              <div className="row gap8" style={{ alignItems: "center", marginTop: 4 }}>
+                <span style={{ flex: 1, height: 1, background: "var(--line)" }} />
+                <span className="muted" style={{ fontSize: 10.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.6 }}>
+                  Só no quadro
+                </span>
+                <span style={{ flex: 1, height: 1, background: "var(--line)" }} />
               </div>
             </>
           )}
@@ -839,13 +855,29 @@ function CardModal({
               {allLabels.map((l) => {
                 const on = labelIds.includes(l.id);
                 return (
-                  <button
+                  // Clicar no corpo marca/desmarca no cartão; o × exclui a etiqueta
+                  // do quadro inteiro — ações bem diferentes, por isso alvos separados.
+                  <span
                     key={l.id}
-                    onClick={() => toggleLabel(l.id)}
-                    style={{ fontSize: 11, fontWeight: 800, color: "#fff", background: l.color, padding: "3px 10px", borderRadius: 999, border: "none", cursor: "pointer", opacity: on ? 1 : 0.35, transition: "opacity .12s" }}
+                    className="row"
+                    style={{ alignItems: "center", background: l.color, borderRadius: 999, opacity: on ? 1 : 0.35, transition: "opacity .12s" }}
                   >
-                    {l.name}
-                  </button>
+                    <button
+                      onClick={() => toggleLabel(l.id)}
+                      title={on ? "Tirar do cartão" : "Pôr no cartão"}
+                      style={{ fontSize: 11, fontWeight: 800, color: "#fff", background: "transparent", padding: "3px 4px 3px 10px", border: "none", cursor: "pointer" }}
+                    >
+                      {l.name}
+                    </button>
+                    <button
+                      onClick={() => pedirExclusaoEtiqueta(l)}
+                      title={`Excluir a etiqueta "${l.name}" do quadro`}
+                      aria-label={`Excluir a etiqueta ${l.name}`}
+                      style={{ color: "#fff", background: "transparent", border: "none", cursor: "pointer", padding: "3px 8px 3px 2px", fontSize: 13, lineHeight: 1, opacity: 0.75 }}
+                    >
+                      ×
+                    </button>
+                  </span>
                 );
               })}
             </div>
@@ -968,6 +1000,26 @@ function CardModal({
       confirmLabel="Excluir cartão"
       onConfirm={() => { setConfirmDelete(false); if (cardId) run(() => deleteCardAction(cardId)); onClose(); }}
       onCancel={() => setConfirmDelete(false)}
+    />
+    <ConfirmDialog
+      open={!!excluirEtiqueta}
+      danger
+      title={`Excluir a etiqueta “${excluirEtiqueta?.label.name ?? ""}”?`}
+      message={
+        excluirEtiqueta?.emCards
+          ? `Ela sai de ${excluirEtiqueta.emCards} cartão(ões) e some do quadro. Os cartões continuam lá.`
+          : "Ela some do quadro. Nenhum cartão usa esta etiqueta hoje."
+      }
+      confirmLabel="Excluir etiqueta"
+      onConfirm={() => {
+        const alvo = excluirEtiqueta;
+        setExcluirEtiqueta(null);
+        if (!alvo) return;
+        // Some da seleção local também, senão o cartão ficaria apontando pro que não existe.
+        setLabelIds((prev) => prev.filter((id) => id !== alvo.label.id));
+        run(() => deleteLabelAction(alvo.label.id), "Etiqueta excluída");
+      }}
+      onCancel={() => setExcluirEtiqueta(null)}
     />
     </>
   );

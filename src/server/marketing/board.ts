@@ -370,6 +370,18 @@ export async function createLabel(boardId: string, name: string, color: string):
   });
 }
 
+// Exclui a etiqueta. A relação m2m com os cards é implícita (tabela de junção do
+// Prisma), então apagar a etiqueta já a solta de todos os cards — nenhum cartão é
+// perdido, só deixa de ter aquela marcação. Devolve em quantos ela estava, pra a
+// UI conseguir avisar antes.
+export async function deleteLabel(labelId: string): Promise<void> {
+  await db.mktLabel.delete({ where: { id: labelId } });
+}
+
+export async function contarCardsDaEtiqueta(labelId: string): Promise<number> {
+  return db.mktCard.count({ where: { labels: { some: { id: labelId } } } });
+}
+
 // ── Colunas (gerenciáveis pela UI) ─────────────────────────────────────────────
 export async function createColumn(boardId: string, name: string): Promise<{ id: string }> {
   const n = name.trim();

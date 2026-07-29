@@ -11,6 +11,8 @@ import {
   moveCard,
   setCardLabels,
   createLabel,
+  deleteLabel,
+  contarCardsDaEtiqueta,
   addAttachment,
   deleteAttachment,
   createColumn,
@@ -130,6 +132,28 @@ export async function carregarChamadoAction(glpiId: number): Promise<TicketDetai
     return await getTicketDetail(glpiId);
   } catch {
     return null;
+  }
+}
+
+// Quantos cartões usam a etiqueta — pra o aviso de exclusão dizer o tamanho do
+// estrago antes de acontecer, em vez de depois.
+export async function contarCardsDaEtiquetaAction(labelId: string): Promise<number> {
+  await requireUser();
+  try {
+    return await contarCardsDaEtiqueta(labelId);
+  } catch {
+    return 0;
+  }
+}
+
+export async function deleteLabelAction(labelId: string): Promise<BoardActionState> {
+  await requireUser();
+  try {
+    await deleteLabel(labelId);
+    revalidatePath(P);
+    return { ok: true };
+  } catch (e) {
+    return fail(e);
   }
 }
 

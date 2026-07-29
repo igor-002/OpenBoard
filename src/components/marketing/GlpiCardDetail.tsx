@@ -104,9 +104,18 @@ export function GlpiCardDetail({ glpiId, onWrote }: { glpiId: number; onWrote: (
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-      {/* Cabeçalho do chamado */}
-      <div style={{ background: "var(--surface-2)", border: "1px solid var(--line)", borderRadius: "var(--r-md)", padding: "11px 13px" }}>
-        <div className="row gap8" style={{ alignItems: "center", flexWrap: "wrap", marginBottom: 9 }}>
+      {/* Identidade do chamado. Faixa colorida pelo status à esquerda: dá o estado
+          num relance, sem precisar ler o badge. */}
+      <div
+        style={{
+          background: "var(--surface-2)",
+          border: "1px solid var(--line)",
+          borderLeft: `3px solid ${sc.color}`,
+          borderRadius: "var(--r-md)",
+          padding: "12px 14px",
+        }}
+      >
+        <div className="row gap8" style={{ alignItems: "center", flexWrap: "wrap", marginBottom: 11 }}>
           <span className="muted" style={{ fontWeight: 800, fontSize: 12 }}>#{t.glpiId}</span>
           <span className="badge" style={{ color: sc.color, background: sc.bg }}>{t.statusName || "—"}</span>
           <span className="tag" style={{ fontSize: 10.5 }}>{PRIORITY_LABEL[t.priority] ?? "—"}</span>
@@ -116,30 +125,30 @@ export function GlpiCardDetail({ glpiId, onWrote }: { glpiId: number; onWrote: (
             className="btn btn-ghost"
             style={{ marginLeft: "auto", padding: "2px 8px", fontSize: 11.5 }}
           >
-            Página completa <Icon name="chevRight" size={12} />
+            Abrir página <Icon name="chevRight" size={12} />
           </Link>
         </div>
 
-        <div className="row gap12" style={{ alignItems: "center", flexWrap: "wrap", rowGap: 8 }}>
+        <div className="row gap12" style={{ alignItems: "center", flexWrap: "wrap", rowGap: 10 }}>
           <span className="row gap8" style={{ alignItems: "center" }}>
-            <Av nome={t.requesterName || "—"} />
-            <span style={{ display: "flex", flexDirection: "column", lineHeight: 1.2 }}>
-              <span className="muted" style={{ fontSize: 10 }}>Abriu</span>
-              <span style={{ fontSize: 12.5, fontWeight: 700 }}>{t.requesterName || "—"}</span>
+            <Av nome={t.requesterName || "—"} size={28} />
+            <span style={{ display: "flex", flexDirection: "column", lineHeight: 1.25 }}>
+              <span className="muted" style={{ fontSize: 10, fontWeight: 700, letterSpacing: 0.3 }}>PEDIU</span>
+              <span style={{ fontSize: 13, fontWeight: 700 }}>{t.requesterName || "—"}</span>
             </span>
           </span>
-          <Icon name="chevRight" size={14} />
+          <span className="muted"><Icon name="chevRight" size={15} /></span>
           <span className="row gap8" style={{ alignItems: "center" }}>
             {responsaveis.length ? (
               <>
-                {responsaveis.slice(0, 2).map((a) => <Av key={a} nome={a} />)}
-                <span style={{ display: "flex", flexDirection: "column", lineHeight: 1.2 }}>
-                  <span className="muted" style={{ fontSize: 10 }}>Atende</span>
-                  <span style={{ fontSize: 12.5, fontWeight: 700 }}>{responsaveis.join(", ")}</span>
+                {responsaveis.slice(0, 2).map((a) => <Av key={a} nome={a} size={28} />)}
+                <span style={{ display: "flex", flexDirection: "column", lineHeight: 1.25 }}>
+                  <span className="muted" style={{ fontSize: 10, fontWeight: 700, letterSpacing: 0.3 }}>FAZ</span>
+                  <span style={{ fontSize: 13, fontWeight: 700 }}>{responsaveis.join(", ")}</span>
                 </span>
               </>
             ) : (
-              <span className="muted" style={{ fontSize: 12 }}>Sem responsável</span>
+              <span className="muted" style={{ fontSize: 12.5 }}>Ninguém atribuído</span>
             )}
           </span>
           <span className="muted" style={{ fontSize: 11, marginLeft: "auto" }}>
@@ -148,81 +157,120 @@ export function GlpiCardDetail({ glpiId, onWrote }: { glpiId: number; onWrote: (
         </div>
       </div>
 
-      {/* Descrição do chamado (a do GLPI, não a nota interna do cartão) */}
-      <div>
-        <div className="muted" style={{ fontSize: 11.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 6 }}>
-          Descrição no GLPI
+      {/* CONVERSA — um painel só, do primeiro texto até a caixa de resposta.
+          A descrição do chamado entra como a mensagem de abertura porque é
+          exatamente isso: o que o solicitante escreveu quando abriu. Separá-la
+          numa seção própria deixava duas caixas soltas e encurtava o histórico. */}
+      <div style={{ border: "1px solid var(--line)", borderRadius: "var(--r-md)", overflow: "hidden", background: "var(--surface)" }}>
+        <div
+          className="row between"
+          style={{ alignItems: "center", padding: "9px 13px", borderBottom: "1px solid var(--line)", background: "var(--surface-2)" }}
+        >
+          <span style={{ fontSize: 12.5, fontWeight: 800 }}>Conversa</span>
+          <span className="muted" style={{ fontSize: 11 }}>
+            {t.timeline.length + (t.description ? 1 : 0)} mensagem(ns)
+          </span>
         </div>
-        {t.description ? (
-          <p style={{ whiteSpace: "pre-wrap", margin: 0, fontSize: 13, lineHeight: 1.55, color: "var(--ink-2)" }}>{t.description}</p>
-        ) : (
-          <span className="muted" style={{ fontSize: 12.5 }}>Sem descrição.</span>
-        )}
-      </div>
 
-      {/* Histórico de conversas */}
-      <div>
-        <div className="row between" style={{ marginBottom: 8 }}>
-          <div className="muted" style={{ fontSize: 11.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.4 }}>
-            Histórico
-          </div>
-          <span className="muted" style={{ fontSize: 10.5 }}>{t.timeline.length} interação(ões)</span>
-        </div>
-        {t.timeline.length === 0 ? (
-          <div className="muted" style={{ fontSize: 12.5 }}>Nenhuma interação ainda.</div>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 280, overflowY: "auto" }}>
-            {t.timeline.map((e, i) => {
-              const solucao = /solu/i.test(e.kind);
-              return (
-                <div
-                  key={`${e.kind}-${e.id}-${i}`}
-                  style={{
-                    border: "1px solid var(--line)",
-                    borderLeft: `3px solid ${solucao ? "var(--st-done)" : "var(--line-2)"}`,
-                    background: solucao ? "var(--st-done-bg)" : "var(--surface-2)",
-                    borderRadius: "var(--r-md)",
-                    padding: "8px 11px",
-                  }}
-                >
-                  <div className="row gap8" style={{ alignItems: "center", marginBottom: 4, flexWrap: "wrap" }}>
-                    <Av nome={e.author || "—"} size={20} />
-                    <span style={{ fontWeight: 700, fontSize: 12 }}>{e.author || "—"}</span>
-                    <span className="tag" style={{ fontSize: 10 }}>{e.kind}</span>
-                    {e.isPrivate && <span className="tag" style={{ fontSize: 10 }}>privado</span>}
-                    <span className="muted" style={{ fontSize: 10.5, marginLeft: "auto" }}>{quando(e.date)}</span>
-                  </div>
-                  <p style={{ whiteSpace: "pre-wrap", margin: 0, fontSize: 12.5, lineHeight: 1.5, color: "var(--ink-2)" }}>
-                    {e.content || <span className="muted">—</span>}
-                  </p>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12, padding: 14, maxHeight: 420, minHeight: 200, overflowY: "auto" }}>
+          {t.description && (
+            <Mensagem
+              autor={t.requesterName || "—"}
+              data={t.dateCreation}
+              texto={t.description}
+              etiqueta="abertura"
+              destaque="abertura"
+            />
+          )}
 
-      {/* Responder */}
-      <div>
-        <div className="muted" style={{ fontSize: 11.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 6 }}>
-          Novo acompanhamento
+          {t.timeline.map((e, i) => (
+            <Mensagem
+              key={`${e.kind}-${e.id}-${i}`}
+              autor={e.author || "—"}
+              data={e.date}
+              texto={e.content}
+              etiqueta={e.kind}
+              privado={e.isPrivate}
+              destaque={/solu/i.test(e.kind) ? "solucao" : "normal"}
+            />
+          ))}
+
+          {!t.description && t.timeline.length === 0 && (
+            <div className="muted" style={{ fontSize: 12.5, textAlign: "center", padding: "24px 0" }}>
+              Nada escrito neste chamado ainda.
+            </div>
+          )}
         </div>
-        <textarea
-          className="input"
-          rows={3}
-          value={texto}
-          onChange={(e) => setTexto(e.target.value)}
-          placeholder="Escreva uma atualização para este chamado…"
-          style={{ width: "100%", resize: "vertical" }}
-        />
-        <div className="row gap12" style={{ alignItems: "center", marginTop: 8, flexWrap: "wrap" }}>
-          <label className="row gap8 muted" style={{ alignItems: "center", fontSize: 12 }}>
-            <input type="checkbox" checked={privado} onChange={(e) => setPrivado(e.target.checked)} /> privado
-          </label>
-          <button className="btn btn-primary" style={{ marginLeft: "auto" }} disabled={enviando || !texto.trim()} onClick={enviar}>
-            <Icon name="msg" size={14} /> {enviando ? "Enviando…" : "Enviar"}
-          </button>
+
+        {/* Composer ancorado no fim da conversa, como num chat. */}
+        <div style={{ borderTop: "1px solid var(--line)", padding: 12, background: "var(--surface-2)" }}>
+          <textarea
+            className="input"
+            rows={2}
+            value={texto}
+            onChange={(e) => setTexto(e.target.value)}
+            placeholder="Responder neste chamado…"
+            style={{ width: "100%", resize: "vertical", fontSize: 13 }}
+          />
+          <div className="row gap12" style={{ alignItems: "center", marginTop: 8, flexWrap: "wrap" }}>
+            <label className="row gap8 muted" style={{ alignItems: "center", fontSize: 12 }}>
+              <input type="checkbox" checked={privado} onChange={(e) => setPrivado(e.target.checked)} /> só para a equipe
+            </label>
+            <button className="btn btn-primary" style={{ marginLeft: "auto" }} disabled={enviando || !texto.trim()} onClick={enviar}>
+              <Icon name="msg" size={14} /> {enviando ? "Enviando…" : "Responder"}
+            </button>
+          </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// Uma mensagem da conversa. `destaque` muda só a faixa lateral: abertura marca de
+// onde a demanda partiu, solução marca onde ela terminou — o meio fica neutro pra
+// esses dois se enxergarem numa rolagem longa.
+function Mensagem({
+  autor,
+  data,
+  texto,
+  etiqueta,
+  privado,
+  destaque,
+}: {
+  autor: string;
+  data: string | null;
+  texto: string;
+  etiqueta: string;
+  privado?: boolean;
+  destaque: "abertura" | "solucao" | "normal";
+}) {
+  const faixa =
+    destaque === "solucao" ? "var(--st-done)" : destaque === "abertura" ? "var(--primary)" : "transparent";
+  const fundo = destaque === "solucao" ? "var(--st-done-bg)" : "var(--surface-2)";
+
+  return (
+    <div className="row" style={{ gap: 10, alignItems: "flex-start" }}>
+      <Av nome={autor} size={30} />
+      <div
+        style={{
+          flex: 1,
+          minWidth: 0,
+          background: fundo,
+          border: "1px solid var(--line)",
+          borderLeft: destaque === "normal" ? "1px solid var(--line)" : `3px solid ${faixa}`,
+          borderRadius: "var(--r-md)",
+          padding: "10px 13px",
+        }}
+      >
+        <div className="row gap8" style={{ alignItems: "baseline", flexWrap: "wrap", marginBottom: 5 }}>
+          <span style={{ fontWeight: 700, fontSize: 12.5 }}>{autor}</span>
+          <span className="muted" style={{ fontSize: 11 }}>{etiqueta}</span>
+          {privado && <span className="tag" style={{ fontSize: 10 }}>só equipe</span>}
+          <span className="muted" style={{ fontSize: 11, marginLeft: "auto" }}>{quando(data)}</span>
+        </div>
+        <p style={{ whiteSpace: "pre-wrap", margin: 0, fontSize: 13.5, lineHeight: 1.6, color: "var(--ink)" }}>
+          {texto || <span className="muted">—</span>}
+        </p>
       </div>
     </div>
   );
