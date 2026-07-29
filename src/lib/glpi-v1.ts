@@ -94,6 +94,62 @@ export async function v1ListCategories(): Promise<GlpiCategoria[]> {
   }
 }
 
+// ── Anexar arquivo a um chamado ──────────────────────────────────────────────
+// A V2.1 não recebe binário: `Timeline/Document` só aceita application/json e o
+// schema `Document` espera filename/filepath/sha1sum — ou seja, referencia um
+// documento que já existe. Quem sobe o arquivo é a v1, por multipart.
+//
+// Um POST só: o vínculo com o chamado vai no PRÓPRIO manifesto (`itemtype` +
+// `items_id`) e o documento já nasce na linha do tempo. Criar o Document e depois
+// amarrar por `Document_Item` também parece razoável, mas essa segunda chamada
+// responde `ERROR_GLPI_ADD` (sem permissão) — testado.
+//
+// Detalhes do encoding que custaram um 500: o manifesto vai como campo de TEXTO
+// (mandá-lo como Blob `application/json`, que é o que o exemplo em curl sugere,
+// quebra), e o binário vai em `filename[0]`, índice que casa com `_filename`.
+export async function v1AnexarNoChamado(
+  glpiId: number,
+  arquivo: { nome: string; mime: string; bytes: Buffer },
+): Promise<{ documentId: number }> {
+  return comSessao(async (headers) => {
+    // multipart: NÃO mandar Content-Type na mão — o fetch põe o boundary sozinho.
+    const { "Content-Type": _ct, ...semTipo } = headers;
+    void _ct;
+
+    const form = new FormData();
+    form.append(
+      "uploadManifest",
+      JSON.stringify({
+        input: { name: arquivo.nome, _filename: [arquivo.nome], itemtype: "Ticket", items_id: glpiId },
+      }),
+    );
+    form.append(
+      "filename[0]",
+      new Blob([new Uint8Array(arquivo.bytes)], { type: arquivo.mime || "application/octet-stream" }),
+      arquivo.nome,
+    );
+
+    const up = await fetch(`${API}/Document/`, { method: "POST", headers: semTipo, body: form, cache: "no-store" });
+    const txt = await up.text();
+    if (!up.ok) throw new GlpiV1Error(up.status, "POST Document", limparHtml(txt));
+    let documentId: number | undefined;
+    try {
+      documentId = JSON.parse(txt)?.id;
+    } catch {
+      /* cai no throw abaixo */
+    }
+    if (!documentId) throw new GlpiV1Error(502, "POST Document", `sem id na resposta: ${txt.slice(0, 200)}`);
+    return { documentId };
+  });
+}
+
+// O GLPI devolve página HTML inteira em erro 500; sem isto a mensagem que chega
+// no usuário é um <!DOCTYPE html>.
+function limparHtml(s: string): string {
+  if (!s.trimStart().startsWith("<")) return s.slice(0, 250);
+  return s.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 250) || "erro sem detalhe no GLPI";
+}
+
 // Grava o status do chamado e CONFERE relendo. O corpo de sucesso da v1
 // (`[{"36220":true}]`) diz que a operação foi aceita, não que o campo ficou com o
 // valor pedido — a V2.1 já nos enganou exatamente assim.

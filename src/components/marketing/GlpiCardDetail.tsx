@@ -6,13 +6,13 @@
 //
 // Busca AO VIVO (o espelho não guarda descrição nem timeline) e só quando o card
 // abre — não no carregamento do quadro, que teria de bater na API por card.
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { Icon } from "@/components/ui/Icon";
 import { emitToast } from "@/lib/toast";
 import { fullLabel, hourLabel } from "@/lib/format";
 import { statusColors, PRIORITY_LABEL, initialsOf, colorForName } from "@/lib/glpi-format";
-import { carregarChamadoAction } from "@/app/(marketing)/marketing/quadro/actions";
+import { carregarChamadoAction, anexarNoChamadoAction } from "@/app/(marketing)/marketing/quadro/actions";
 import { addFollowupAction } from "@/app/(marketing)/marketing/demandas/actions";
 import type { TicketDetail } from "@/server/glpi/detail";
 
@@ -52,6 +52,25 @@ export function GlpiCardDetail({ glpiId, onWrote }: { glpiId: number; onWrote: (
   const [texto, setTexto] = useState("");
   const [privado, setPrivado] = useState(false);
   const [enviando, start] = useTransition();
+  const [anexando, setAnexando] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  async function anexar(file: File) {
+    setAnexando(true);
+    const form = new FormData();
+    form.set("glpiId", String(glpiId));
+    form.set("file", file);
+    const r = await anexarNoChamadoAction(form);
+    setAnexando(false);
+    if (!r.ok) {
+      emitToast({ variant: "error", title: "Falha ao anexar", sub: r.error });
+      return;
+    }
+    emitToast({ variant: "success", title: "Arquivo anexado no chamado", sub: file.name });
+    const novo = await carregarChamadoAction(glpiId);
+    if (novo) setT(novo);
+    onWrote();
+  }
 
   useEffect(() => {
     let vivo = true;
@@ -216,6 +235,26 @@ export function GlpiCardDetail({ glpiId, onWrote }: { glpiId: number; onWrote: (
             <label className="row gap8 muted" style={{ alignItems: "center", fontSize: 12 }}>
               <input type="checkbox" checked={privado} onChange={(e) => setPrivado(e.target.checked)} /> só para a equipe
             </label>
+            {/* Anexo aqui vai PRO CHAMADO (todo mundo do GLPI vê). O anexo do
+                cartão, mais abaixo no modal, é interno do quadro. */}
+            <input
+              ref={fileRef}
+              type="file"
+              hidden
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) anexar(f);
+                e.target.value = "";
+              }}
+            />
+            <button
+              className="btn btn-ghost"
+              disabled={anexando || enviando}
+              onClick={() => fileRef.current?.click()}
+              title="O arquivo entra na linha do tempo do chamado, visível no GLPI"
+            >
+              <Icon name="paperclip" size={14} /> {anexando ? "Enviando…" : "Anexar no chamado"}
+            </button>
             <button className="btn btn-primary" style={{ marginLeft: "auto" }} disabled={enviando || !texto.trim()} onClick={enviar}>
               <Icon name="msg" size={14} /> {enviando ? "Enviando…" : "Responder"}
             </button>

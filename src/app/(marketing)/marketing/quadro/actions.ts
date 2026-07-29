@@ -25,6 +25,8 @@ import {
 } from "@/server/marketing/board";
 import { aplicarStatus, statusPrecisaDe, type StatusMecanismo } from "@/server/glpi/write";
 import { getTicketDetail, type TicketDetail } from "@/server/glpi/detail";
+import { v1AnexarNoChamado } from "@/lib/glpi-v1";
+import { requireModuleUser } from "@/lib/permissions";
 
 export type BoardActionState = { ok: boolean; error?: string; id?: string };
 export type AttachmentActionState = { ok: boolean; error?: string; attachment?: AttachmentDTO };
@@ -134,6 +136,29 @@ export async function carregarChamadoAction(glpiId: number): Promise<TicketDetai
     return null;
   }
 }
+
+// Anexa um arquivo direto no chamado do GLPI (aparece na linha do tempo pra todo
+// mundo que acompanha por lá). Diferente do anexo do cartão, que é interno do
+// quadro e não sai daqui.
+export async function anexarNoChamadoAction(form: FormData): Promise<BoardActionState> {
+  await requireModuleUser("marketing");
+  try {
+    const glpiId = Number(form.get("glpiId"));
+    const file = form.get("file");
+    if (!Number.isInteger(glpiId) || glpiId <= 0) throw new Error("Chamado inválido.");
+    if (!(file instanceof File)) throw new Error("Arquivo inválido.");
+    if (file.size > MAX_ANEXO) throw new Error(`Arquivo acima de ${MAX_ANEXO / 1024 / 1024} MB.`);
+    const bytes = Buffer.from(await file.arrayBuffer());
+    await v1AnexarNoChamado(glpiId, { nome: file.name, mime: file.type, bytes });
+    revalidatePath(P);
+    revalidatePath(`/marketing/demandas/${glpiId}`);
+    return { ok: true };
+  } catch (e) {
+    return fail(e);
+  }
+}
+
+const MAX_ANEXO = 20 * 1024 * 1024;
 
 // Quantos cartões usam a etiqueta — pra o aviso de exclusão dizer o tamanho do
 // estrago antes de acontecer, em vez de depois.
