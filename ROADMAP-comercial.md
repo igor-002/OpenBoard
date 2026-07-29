@@ -80,6 +80,25 @@ Upgrade envia: CPF/CNPJ, razão social, plano antigo, plano novo, valor a adicio
 - [x] tsc + eslint limpos
 - [ ] Teste manual no browser (Igor) + push + deploy VPS
 
+## 12. Acesso por ferramenta + gerente de módulo (2026-07-29)  ✅ FEITO (falta deploy)
+Era tudo-ou-nada por módulo (5 módulos, 29 telas). Agora o acesso é por TELA.
+- [x] `src/lib/modules.ts`: registro das 29 ferramentas (chave, módulo, rota).
+- [x] `User.tools` (acesso real) + `User.manages` (módulos que a pessoa administra).
+  Migração `20260729120000_user_tools` copia módulo → todas as ferramentas dele,
+  então ninguém perde acesso na virada. `modules` segue gravado, derivado.
+- [x] "Ter o módulo" é derivado das ferramentas → `requireModule` continua valendo
+  nas dezenas de páginas antigas; `requireTool` entrou por cima nas 21 telas.
+- [x] Menu esconde o que a pessoa não pode abrir.
+- [x] Gerente de módulo em /settings/users. Travas: não mexe em admin, não mexe em
+  módulo que não gerencia (permissões fora do alcance são PRESERVADAS no save) e
+  só admin define quem gerencia o quê.
+- [ ] **Server actions ainda validam MÓDULO, não ferramenta.** Quem não tem a tela
+  não a vê nem abre, mas a action aceitaria chamada forjada de quem tem o módulo.
+  Fechar = trocar `requireModuleUser` por `requireToolUser` em ~40 actions, com
+  cuidado nas que servem 2 telas (ex.: sync GLPI é chamado do Quadro e das
+  Demandas — precisa aceitar qualquer uma). Adiado de propósito até validar as
+  permissões em produção.
+
 ## 11. Status do GLPI pela API v1 (2026-07-28)  ✅ FUNCIONANDO EM PROD
 Arrastar card no quadro "dava certo" e o card voltava sozinho. Causa: a **V2.1 não
 grava `status`** — `status.id` é `readOnly` no OpenAPI e o PATCH devolve **200 OK
