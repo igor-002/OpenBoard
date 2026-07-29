@@ -1,4 +1,5 @@
 import { requireModule } from "@/lib/permissions";
+import { TOOL_KEYS } from "@/lib/modules";
 import { getNotifications } from "@/server/notifications";
 import { MarketingShell } from "@/components/marketing/MarketingShell";
 
@@ -11,6 +12,7 @@ export default async function MarketingLayout({ children }: { children: React.Re
     <MarketingShell
       user={{ name: user.name, initials: user.initials, color: user.color, jobTitle: user.jobTitle }}
       notifications={notifications}
+      tools={user.role === "admin" ? TOOL_KEYS : user.tools}
     >
       {children}
     </MarketingShell>

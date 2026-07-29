@@ -6,16 +6,25 @@ import { Icon } from "@/components/ui/Icon";
 import { Avatar } from "@/components/ui/Avatar";
 import { MARKETING_NAV } from "./nav";
 import { activeNavHref } from "@/lib/nav-active";
+import { toolForPath } from "@/lib/modules";
 import type { AvatarUser } from "@/lib/types";
 
 // Sidebar do módulo Marketing (mesma estrutura/tema do Comercial), com
 // switcher de volta pro OpenBoard no topo.
 export function MarketingSidebar({
   user,
+  tools,
 }: {
   user: AvatarUser & { jobTitle: string };
+  // Chaves de ferramenta liberadas. O menu mostra só o que a pessoa pode abrir —
+  // item que levaria a "sem acesso" é ruído, não informação.
+  tools: string[];
 }) {
   const pathname = usePathname();
+  const visiveis = MARKETING_NAV.filter((n) => {
+    const t = toolForPath(n.href);
+    return !t || tools.includes(t.key);
+  });
   return (
     <aside className="sidebar">
       <div className="sb-brand">
@@ -35,8 +44,8 @@ export function MarketingSidebar({
       </Link>
 
       <div className="sb-section">Marketing</div>
-      {MARKETING_NAV.map((n) => {
-        const active = n.href === activeNavHref(pathname, MARKETING_NAV.map((x) => x.href));
+      {visiveis.map((n) => {
+        const active = n.href === activeNavHref(pathname, visiveis.map((x) => x.href));
         return (
           <Link key={n.href} href={n.href} className={`sb-item ${active ? "active" : ""}`} title={n.label}>
             <Icon name={n.icon} />

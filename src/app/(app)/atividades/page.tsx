@@ -1,4 +1,4 @@
-import { requireModule } from "@/lib/permissions";
+import { requireTool } from "@/lib/permissions";
 import { getAtividadesData } from "@/server/atividades";
 import { AtividadesView } from "@/components/atividades/AtividadesView";
 import type { TaskColumn, TaskOrigin } from "@/lib/types";
@@ -8,7 +8,7 @@ export default async function AtividadesPage({
 }: {
   searchParams: Promise<{ assignee?: string; tipo?: string; origem?: string; status?: string; cliente?: string; from?: string; to?: string }>;
 }) {
-  const user = await requireModule("gestao");
+  const user = await requireTool("gestao.atividades");
   const sp = await searchParams;
 
   const data = await getAtividadesData(user.workspaceId, {

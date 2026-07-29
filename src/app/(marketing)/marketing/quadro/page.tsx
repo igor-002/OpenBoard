@@ -1,4 +1,4 @@
-import { requireUser } from "@/lib/auth";
+import { requireTool } from "@/lib/permissions";
 import { getBoard } from "@/server/marketing/board";
 import { glpiConfigured } from "@/server/glpi/queries";
 import { getTrackedUsers, getAssignableUsers } from "@/server/glpi/users";
@@ -14,7 +14,7 @@ export default async function QuadroPage({
 }: {
   searchParams: Promise<{ card?: string; concluidas?: string }>;
 }) {
-  await requireUser();
+  await requireTool("marketing.quadro");
   // ?card=<id> (link da notificação de prazo) abre o card; ?concluidas=1 revela as
   // concluídas antigas, escondidas por padrão.
   const { card, concluidas } = await searchParams;

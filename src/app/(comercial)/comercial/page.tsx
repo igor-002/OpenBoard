@@ -1,3 +1,4 @@
+import { requireTool } from "@/lib/permissions";
 import Link from "next/link";
 import { getComercialOverview, getDashboard, getDashboardFiltroOpcoes, getAlertasAA, getCarteiraResumo, getContratosDoPeriodo } from "@/server/comercial/queries";
 import { StatCard } from "@/components/ui/Stat";
@@ -16,6 +17,7 @@ export default async function ComercialOverviewPage({
 }: {
   searchParams: Promise<{ periodo?: string; vendedor?: string; filial?: string; ini?: string; fim?: string }>;
 }) {
+  await requireTool("comercial.visao");
   const sp = await searchParams;
   const periodo = sp.periodo ? parseInt(sp.periodo, 10) : 0;
   const custom = !!(sp.ini && sp.fim);

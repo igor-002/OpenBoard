@@ -1,5 +1,5 @@
+import { requireTool } from "@/lib/permissions";
 import Link from "next/link";
-import { requireUser } from "@/lib/auth";
 import { getGlpiTeamStats, glpiConfigured } from "@/server/glpi/queries";
 import { StatCard } from "@/components/ui/Stat";
 import { Card } from "@/components/ui/Card";
@@ -11,7 +11,7 @@ import { hourLabel } from "@/lib/format";
 // chamados do GLPI (mesmo mirror da aba Demandas). Substitui o antigo painel
 // manual (MarketingTask/Employee).
 export default async function EquipePage() {
-  await requireUser();
+  await requireTool("marketing.equipe");
   const configured = glpiConfigured();
   const stats = configured ? await getGlpiTeamStats() : null;
 

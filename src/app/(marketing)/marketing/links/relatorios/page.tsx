@@ -1,4 +1,4 @@
-import { requireUser } from "@/lib/auth";
+import { requireTool } from "@/lib/permissions";
 import { getLinksReport } from "@/server/marketing/short-links";
 import { LinksReport } from "@/components/marketing/LinksReport";
 
@@ -9,7 +9,7 @@ export default async function LinksRelatoriosPage({
 }: {
   searchParams: Promise<{ dias?: string; campanha?: string }>;
 }) {
-  await requireUser();
+  await requireTool("marketing.cliques");
   const sp = await searchParams;
   const dias = VALID_DAYS.includes(Number(sp.dias)) ? Number(sp.dias) : 30;
   const campaignId = sp.campanha || null;

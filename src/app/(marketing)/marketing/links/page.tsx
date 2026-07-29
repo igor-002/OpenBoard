@@ -1,9 +1,9 @@
-import { requireUser } from "@/lib/auth";
+import { requireTool } from "@/lib/permissions";
 import { listShortLinks } from "@/server/marketing/short-links";
 import { LinksManager } from "@/components/marketing/LinksManager";
 
 export default async function LinksPage() {
-  await requireUser();
+  await requireTool("marketing.links");
   const { base, links, campaigns } = await listShortLinks();
 
   return (

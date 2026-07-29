@@ -19,6 +19,7 @@ export function AppShell({
   notifications,
   activeTimer,
   mustChangePassword,
+  tools,
   children,
 }: {
   user: AvatarUser & { jobTitle: string };
@@ -27,12 +28,13 @@ export function AppShell({
   notifications: { items: NotificationItem[]; unread: number };
   activeTimer: ActiveTimer | null;
   mustChangePassword: boolean;
+  tools: string[];
   children: React.ReactNode;
 }) {
   const [collapsed, setCollapsed] = useState(false);
   return (
     <div className="app" data-side-collapsed={collapsed}>
-      <Sidebar user={user} workspaceName={workspaceName} isAdmin={isAdmin} />
+      <Sidebar user={user} workspaceName={workspaceName} isAdmin={isAdmin} tools={tools} />
       <div className="main">
         <Topbar collapsed={collapsed} setCollapsed={setCollapsed} notifications={notifications} />
         <div className="scroll">{children}</div>

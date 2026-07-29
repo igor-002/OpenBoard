@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { requireModule } from "@/lib/permissions";
+import { requireTool } from "@/lib/permissions";
 import { getTimelineData } from "@/server/timeline";
 import { Card } from "@/components/ui/Card";
 import { Icon } from "@/components/ui/Icon";
@@ -22,7 +22,7 @@ export default async function TimelinePage({
   searchParams: Promise<{ year?: string; status?: string }>;
 }) {
   const sp = await searchParams;
-  const user = await requireModule("gestao");
+  const user = await requireTool("gestao.cronograma");
   const year = Number(sp.year) || new Date().getFullYear();
   const status = (sp.status as ProjectStatus | "all") || "all";
 

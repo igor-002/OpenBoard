@@ -1,3 +1,4 @@
+import { requireTool } from "@/lib/permissions";
 import { requireAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { getOpenAISettingsView, getSetting, SETTING_KEYS } from "@/server/settings";
@@ -6,6 +7,7 @@ import { OpenAISettingsForm } from "@/components/comercial/OpenAISettingsForm";
 import { CadastroNotifyForm } from "@/components/comercial/CadastroNotifyForm";
 
 export default async function ConfigIAPage() {
+  await requireTool("comercial.config");
   await requireAdmin();
   const [view, users, notifyRaw] = await Promise.all([
     getOpenAISettingsView(),

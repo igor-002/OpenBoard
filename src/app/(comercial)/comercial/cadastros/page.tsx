@@ -1,5 +1,5 @@
+import { requireTool } from "@/lib/permissions";
 import Link from "next/link";
-import { requireUser } from "@/lib/auth";
 import { Icon } from "@/components/ui/Icon";
 import { listSolicitacoes, countSolicitacoesPorStatus } from "@/server/comercial/cadastros";
 import { isSolicitacaoStatus, type SolicitacaoStatus } from "@/lib/cadastros";
@@ -14,7 +14,7 @@ export default async function CadastrosPage({
 }: {
   searchParams: Promise<{ status?: string }>;
 }) {
-  await requireUser();
+  await requireTool("comercial.cadastros");
   const { status } = await searchParams;
   const ativo: SolicitacaoStatus = isSolicitacaoStatus(status) ? status : "pendente";
   const [itens, counts] = await Promise.all([listSolicitacoes(ativo), countSolicitacoesPorStatus()]);

@@ -1,3 +1,4 @@
+import { requireTool } from "@/lib/permissions";
 import Link from "next/link";
 import { getPipeline } from "@/server/comercial/queries";
 import { Icon } from "@/components/ui/Icon";
@@ -7,6 +8,7 @@ import { brl } from "@/lib/format";
 const COL_COLOR: Record<string, string> = { AA: "var(--st-progress)", P: "var(--pr-med)" };
 
 export default async function PipelinePage() {
+  await requireTool("comercial.pipeline");
   const cols = await getPipeline();
   const totalMrr = cols.reduce((a, c) => a + c.totalMrrCents, 0);
   const totalCount = cols.reduce((a, c) => a + c.total, 0);

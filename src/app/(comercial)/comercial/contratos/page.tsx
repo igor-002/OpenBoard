@@ -1,3 +1,4 @@
+import { requireTool } from "@/lib/permissions";
 import Link from "next/link";
 import { getContratos, getContratoFiltroOpcoes } from "@/server/comercial/queries";
 import { ContratosFilterBar } from "@/components/comercial/ContratosFilterBar";
@@ -18,6 +19,7 @@ export default async function ContratosPage({
 }: {
   searchParams: Promise<{ q?: string; status?: string; vendedor?: string; filial?: string; ini?: string; fim?: string; page?: string }>;
 }) {
+  await requireTool("comercial.contratos");
   const sp = await searchParams;
   const page = sp.page ? parseInt(sp.page, 10) : 0;
   const [{ rows, total, pageSize }, opcoes] = await Promise.all([

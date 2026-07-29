@@ -12,16 +12,18 @@ import type { NotificationItem } from "@/server/notifications";
 export function MarketingShell({
   user,
   notifications,
+  tools,
   children,
 }: {
   user: AvatarUser & { jobTitle: string };
   notifications: { items: NotificationItem[]; unread: number };
+  tools: string[];
   children: React.ReactNode;
 }) {
   const [collapsed, setCollapsed] = useState(false);
   return (
     <div className="app" data-side-collapsed={collapsed}>
-      <MarketingSidebar user={user} />
+      <MarketingSidebar user={user} tools={tools} />
       <div className="main">
         <MarketingTopbar collapsed={collapsed} setCollapsed={setCollapsed} notifications={notifications} />
         <div className="scroll">{children}</div>

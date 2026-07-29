@@ -1,4 +1,4 @@
-import { requireModule } from "@/lib/permissions";
+import { requireTool } from "@/lib/permissions";
 import { getReportsData } from "@/server/reports";
 import { getProdutividadeReport, resolvePeriodo } from "@/server/relatorios";
 import { Card } from "@/components/ui/Card";
@@ -23,7 +23,7 @@ export default async function ReportsPage({
 }: {
   searchParams: Promise<{ preset?: string; from?: string; to?: string }>;
 }) {
-  const user = await requireModule("gestao");
+  const user = await requireTool("gestao.relatorios");
   const sp = await searchParams;
   const { from, to, preset } = resolvePeriodo(sp);
 

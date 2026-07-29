@@ -1,9 +1,9 @@
-import { requireModule } from "@/lib/permissions";
+import { requireTool } from "@/lib/permissions";
 import { getKanbanData } from "@/server/tasks";
 import { KanbanBoard } from "@/components/task/KanbanBoard";
 
 export default async function KanbanPage() {
-  const user = await requireModule("gestao");
+  const user = await requireTool("gestao.tarefas");
   const data = await getKanbanData(user.workspaceId);
 
   return (

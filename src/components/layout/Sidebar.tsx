@@ -6,18 +6,27 @@ import { Icon } from "@/components/ui/Icon";
 import { Avatar } from "@/components/ui/Avatar";
 import { NAV_MAIN, NAV_ADMIN } from "./nav";
 import { activeNavHref } from "@/lib/nav-active";
+import { toolForPath } from "@/lib/modules";
 import type { AvatarUser } from "@/lib/types";
 
 export function Sidebar({
   user,
   workspaceName,
   isAdmin,
+  tools,
 }: {
   user: AvatarUser & { jobTitle: string };
   workspaceName: string;
   isAdmin: boolean;
+  // Chaves de ferramenta liberadas. O menu mostra só o que a pessoa pode abrir —
+  // item que levaria a "sem acesso" é ruído, não informação.
+  tools: string[];
 }) {
   const pathname = usePathname();
+  const visiveis = NAV_MAIN.filter((n) => {
+    const t = toolForPath(n.href);
+    return !t || tools.includes(t.key);
+  });
   return (
     <aside className="sidebar">
       <div className="sb-brand">
@@ -30,7 +39,7 @@ export function Sidebar({
         </div>
       </div>
 
-      {NAV_MAIN.map((n) => {
+      {visiveis.map((n) => {
         const active = n.href === activeNavHref(pathname, [...NAV_MAIN, ...NAV_ADMIN].map((x) => x.href));
         return (
           <Link key={n.href} href={n.href} className={`sb-item ${active ? "active" : ""}`} title={n.label}>

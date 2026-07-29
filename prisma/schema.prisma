@@ -80,10 +80,16 @@ model User {
   initials     String
   color        String
   hourlyCostCents Int   @default(0) // custo/hora p/ margem real (D1)
-  // Controle de acesso por módulo. Admin ignora (vê tudo). Para gerente/membro,
-  // só entra nos módulos listados aqui. Chaves válidas: gestao, comercial, leads,
-  // margem, marketing (ver src/lib/permissions.ts). Vazio = sem acesso a módulos gated.
+  // Controle de acesso por módulo. Mantido por compatibilidade e como atalho de
+  // leitura; o acesso real é `tools`. Ver src/lib/modules.ts.
   modules      String[] @default([])
+  // Ferramentas (telas) liberadas — é isto que o sistema checa. Ter qualquer
+  // ferramenta de um módulo já dá acesso ao módulo. Admin ignora e vê tudo.
+  tools        String[] @default([])
+  // Módulos que este usuário ADMINISTRA: pode liberar/revogar as ferramentas
+  // deles pros outros. Não permite mexer em admin, em módulo que não gerencia,
+  // nem em quem gerencia o quê — isso segue só com admin.
+  manages      String[] @default([])
   mustChangePassword Boolean @default(false)
   // "Esqueci minha senha": guarda só o SHA-256 do token (nunca o token cru).
   resetTokenHash      String?

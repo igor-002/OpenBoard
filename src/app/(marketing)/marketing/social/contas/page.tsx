@@ -1,9 +1,9 @@
-import { requireUser } from "@/lib/auth";
+import { requireTool } from "@/lib/permissions";
 import { db } from "@/lib/db";
 import { ContasManager } from "@/components/marketing/ContasManager";
 
 export default async function ContasInstagramPage() {
-  await requireUser();
+  await requireTool("marketing.contas");
   const companies = await db.marketingCompany.findMany({
     orderBy: { name: "asc" },
     include: { accounts: { orderBy: { username: "asc" } } },

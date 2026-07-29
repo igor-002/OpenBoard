@@ -1,11 +1,11 @@
-import { requireUser } from "@/lib/auth";
+import { requireTool } from "@/lib/permissions";
 import { getLeadsBoard } from "@/server/comercial/leads";
 import { getUsers } from "@/server/users";
 import { LeadsBoard } from "@/components/comercial/LeadsBoard";
 import { AutoRefresh } from "@/components/common/AutoRefresh";
 
 export default async function LeadsPage() {
-  const user = await requireUser();
+  const user = await requireTool("leads.funil");
   const [board, users] = await Promise.all([getLeadsBoard(), getUsers(user.workspaceId)]);
   return (
     <div className="page" style={{ maxWidth: "none" }}>

@@ -1,3 +1,4 @@
+import { requireTool } from "@/lib/permissions";
 import { getDashboard, getDashboardFiltroOpcoes, getRelatorioRanking, getEvolucao, getDistribuicaoPfPj, getMetaTime, getMetasVendedorMap, getTempoAtivacao, getContratosDoPeriodo, diasUteis, periodoMesAno, getDiarioDia, getVendedoresCRM, getRelatorioEquipe } from "@/server/comercial/queries";
 import { RelatoriosNav } from "@/components/comercial/RelatoriosNav";
 import { FunilVendas, EvolucaoBars, DonutCard } from "@/components/comercial/RelatorioCharts";
@@ -17,6 +18,7 @@ export default async function RelatoriosPage({
 }: {
   searchParams: Promise<{ aba?: string; sub?: string; periodo?: string; vendedor?: string; filial?: string; data?: string; ini?: string; fim?: string }>;
 }) {
+  await requireTool("comercial.relatorios");
   const sp = await searchParams;
   const aba = sp.aba ?? "gerencial";
   const sub = sp.sub ?? "geral";

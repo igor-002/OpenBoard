@@ -1,4 +1,5 @@
 import { requireModule } from "@/lib/permissions";
+import { TOOL_KEYS } from "@/lib/modules";
 import { getNotifications } from "@/server/notifications";
 import { ComercialShell } from "@/components/comercial/ComercialShell";
 
@@ -11,6 +12,7 @@ export default async function ComercialLayout({ children }: { children: React.Re
     <ComercialShell
       user={{ name: user.name, initials: user.initials, color: user.color, jobTitle: user.jobTitle }}
       notifications={notifications}
+      tools={user.role === "admin" ? TOOL_KEYS : user.tools}
     >
       {children}
     </ComercialShell>

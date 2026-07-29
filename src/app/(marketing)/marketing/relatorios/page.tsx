@@ -1,5 +1,5 @@
+import { requireTool } from "@/lib/permissions";
 import Link from "next/link";
-import { requireUser } from "@/lib/auth";
 import { glpiConfigured } from "@/server/glpi/queries";
 import { getGlpiActivityReport } from "@/server/glpi/report";
 import { resolvePeriodo } from "@/server/relatorios";
@@ -20,7 +20,7 @@ export default async function MarketingRelatoriosPage({
 }: {
   searchParams: Promise<{ preset?: string; from?: string; to?: string }>;
 }) {
-  await requireUser();
+  await requireTool("marketing.relatorios");
   const sp = await searchParams;
   const { from, to, preset } = resolvePeriodo(sp);
   const configured = glpiConfigured();

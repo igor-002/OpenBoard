@@ -1,3 +1,4 @@
+import { requireTool } from "@/lib/permissions";
 import Link from "next/link";
 import { getClientes } from "@/server/comercial/queries";
 import { Card } from "@/components/ui/Card";
@@ -9,6 +10,7 @@ export default async function ClientesPage({
 }: {
   searchParams: Promise<{ q?: string; page?: string }>;
 }) {
+  await requireTool("comercial.clientes");
   const sp = await searchParams;
   const page = sp.page ? parseInt(sp.page, 10) : 0;
   const { rows, total, pageSize } = await getClientes({ q: sp.q, page });

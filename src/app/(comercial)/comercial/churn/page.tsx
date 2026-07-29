@@ -1,7 +1,7 @@
+import { requireTool } from "@/lib/permissions";
 // Churn & Retenção: MRR novo × MRR perdido (net revenue movement).
 // Perdas vêm do ContratoStatusEvent (transições detectadas pelo sync) — o IXC
 // não expõe esse histórico, então ele acumula a partir da criação da tabela.
-import { requireUser } from "@/lib/auth";
 import { getChurnStats } from "@/server/comercial/queries";
 import { Card } from "@/components/ui/Card";
 import { StatCard } from "@/components/ui/Stat";
@@ -17,7 +17,7 @@ const STATUS_LABEL: Record<string, string> = {
 const stLabel = (s: string) => STATUS_LABEL[s] ?? s;
 
 export default async function ChurnPage() {
-  await requireUser();
+  await requireTool("comercial.churn");
   const s = await getChurnStats();
   const th: React.CSSProperties = { textAlign: "left", padding: "10px 14px", fontSize: 11.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.4, color: "var(--muted)", whiteSpace: "nowrap" };
   const td: React.CSSProperties = { padding: "11px 14px", fontSize: 13.5, borderTop: "1px solid var(--line)", verticalAlign: "middle" };

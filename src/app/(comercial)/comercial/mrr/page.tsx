@@ -1,4 +1,4 @@
-import { requireUser } from "@/lib/auth";
+import { requireTool } from "@/lib/permissions";
 import {
   getRelatorioRanking,
   getMetaTime,
@@ -12,7 +12,7 @@ import { MetasManager } from "@/components/comercial/MetasManager";
 const MESES = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 
 export default async function MrrMetasPage() {
-  const user = await requireUser();
+  const user = await requireTool("comercial.mrr");
   const { mes, ano } = periodoMesAno(0); // mês atual
   const [ranking, metaTime, metasVend, vendedores] = await Promise.all([
     getRelatorioRanking(0),

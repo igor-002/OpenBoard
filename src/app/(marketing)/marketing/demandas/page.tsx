@@ -1,4 +1,4 @@
-import { requireUser } from "@/lib/auth";
+import { requireTool } from "@/lib/permissions";
 import { getGlpiReport, glpiConfigured, type StatusFilter } from "@/server/glpi/queries";
 import { getTrackedUsers, getAssignableUsers } from "@/server/glpi/users";
 import { v1ListCategories } from "@/lib/glpi-v1";
@@ -13,7 +13,7 @@ export default async function DemandasPage({
 }: {
   searchParams: Promise<{ user?: string; status?: string }>;
 }) {
-  const user = await requireUser();
+  const user = await requireTool("marketing.demandas");
   const sp = await searchParams;
   const requesterId = sp.user ? Number(sp.user) : null;
   const status = (VALID_STATUS.includes(sp.status as StatusFilter) ? sp.status : "abertos") as StatusFilter;

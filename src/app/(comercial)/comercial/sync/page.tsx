@@ -1,4 +1,4 @@
-import { requireUser } from "@/lib/auth";
+import { requireTool } from "@/lib/permissions";
 import { getRecentSyncRuns, ixcConfigured } from "@/server/comercial/queries";
 import { Card } from "@/components/ui/Card";
 import { Icon } from "@/components/ui/Icon";
@@ -7,7 +7,7 @@ import { AutoRefresh } from "@/components/common/AutoRefresh";
 import { fullLabel, hourLabel } from "@/lib/format";
 
 export default async function SyncPage() {
-  const user = await requireUser();
+  const user = await requireTool("comercial.sync");
   const isAdmin = user.role === "admin";
   const [runs, configured] = await Promise.all([
     getRecentSyncRuns(),

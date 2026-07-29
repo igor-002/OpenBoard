@@ -1,5 +1,5 @@
+import { requireTool } from "@/lib/permissions";
 import Link from "next/link";
-import { requireUser } from "@/lib/auth";
 import {
   listCompanies,
   getCompanyData,
@@ -27,7 +27,7 @@ export default async function RedesSociaisPage({
 }: {
   searchParams: Promise<{ empresa?: string; periodo?: string; perfil?: string }>;
 }) {
-  await requireUser();
+  await requireTool("marketing.social");
   const sp = await searchParams;
   const empresaSlug = sp.empresa || ALL_COMPANIES_SLUG;
 

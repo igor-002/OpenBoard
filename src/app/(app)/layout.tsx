@@ -1,4 +1,5 @@
 import { requireUser } from "@/lib/auth";
+import { TOOL_KEYS } from "@/lib/modules";
 import { getNotifications } from "@/server/notifications";
 import { getActiveTimer } from "@/server/time";
 import { AppShell } from "@/components/layout/AppShell";
@@ -15,6 +16,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       workspaceName={user.workspace.name}
       isAdmin={user.role === "admin"}
       notifications={notifications}
+      tools={user.role === "admin" ? TOOL_KEYS : user.tools}
       activeTimer={activeTimer}
       mustChangePassword={user.mustChangePassword}
     >
