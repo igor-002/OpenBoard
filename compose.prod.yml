@@ -1,5 +1,11 @@
 # OpenBoard — produção (VPS). Subir com:
 #   docker compose --env-file .env.production -f compose.prod.yml up -d --build
+
+# Nome do projeto FIXO. Sem isso, o Compose deriva do nome do diretório e o volume
+# do Postgres passa a se chamar <dir>_pgdata — mover a pasta criaria um volume novo
+# e vazio, com o banco "desaparecendo". Mantém openboard_pgdata em qualquer path.
+name: openboard
+
 services:
   db:
     image: postgres:16-alpine
