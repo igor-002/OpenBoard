@@ -28,6 +28,16 @@ export type ChatResult = { content: string; usage: ChatUsage };
 
 // Chat Completions com resposta forçada em JSON (response_format json_object).
 export async function chatJson(cfg: OpenAIConfig, messages: ChatMessage[], opts?: { maxTokens?: number }): Promise<ChatResult> {
+  return chat(cfg, messages, { ...opts, json: true });
+}
+
+// Chat Completions em texto livre (sem response_format). Usado pelas Notas:
+// resumo/resposta são prosa, não JSON.
+export async function chatText(cfg: OpenAIConfig, messages: ChatMessage[], opts?: { maxTokens?: number }): Promise<ChatResult> {
+  return chat(cfg, messages, { ...opts, json: false });
+}
+
+async function chat(cfg: OpenAIConfig, messages: ChatMessage[], opts: { maxTokens?: number; json: boolean }): Promise<ChatResult> {
   if (!openaiConfigured(cfg)) throw new OpenAIError(401, "chave da OpenAI ausente");
 
   // gpt-5* e o-series usam `max_completion_tokens`; gpt-4o/4.1 usam `max_tokens`.
@@ -35,9 +45,9 @@ export async function chatJson(cfg: OpenAIConfig, messages: ChatMessage[], opts?
   const body: Record<string, unknown> = {
     model: cfg.model,
     messages,
-    response_format: { type: "json_object" },
-    [tokenParam]: opts?.maxTokens ?? 700,
+    [tokenParam]: opts.maxTokens ?? 700,
   };
+  if (opts.json) body.response_format = { type: "json_object" };
 
   let res: Response;
   try {

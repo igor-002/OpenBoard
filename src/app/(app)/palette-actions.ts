@@ -5,6 +5,7 @@
 // qualquer página do app.
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/auth";
+import { requireToolUser } from "@/lib/permissions";
 import { db } from "@/lib/db";
 import { searchPalette, type PaletteHit } from "@/server/palette";
 
@@ -13,7 +14,7 @@ export type PaletteCreateState = { ok: boolean; error?: string; href?: string };
 export async function paletteSearchAction(q: string): Promise<PaletteHit[]> {
   const user = await requireUser();
   try {
-    return await searchPalette(user.workspaceId, q);
+    return await searchPalette(user.workspaceId, q, user.id);
   } catch {
     return [];
   }
@@ -154,6 +155,38 @@ export async function paletteCriarAtividadeAction(input: {
   revalidatePath("/atividades");
   revalidatePath("/reports");
   return { ok: true, href: "/atividades" };
+}
+
+// Nota rápida: só o título. O corpo se escreve na tela, que já abre no editor.
+export async function paletteCriarNotaAction(input: {
+  title: string;
+  projectId?: string | null;
+}): Promise<PaletteCreateState> {
+  const user = await requireToolUser("gestao.notas");
+  const title = input.title.trim().slice(0, 200);
+  if (!title) return { ok: false, error: "Escreva um título." };
+
+  if (input.projectId) {
+    const p = await db.project.findFirst({
+      where: { id: input.projectId, workspaceId: user.workspaceId },
+      select: { id: true },
+    });
+    if (!p) return { ok: false, error: "Projeto inválido." };
+  }
+
+  const nota = await db.note.create({
+    data: {
+      workspaceId: user.workspaceId,
+      authorId: user.id,
+      title,
+      projectId: input.projectId || null,
+    },
+    select: { id: true },
+  });
+
+  revalidatePath("/notas");
+  if (input.projectId) revalidatePath(`/projects/${input.projectId}`);
+  return { ok: true, href: `/notas?n=${nota.id}` };
 }
 
 // "YYYY-MM-DD" vira meio-dia LOCAL — mesma convenção do quadro do marketing;

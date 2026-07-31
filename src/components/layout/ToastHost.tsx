@@ -17,11 +17,12 @@ type Toast = {
   link?: string;
 };
 
-type EventKind = "project_created" | "task_created" | "solicitacao_cadastro";
+type EventKind = "project_created" | "task_created" | "solicitacao_cadastro" | "nota_compartilhada";
 const EVENT_META: Record<EventKind, { icon: IconName; label: string; verb: string }> = {
   project_created: { icon: "folder", label: "Novo projeto", verb: "criado por" },
   task_created: { icon: "kanban", label: "Nova tarefa", verb: "criada por" },
   solicitacao_cadastro: { icon: "users", label: "Solicitação de cadastro", verb: "solicitado por" },
+  nota_compartilhada: { icon: "note", label: "Nota compartilhada", verb: "compartilhada por" },
 };
 
 const VARIANT_META: Record<LocalToast["variant"], { icon: IconName; accent: string }> = {

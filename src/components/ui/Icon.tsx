@@ -9,7 +9,8 @@ export type IconName =
   | "check" | "checkCircle" | "circle" | "dashCircle" | "flag" | "msg"
   | "paperclip" | "wallet" | "zap" | "target" | "layers" | "play" | "pause"
   | "download" | "star" | "sidebar" | "briefcase" | "alert" | "logout"
-  | "link" | "qr" | "copy" | "edit" | "trash" | "externalLink";
+  | "link" | "qr" | "copy" | "edit" | "trash" | "externalLink"
+  | "note" | "pin" | "sparkles";
 
 const ICONS: Record<IconName, ReactNode> = {
   dot: <circle cx="12" cy="12" r="3" />,
@@ -63,6 +64,9 @@ const ICONS: Record<IconName, ReactNode> = {
   edit: (<><path d="M17 3a2.8 2.8 0 0 1 4 4L7.5 20.5 2 22l1.5-5.5z" /></>),
   trash: (<><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" /><path d="M10 11v6M14 11v6" /></>),
   externalLink: (<><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><path d="M15 3h6v6M10 14 21 3" /></>),
+  note: (<><path d="M5 3h9l5 5v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z" /><path d="M14 3v5h5" /><path d="M8 13h7M8 17h5" /></>),
+  pin: (<><path d="M9 3h6l-1 6 3.5 3.5H5.5L9 9z" /><path d="M12 12.5V21" /></>),
+  sparkles: (<><path d="m12 3 1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6z" /><path d="m18.5 15.5.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z" /></>),
 };
 
 export function Icon({

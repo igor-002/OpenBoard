@@ -14,11 +14,12 @@ import {
   paletteOpcoesAction,
   paletteCriarTarefaAction,
   paletteCriarAtividadeAction,
+  paletteCriarNotaAction,
   type PaletteOpcoes,
 } from "@/app/(app)/palette-actions";
 import type { PaletteHit, PaletteKind } from "@/server/palette";
 
-type Modo = "busca" | "tarefa" | "atividade";
+type Modo = "busca" | "tarefa" | "atividade" | "nota";
 type Prioridade = "high" | "med" | "low";
 
 const ICONE: Record<PaletteKind, IconName> = {
@@ -26,12 +27,14 @@ const ICONE: Record<PaletteKind, IconName> = {
   tarefa: "check",
   cliente: "users",
   chamado: "inbox",
+  nota: "note",
 };
 const ROTULO: Record<PaletteKind, string> = {
   projeto: "Projeto",
   tarefa: "Tarefa",
   cliente: "Cliente",
   chamado: "Chamado",
+  nota: "Nota",
 };
 
 export function CommandPalette() {
@@ -118,6 +121,7 @@ export function CommandPalette() {
   // principal, buscar é o secundário.
   const acoes = temTexto
     ? [
+        { id: "nova-nota", label: `Criar nota “${q.trim()}”`, icon: "note" as IconName },
         { id: "nova-tarefa", label: `Criar tarefa “${q.trim()}”`, icon: "plus" as IconName },
         { id: "nova-atividade", label: `Criar atividade “${q.trim()}”`, icon: "zap" as IconName },
       ]
@@ -126,7 +130,8 @@ export function CommandPalette() {
 
   function executar(indice: number) {
     if (indice < acoes.length) {
-      setModo(acoes[indice].id === "nova-tarefa" ? "tarefa" : "atividade");
+      const id = acoes[indice].id;
+      setModo(id === "nova-nota" ? "nota" : id === "nova-tarefa" ? "tarefa" : "atividade");
       return;
     }
     const hit = hitsVisiveis[indice - acoes.length];
@@ -166,6 +171,18 @@ export function CommandPalette() {
       fechar();
       if (href) router.push(href);
       else router.refresh();
+    });
+  }
+
+  function criarNota() {
+    setBusy(true);
+    void paletteCriarNotaAction({ title: q, projectId: projectId || null }).then((r) => {
+      setBusy(false);
+      if (!r.ok) return emitToast({ variant: "error", title: "Não deu pra criar", sub: r.error });
+      emitToast({ variant: "success", title: "Nota criada", sub: q.trim() });
+      const href = r.href;
+      fechar();
+      if (href) router.push(href);
     });
   }
 
@@ -261,6 +278,20 @@ export function CommandPalette() {
             {temTexto && hitsVisiveis.length === 0 && termo.length >= 2 && (
               <div className="muted" style={{ padding: "10px 16px 16px", fontSize: 12 }}>Nada encontrado na busca.</div>
             )}
+          </div>
+        )}
+
+        {modo === "nota" && (
+          <div style={{ padding: 14, display: "flex", flexDirection: "column", gap: 12 }}>
+            <div>
+              <label className="muted" style={{ fontSize: 12, fontWeight: 600 }}>Projeto (opcional)</label>
+              <select className="input" value={projectId} onChange={(e) => setProjectId(e.target.value)} style={{ width: "100%", marginTop: 6 }}>
+                <option value="">Nota avulsa</option>
+                {opcoes.projetos.map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}
+              </select>
+              <span className="muted" style={{ fontSize: 11.5 }}>Abre no editor pra você escrever o resto.</span>
+            </div>
+            <Rodape onVoltar={() => setModo("busca")} onConfirmar={criarNota} busy={busy} podeConfirmar={!!q.trim()} rotulo="Criar e abrir" />
           </div>
         )}
 

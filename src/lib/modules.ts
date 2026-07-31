@@ -50,6 +50,7 @@ export const TOOLS: Tool[] = [
   { key: "gestao.projetos", module: "gestao", label: "Projetos", href: "/projects" },
   { key: "gestao.tarefas", module: "gestao", label: "Tarefas (kanban)", href: "/kanban" },
   { key: "gestao.atividades", module: "gestao", label: "Atividades", href: "/atividades" },
+  { key: "gestao.notas", module: "gestao", label: "Notas", href: "/notas" },
   { key: "gestao.cronograma", module: "gestao", label: "Cronograma", href: "/timeline" },
   { key: "gestao.tempo", module: "gestao", label: "Tempo", href: "/time" },
   { key: "gestao.time", module: "gestao", label: "Time", href: "/team" },

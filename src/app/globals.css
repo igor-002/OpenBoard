@@ -1001,3 +1001,217 @@ a {
     print-color-adjust: exact !important;
   }
 }
+
+/* ══ Notas ═══════════════════════════════════════════════════════════════ */
+/* Tela /notas: lista à esquerda, editor à direita. */
+.notas-grid {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: var(--gap);
+  align-items: start;
+}
+@media (max-width: 980px) {
+  .notas-grid { grid-template-columns: 1fr; }
+}
+
+.notas-lista {
+  padding: 0;
+  overflow: hidden;
+  position: sticky;
+  top: 16px;
+  max-height: calc(100vh - 120px);
+  display: flex;
+  flex-direction: column;
+}
+.notas-lista-topo { padding: 14px; border-bottom: 1px solid var(--line); }
+.notas-lista-itens { overflow-y: auto; }
+
+.notas-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 11px 14px;
+  border: 0;
+  border-left: 2px solid transparent;
+  border-bottom: 1px solid var(--line);
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+.notas-item:hover { background: var(--surface-2); }
+.notas-item.on { background: var(--primary-tint); border-left-color: var(--primary); }
+.notas-item-topo { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.notas-item-titulo {
+  font-size: 13.5px; font-weight: 700; color: var(--ink);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.notas-item-resumo {
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden; margin-top: 3px; font-size: 12px; color: var(--muted); line-height: 1.5;
+}
+.notas-item-rodape {
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  margin-top: 6px; font-size: 11px; color: var(--muted-2);
+}
+.notas-tag { cursor: pointer; border: 1px solid var(--line); }
+.notas-tag.on { background: var(--primary-tint); color: var(--primary); border-color: var(--primary); }
+
+.notas-painel { padding: 18px 20px 22px; min-height: 60vh; }
+.notas-vazio {
+  display: grid; place-items: center; gap: 10px; text-align: center;
+  min-height: 45vh; color: var(--muted);
+}
+.notas-vazio code {
+  background: var(--surface-3); border: 1px solid var(--line);
+  border-radius: var(--r-xs); padding: 1px 5px; font-size: 12px;
+}
+
+.notas-cabecalho { display: flex; align-items: center; gap: 12px; justify-content: space-between; }
+.notas-titulo {
+  flex: 1; min-width: 0; border: 0; outline: none; background: transparent;
+  font: 800 22px/1.3 var(--font-display); color: var(--ink); letter-spacing: -.4px;
+}
+.notas-titulo::placeholder { color: var(--muted-2); }
+.notas-estado { font-size: 11.5px; color: var(--muted); white-space: nowrap; }
+.notas-estado.alerta { color: var(--primary); font-weight: 700; }
+
+.notas-meta {
+  display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap;
+  margin: 12px 0 6px; padding-bottom: 12px; border-bottom: 1px solid var(--line);
+}
+.notas-vinculo { display: grid; gap: 4px; font-size: 11.5px; font-weight: 600; min-width: 150px; }
+.notas-vinculo .input { padding: 5px 8px; font-size: 12.5px; }
+
+.notas-conflito {
+  display: grid; gap: 4px; margin: 12px 0;
+  padding: 12px 14px; font-size: 12.5px; line-height: 1.55;
+  background: var(--primary-tint); border: 1px solid var(--primary);
+  border-radius: var(--r-md); color: var(--ink-2);
+}
+
+.notas-pendente { position: fixed; bottom: 14px; right: 16px; font-size: 18px; }
+
+/* Aba "Notas" dentro do projeto — sem editor, só cartões. */
+.notas-projeto { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; }
+.notas-projeto-card {
+  display: block; padding: 12px 14px; text-decoration: none; color: inherit;
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r-md);
+}
+.notas-projeto-card:hover { border-color: var(--primary); }
+
+/* ── Editor (TipTap / ProseMirror) ─────────────────────────────────────── */
+.nota-editor-skeleton {
+  min-height: 320px; margin-top: 14px;
+  background: var(--surface-2); border-radius: var(--r-md);
+}
+.nota-editor { margin-top: 12px; }
+
+.nota-toolbar {
+  display: flex; align-items: center; gap: 4px; flex-wrap: wrap;
+  padding-bottom: 8px; margin-bottom: 8px; border-bottom: 1px solid var(--line);
+}
+.nota-tool {
+  display: grid; place-items: center; min-width: 30px; height: 28px;
+  border: 1px solid transparent; border-radius: var(--r-sm);
+  background: transparent; color: var(--muted); cursor: pointer;
+}
+.nota-tool:hover { background: var(--surface-2); color: var(--ink); }
+.nota-tool.on { background: var(--primary-tint); color: var(--primary); border-color: var(--primary); }
+.nota-tool-sep { width: 1px; height: 18px; background: var(--line); margin: 0 4px; }
+.nota-tool-hint { margin-left: auto; font-size: 11.5px; }
+
+.nota-editor .nota-prose {
+  outline: none;
+  font: 15px/1.75 var(--font);
+  color: var(--ink-2);
+  min-height: 320px;
+}
+.nota-editor .nota-prose > * + * { margin-top: .7em; }
+.nota-editor .nota-prose h1 { font: 800 25px/1.25 var(--font-display); color: var(--ink); letter-spacing: -.4px; margin-top: 1.3em; }
+.nota-editor .nota-prose h2 { font: 800 20px/1.3 var(--font-display); color: var(--ink); margin-top: 1.25em; }
+.nota-editor .nota-prose h3 { font: 700 16.5px/1.35 var(--font-display); color: var(--ink); margin-top: 1.15em; }
+.nota-editor .nota-prose ul,
+.nota-editor .nota-prose ol { padding-left: 1.4em; }
+.nota-editor .nota-prose li + li { margin-top: .25em; }
+.nota-editor .nota-prose blockquote {
+  border-left: 3px solid var(--primary); padding-left: 14px; color: var(--muted);
+}
+.nota-editor .nota-prose code {
+  background: var(--surface-3); border: 1px solid var(--line);
+  border-radius: var(--r-xs); padding: 1px 5px; font-size: 13px;
+}
+.nota-editor .nota-prose pre {
+  background: var(--surface-3); border: 1px solid var(--line);
+  border-radius: var(--r-md); padding: 14px 16px; overflow-x: auto; font-size: 13px;
+}
+.nota-editor .nota-prose pre code { background: none; border: 0; padding: 0; }
+.nota-editor .nota-prose hr { border: 0; border-top: 1px solid var(--line-2); margin: 1.5em 0; }
+.nota-editor .nota-prose a { color: var(--primary); font-weight: 600; }
+
+/* checklist */
+.nota-editor .nota-prose ul[data-type="taskList"] { list-style: none; padding-left: 0; }
+.nota-editor .nota-prose ul[data-type="taskList"] li { display: flex; gap: 9px; align-items: flex-start; }
+.nota-editor .nota-prose ul[data-type="taskList"] li > label { margin-top: 4px; flex: none; }
+.nota-editor .nota-prose ul[data-type="taskList"] li[data-checked="true"] > div {
+  color: var(--muted-2); text-decoration: line-through;
+}
+
+/* Sem esta regra o Placeholder do TipTap simplesmente não aparece. */
+.nota-editor .nota-prose p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  color: var(--muted-2);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+
+/* Menu "/" — mesmo visual da paleta Ctrl+K: é o mesmo gesto. */
+.nota-slash {
+  width: 262px; padding: 4px 0; overflow: hidden;
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--r-md); box-shadow: var(--sh-lg); z-index: 300;
+}
+.nota-slash-item {
+  display: flex; gap: 10px; align-items: center;
+  padding: 7px 12px; cursor: pointer;
+  font-size: 13.5px; font-weight: 600; color: var(--ink);
+  border-left: 2px solid transparent;
+}
+.nota-slash-item.on { background: var(--surface-2); border-left-color: var(--primary); }
+
+/* Painel de IA da nota */
+.nota-ia { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); }
+.nota-ia-titulo {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 12px; font-weight: 800; text-transform: uppercase;
+  letter-spacing: .4px; color: var(--primary);
+}
+.nota-ia-btn { padding: 5px 11px; font-size: 12.5px; }
+.nota-ia-saida {
+  margin-top: 10px; padding: 12px 14px; white-space: pre-wrap;
+  font-size: 13px; line-height: 1.65; color: var(--ink-2);
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r-md);
+}
+.nota-ia-tarefa {
+  align-items: center; padding: 7px 0; border-bottom: 1px solid var(--line);
+}
+
+.notas-cliente-sel {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 4px 6px 4px 10px; font-size: 12.5px; font-weight: 600;
+  background: var(--surface-3); border: 1px solid var(--line); border-radius: var(--r-sm);
+  max-width: 230px;
+}
+.notas-cliente-sel > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.notas-cliente-sel .btn { padding: 2px 8px; font-size: 11.5px; }
+.notas-cliente-hits {
+  position: absolute; top: 100%; left: 0; z-index: 30;
+  width: 300px; margin-top: 4px; padding: 4px;
+  max-height: 240px; overflow-y: auto; box-shadow: var(--sh-md);
+}
+.notas-cliente-hit {
+  display: block; width: 100%; text-align: left; border: 0; background: none;
+  padding: 7px 10px; border-radius: var(--r-xs); cursor: pointer; font-size: 13px;
+}
+.notas-cliente-hit:hover { background: var(--surface-3); }

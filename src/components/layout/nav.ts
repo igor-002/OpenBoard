@@ -7,6 +7,7 @@ export const NAV_MAIN: NavItem[] = [
   { href: "/projects", label: "Projetos", icon: "folder" },
   { href: "/kanban", label: "Tarefas", icon: "kanban" },
   { href: "/atividades", label: "Atividades", icon: "clock" },
+  { href: "/notas", label: "Notas", icon: "note" },
   { href: "/timeline", label: "Cronograma", icon: "timeline" },
   // { href: "/time", label: "Tempo", icon: "clock" }, // oculto por enquanto
   { href: "/team", label: "Time", icon: "users" },
@@ -26,6 +27,7 @@ export const CRUMBS: { prefix: string; a: string; b: string }[] = [
   { prefix: "/projects", a: "Projetos", b: "Todos os projetos" },
   { prefix: "/kanban", a: "Tarefas", b: "Quadro" },
   { prefix: "/atividades", a: "Equipe", b: "Atividades" },
+  { prefix: "/notas", a: "Notas", b: "Minhas anotações" },
   { prefix: "/timeline", a: "Cronograma", b: "Anual" },
   { prefix: "/time", a: "Tempo", b: "Apontamentos" },
   { prefix: "/team", a: "Time", b: "Pessoas" },

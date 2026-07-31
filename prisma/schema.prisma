@@ -66,6 +66,7 @@ model Workspace {
   users     User[]
   projects  Project[]
   tasks     Task[]
+  notas     Note[]
 }
 
 model User {
@@ -100,6 +101,8 @@ model User {
   assignedTasks  Task[]          @relation("TaskAssignee")
   timeLogs       TimeLog[]
   notes          ProjectNote[]
+  notasAutor     Note[]          @relation("NoteAutor")
+  notasRecebidas NoteShare[]     @relation("NoteShareUser")
   notifications  Notification[]
   taskComments   TaskComment[]
   createdProjects Project[]      @relation("ProjectCreator")
@@ -131,6 +134,7 @@ model Project {
   milestones Milestone[]
   timeLogs   TimeLog[]
   notes      ProjectNote[]
+  notas      Note[]
 
   @@index([workspaceId])
   @@index([creatorId])
@@ -176,6 +180,68 @@ model ProjectMember {
   @@index([userId])
 }
 
+// Anotação pessoal (/notas). ≠ ProjectNote, que é o mural aberto do projeto:
+// aqui a nota é PRIVADA do autor e só chega em outra pessoa via NoteShare —
+// nem admin lê nota alheia (ver noteAccess em src/server/notas.ts).
+model Note {
+  id          String    @id @default(cuid())
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspaceId String
+  author      User      @relation("NoteAutor", fields: [authorId], references: [id], onDelete: Cascade)
+  authorId    String
+
+  title  String   @default("")
+  body   String   @default("") // markdown — fonte da verdade (editor TipTap)
+  resumo String   @default("") // 1as linhas em texto puro: lista e busca sem ler o body
+  tags   String[] @default([])
+  pinned Boolean  @default(false)
+
+  // Token de versão do autosave. Permite compare-and-swap atômico num único
+  // updateMany (where version = X) — comparar updatedAt seria corrida: outra
+  // aba pode gravar entre o SELECT e o UPDATE.
+  version      Int     @default(0)
+  lastEditorId String?
+
+  // Vínculos, todos opcionais e independentes entre si.
+  project      Project?    @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  projectId    String?
+  cliente      IxcCliente? @relation(fields: [ixcClienteId], references: [id], onDelete: SetNull)
+  ixcClienteId String?
+  task         Task?       @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  taskId       String?
+
+  // Resultado da IA (mesmo padrão dos campos analise* do Lead).
+  aiResumo         String?
+  aiModelo         String?
+  aiTokensIn       Int?
+  aiTokensOut      Int?
+  aiCustoUsdMicros Int?
+  aiAt             DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  shares NoteShare[]
+
+  @@index([workspaceId, authorId, updatedAt])
+  @@index([projectId])
+  @@index([ixcClienteId])
+  @@index([taskId])
+}
+
+// Compartilhamento de nota, por pessoa. canEdit=false → só leitura.
+model NoteShare {
+  note      Note     @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  noteId    String
+  user      User     @relation("NoteShareUser", fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  canEdit   Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@id([noteId, userId])
+  @@index([userId])
+}
+
 model Task {
   id          String     @id @default(cuid())
   // workspaceId direto: permite tarefa SEM projeto (atividade avulsa/presencial).
@@ -208,6 +274,7 @@ model Task {
   tags     TaskTag[]
   subtasks Subtask[]
   comments TaskComment[]
+  notas    Note[]
 
   @@index([workspaceId])
   @@index([projectId])
@@ -324,6 +391,7 @@ model IxcCliente {
   uf       String?
   syncedAt DateTime @default(now())
   tasks    Task[]
+  notas    Note[]
 }
 
 // Contrato do IXC (`cliente_contrato`) com MRR já calculado no sync (ver handoff).

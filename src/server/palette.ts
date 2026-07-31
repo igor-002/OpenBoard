@@ -5,8 +5,9 @@
 // então o custo por chamada importa mais que a completude do resultado.
 import "server-only";
 import { db } from "@/lib/db";
+import { notasVisiveisWhere } from "@/server/notas";
 
-export type PaletteKind = "projeto" | "tarefa" | "cliente" | "chamado";
+export type PaletteKind = "projeto" | "tarefa" | "cliente" | "chamado" | "nota";
 
 export interface PaletteHit {
   kind: PaletteKind;
@@ -18,12 +19,14 @@ export interface PaletteHit {
 
 const POR_TIPO = 5;
 
-export async function searchPalette(workspaceId: string, q: string): Promise<PaletteHit[]> {
+// `userId` existe por causa das notas: elas são privadas, então o filtro de
+// visibilidade tem que entrar na query — nunca dá pra buscar "do workspace".
+export async function searchPalette(workspaceId: string, q: string, userId: string): Promise<PaletteHit[]> {
   const termo = q.trim();
   if (termo.length < 2) return [];
   const contains = { contains: termo, mode: "insensitive" as const };
 
-  const [projetos, tarefas, clientes, chamados] = await Promise.all([
+  const [projetos, tarefas, clientes, chamados, notas] = await Promise.all([
     db.project.findMany({
       where: { workspaceId, OR: [{ name: contains }, { client: contains }] },
       select: { id: true, name: true, client: true, status: true },
@@ -47,6 +50,21 @@ export async function searchPalette(workspaceId: string, q: string): Promise<Pal
       select: { glpiId: true, name: true, statusName: true },
       take: POR_TIPO,
       orderBy: { dateCreation: "desc" },
+    }),
+    db.note.findMany({
+      where: {
+        workspaceId,
+        // Duas condições OR na mesma query precisam ir dentro de AND, senão a
+        // segunda sobrescreve a primeira — e a busca vazaria nota de outra pessoa.
+        AND: [
+          notasVisiveisWhere(workspaceId, userId),
+          { OR: [{ title: contains }, { resumo: contains }] },
+        ],
+      },
+      // Sem `body`: listagem não carrega o markdown inteiro.
+      select: { id: true, title: true, resumo: true, authorId: true },
+      take: POR_TIPO,
+      orderBy: { updatedAt: "desc" },
     }),
   ]);
 
@@ -79,6 +97,13 @@ export async function searchPalette(workspaceId: string, q: string): Promise<Pal
       titulo: t.name,
       sub: `#${t.glpiId} · ${t.statusName}`,
       href: `/marketing/demandas/${t.glpiId}`,
+    })),
+    ...notas.map((n) => ({
+      kind: "nota" as const,
+      id: n.id,
+      titulo: n.title || "Sem título",
+      sub: n.resumo || (n.authorId === userId ? null : "compartilhada com você"),
+      href: `/notas?n=${n.id}`,
     })),
   ];
 }

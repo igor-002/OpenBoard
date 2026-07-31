@@ -2,9 +2,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { getProjectDetail, getProjectForEdit } from "@/server/projects";
+import { notasDoProjeto } from "@/server/notas";
 import { getUsers } from "@/server/users";
 import { ProjectDetailActions } from "@/components/project/ProjectDetailActions";
 import { ProjectNotes } from "@/components/project/ProjectNotes";
+import { ProjectNotas } from "@/components/project/ProjectNotas";
 import { ProjectTeam } from "@/components/project/ProjectTeam";
 import { ProjectMilestones } from "@/components/project/ProjectMilestones";
 import { Card } from "@/components/ui/Card";
@@ -21,10 +23,11 @@ export default async function ProjectDetailPage({
 }) {
   const { id } = await params;
   const user = await requireUser();
-  const [p, edit, users] = await Promise.all([
+  const [p, edit, users, notas] = await Promise.all([
     getProjectDetail(user.workspaceId, id),
     getProjectForEdit(user.workspaceId, id),
     getUsers(user.workspaceId),
+    notasDoProjeto(user.workspaceId, user.id, id),
   ]);
   if (!p || !edit) notFound();
   const memberOpts = users.map((u) => ({ id: u.id, name: u.name }));
@@ -136,6 +139,7 @@ export default async function ProjectDetailPage({
               { key: "detalhes", label: "Detalhes", node: detalhes },
               { key: "tarefas", label: "Tarefas", node: tarefas },
               { key: "observacoes", label: "Observações", node: observacoes },
+              { key: "notas", label: "Notas", node: <ProjectNotas projectId={p.id} notas={notas} /> },
             ]}
           />
         </div>
