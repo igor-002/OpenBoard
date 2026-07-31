@@ -8,6 +8,7 @@ import { requireUser } from "@/lib/auth";
 import { requireToolUser } from "@/lib/permissions";
 import { db } from "@/lib/db";
 import { searchPalette, type PaletteHit } from "@/server/palette";
+import { normalizaMarkdownDigitado, resumoDoMarkdown } from "@/server/notas";
 
 export type PaletteCreateState = { ok: boolean; error?: string; href?: string };
 
@@ -157,14 +158,17 @@ export async function paletteCriarAtividadeAction(input: {
   return { ok: true, href: "/atividades" };
 }
 
-// Nota rápida: só o título. O corpo se escreve na tela, que já abre no editor.
+// Nota rápida: título + o texto já digitado ali mesmo. O corpo é markdown —
+// a paleta é um campo simples, mas o que sai daqui abre formatado no editor.
 export async function paletteCriarNotaAction(input: {
   title: string;
+  body?: string;
   projectId?: string | null;
 }): Promise<PaletteCreateState> {
   const user = await requireToolUser("gestao.notas");
   const title = input.title.trim().slice(0, 200);
   if (!title) return { ok: false, error: "Escreva um título." };
+  const body = normalizaMarkdownDigitado((input.body ?? "").slice(0, 200_000));
 
   if (input.projectId) {
     const p = await db.project.findFirst({
@@ -179,6 +183,8 @@ export async function paletteCriarNotaAction(input: {
       workspaceId: user.workspaceId,
       authorId: user.id,
       title,
+      body,
+      resumo: resumoDoMarkdown(body),
       projectId: input.projectId || null,
     },
     select: { id: true },

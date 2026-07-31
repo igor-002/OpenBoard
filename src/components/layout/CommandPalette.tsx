@@ -55,8 +55,10 @@ export function CommandPalette() {
   const [estimativa, setEstimativa] = useState("");
   const [jaFeita, setJaFeita] = useState(false);
   const [minutosReais, setMinutosReais] = useState("");
+  const [corpo, setCorpo] = useState("");
 
   const inputRef = useRef<HTMLInputElement>(null);
+  const corpoRef = useRef<HTMLTextAreaElement>(null);
 
   const fechar = useCallback(() => {
     setAberta(false);
@@ -70,6 +72,7 @@ export function CommandPalette() {
     setJaFeita(false);
     setMinutosReais("");
     setPrioridade("med");
+    setCorpo("");
   }, []);
 
   // Atalho global de abertura.
@@ -94,7 +97,10 @@ export function CommandPalette() {
   }, [aberta, opcoes.tipos.length, opcoes.projetos.length]);
 
   useEffect(() => {
-    if (aberta) inputRef.current?.focus();
+    if (!aberta) return;
+    // No modo nota o título já veio da busca — o cursor tem que cair no texto.
+    if (modo === "nota") corpoRef.current?.focus();
+    else inputRef.current?.focus();
   }, [aberta, modo]);
 
   // Busca com debounce — a paleta consulta a cada tecla.
@@ -174,15 +180,18 @@ export function CommandPalette() {
     });
   }
 
-  function criarNota() {
+  // `abrir` = ir pra nota; senão salva e devolve a pessoa ao que estava fazendo,
+  // que é o ponto de uma captura rápida.
+  function criarNota(abrir: boolean) {
     setBusy(true);
-    void paletteCriarNotaAction({ title: q, projectId: projectId || null }).then((r) => {
+    void paletteCriarNotaAction({ title: q, body: corpo, projectId: projectId || null }).then((r) => {
       setBusy(false);
       if (!r.ok) return emitToast({ variant: "error", title: "Não deu pra criar", sub: r.error });
-      emitToast({ variant: "success", title: "Nota criada", sub: q.trim() });
+      emitToast({ variant: "success", title: "Nota salva", sub: q.trim() });
       const href = r.href;
       fechar();
-      if (href) router.push(href);
+      if (abrir && href) router.push(href);
+      else router.refresh();
     });
   }
 
@@ -283,15 +292,46 @@ export function CommandPalette() {
 
         {modo === "nota" && (
           <div style={{ padding: 14, display: "flex", flexDirection: "column", gap: 12 }}>
+            {/* O título é o texto da busca; aqui se escreve a anotação em si.
+                Autofoco: quem escolheu "criar nota" quer digitar, não clicar. */}
+            <div>
+              <label className="muted" style={{ fontSize: 12, fontWeight: 600 }}>Anotação</label>
+              <textarea
+                ref={corpoRef}
+                className="input"
+                value={corpo}
+                onChange={(e) => setCorpo(e.target.value)}
+                onKeyDown={(e) => {
+                  // Enter quebra linha; Ctrl+Enter salva.
+                  if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+                    e.preventDefault();
+                    if (q.trim() && !busy) criarNota(false);
+                  }
+                }}
+                rows={6}
+                placeholder="Escreva aqui… markdown funciona (## título, - lista, [] tarefa)"
+                style={{ width: "100%", marginTop: 6, resize: "vertical", lineHeight: 1.6, fontFamily: "inherit" }}
+              />
+            </div>
             <div>
               <label className="muted" style={{ fontSize: 12, fontWeight: 600 }}>Projeto (opcional)</label>
               <select className="input" value={projectId} onChange={(e) => setProjectId(e.target.value)} style={{ width: "100%", marginTop: 6 }}>
                 <option value="">Nota avulsa</option>
                 {opcoes.projetos.map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}
               </select>
-              <span className="muted" style={{ fontSize: 11.5 }}>Abre no editor pra você escrever o resto.</span>
             </div>
-            <Rodape onVoltar={() => setModo("busca")} onConfirmar={criarNota} busy={busy} podeConfirmar={!!q.trim()} rotulo="Criar e abrir" />
+            <div className="row gap8" style={{ justifyContent: "space-between", alignItems: "center" }}>
+              <span className="muted" style={{ fontSize: 11 }}>Ctrl+Enter salva</span>
+              <span className="row gap8">
+                <button className="btn btn-ghost" onClick={() => setModo("busca")} disabled={busy}>Voltar</button>
+                <button className="btn btn-ghost" onClick={() => criarNota(true)} disabled={busy || !q.trim()}>
+                  Salvar e abrir
+                </button>
+                <button className="btn btn-primary" onClick={() => criarNota(false)} disabled={busy || !q.trim()}>
+                  {busy ? "Salvando…" : "Salvar"}
+                </button>
+              </span>
+            </div>
           </div>
         )}
 

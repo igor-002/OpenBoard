@@ -68,6 +68,13 @@ export default function NotaEditorTiptap({
   // (o que jogaria o cursor pro começo enquanto a pessoa digita).
   const carregada = useRef(noteId);
 
+  // Markdown que o editor produz para o conteúdo RECÉM-CARREGADO. Ao ler uma
+  // nota o ProseMirror normaliza o texto (escapes, espaçamento), e a saída pode
+  // diferir do que está no banco sem ninguém ter editado nada. Sem esta
+  // referência, só ABRIR uma nota já a marcaria como suja: salvaria sozinha,
+  // subiria a versão e duas pessoas lendo a mesma nota gerariam conflito falso.
+  const baseMd = useRef<string | null>(null);
+
   const editor = useEditor({
     // Obrigatório no App Router: sem isso o ProseMirror renderiza no servidor
     // e dá hydration mismatch.
@@ -98,7 +105,20 @@ export default function NotaEditorTiptap({
         return false;
       },
     },
-    onUpdate: ({ editor: ed }) => onChange(ed.getMarkdown()),
+    onCreate: ({ editor: ed }) => {
+      baseMd.current = ed.getMarkdown();
+    },
+    onUpdate: ({ editor: ed }) => {
+      // Duas guardas contra "save fantasma" ao só abrir a nota:
+      // 1) sem foco = normalização do ProseMirror ao carregar o markdown (ela
+      //    acontece DEPOIS do onCreate, então comparar com baseMd não basta).
+      //    Digitar, colar, clicar na toolbar ou usar o menu "/" sempre focam.
+      if (!ed.isFocused) return;
+      const md = ed.getMarkdown();
+      // 2) conteúdo idêntico ao carregado não é edição.
+      if (md === baseMd.current) return;
+      onChange(md);
+    },
   });
 
   // Trocou de nota → substitui o conteúdo. `emitUpdate: false` para a troca não
@@ -107,6 +127,7 @@ export default function NotaEditorTiptap({
     if (!editor || carregada.current === noteId) return;
     carregada.current = noteId;
     editor.commands.setContent(valorInicial, { contentType: "markdown", emitUpdate: false });
+    baseMd.current = editor.getMarkdown(); // nova base: a nota trocou
   }, [editor, noteId, valorInicial]);
 
   useEffect(() => {

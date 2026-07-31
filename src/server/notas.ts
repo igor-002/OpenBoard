@@ -268,6 +268,21 @@ export function resumoDoMarkdown(md: string): string {
   return limpo.slice(0, 300);
 }
 
+// Markdown digitado à mão (paleta Ctrl+K) → markdown que o editor entende.
+// No editor "[] " vira checkbox por input rule, mas em markdown a sintaxe é
+// "- [ ] "; sem isto o "[]" chegaria na nota como texto cru.
+export function normalizaMarkdownDigitado(md: string): string {
+  return md
+    .split("\n")
+    .map((linha) =>
+      linha.replace(/^(\s*)(?:[-*+]\s+)?\[([ xX]?)\]\s+/, (_m, espaco: string, marca: string) => {
+        const feito = marca.toLowerCase() === "x" ? "x" : " ";
+        return `${espaco}- [${feito}] `;
+      }),
+    )
+    .join("\n");
+}
+
 // Título automático quando a pessoa não digitou um: 1ª linha com conteúdo.
 export function tituloDoMarkdown(md: string): string {
   const linha = resumoDoMarkdown(md).slice(0, 80).trim();
