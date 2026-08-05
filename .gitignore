@@ -53,3 +53,9 @@ next-env.d.ts
 
 # Banco MaxMind GeoLite2 (baixado via npm run geoip:update)
 geoip/
+
+# Material de apoio local (prints, PDFs, briefings) — não versionado
+/local/
+
+# Saídas dos scripts de diagnóstico
+/scripts/out/

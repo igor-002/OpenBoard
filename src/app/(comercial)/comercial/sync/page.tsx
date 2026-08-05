@@ -30,7 +30,7 @@ export default async function SyncPage() {
           <span style={{ color: "var(--st-risk)" }}><Icon name="alert" /></span>
           <div>
             <div style={{ fontWeight: 800 }}>IXC não configurado</div>
-            <div className="muted">Defina <code>IXC_TOKEN</code> / <code>IXC_PROXY_URL</code>. Veja <code>IXC_INTEGRATION_HANDOFF.md</code>.</div>
+            <div className="muted">Defina <code>IXC_TOKEN</code> / <code>IXC_PROXY_URL</code>. Veja <code>docs/IXC_INTEGRATION_HANDOFF.md</code>.</div>
           </div>
         </div>
       )}

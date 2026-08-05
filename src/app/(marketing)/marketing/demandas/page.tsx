@@ -49,7 +49,7 @@ export default async function DemandasPage({
             <div className="muted">
               Defina <code>GLPI_URL</code>, <code>GLPI_CLIENT_ID</code>, <code>GLPI_CLIENT_SECRET</code>,{" "}
               <code>GLPI_USERNAME</code>, <code>GLPI_PASSWORD</code> e <code>GLPI_TRACKED_USER_IDS</code>.
-              Veja <code>glpi-api-v2-integracao.md</code>.
+              Veja <code>docs/glpi-api-v2-integracao.md</code>.
             </div>
           </div>
         </div>

@@ -1,5 +1,5 @@
 // Cliente da API IXCSoft. Server-only (usa IXC_TOKEN — segredo).
-// Toda a lógica/armadilhas vêm de IXC_INTEGRATION_HANDOFF.md.
+// Toda a lógica/armadilhas vêm de docs/IXC_INTEGRATION_HANDOFF.md.
 //
 // Dois modos de acesso:
 //  - Com IXC_PROXY_URL  → POST {proxy}/ixc/{tabela}. O proxy injeta Authorization

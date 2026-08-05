@@ -2,7 +2,7 @@
 
 > Instância: `https://chamados.openitcorp.com.br`
 > Doc oficial da instância: `https://chamados.openitcorp.com.br/api.php/v1/`
-> Complementa `glpi-api-v2-integracao.md` (V2.1 High-Level, OAuth2 — a que o app usa hoje).
+> Complementa `docs/glpi-api-v2-integracao.md` (V2.1 High-Level, OAuth2 — a que o app usa hoje).
 
 ## Por que a v1 entrou na conversa
 

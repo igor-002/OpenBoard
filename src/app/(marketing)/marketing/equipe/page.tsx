@@ -32,7 +32,7 @@ export default async function EquipePage() {
           <span style={{ color: "var(--st-risk)" }}><Icon name="alert" /></span>
           <div>
             <div style={{ fontWeight: 800 }}>GLPI não configurado</div>
-            <div className="muted">Defina as variáveis <code>GLPI_*</code>. Veja <code>glpi-api-v2-integracao.md</code>.</div>
+            <div className="muted">Defina as variáveis <code>GLPI_*</code>. Veja <code>docs/glpi-api-v2-integracao.md</code>.</div>
           </div>
         </div>
       ) : !stats || stats.members.length === 0 ? (

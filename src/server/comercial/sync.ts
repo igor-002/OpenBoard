@@ -1,5 +1,5 @@
 // Sync IXCSoft → Postgres local (espelho). Server-only.
-// Segue IXC_INTEGRATION_HANDOFF.md: filiais permitidas (§8), MRR limpo (§5),
+// Segue docs/IXC_INTEGRATION_HANDOFF.md: filiais permitidas (§8), MRR limpo (§5),
 // datas por status (§7), lotes resilientes (§9) e log de execução (§9).
 import "server-only";
 import { db } from "@/lib/db";

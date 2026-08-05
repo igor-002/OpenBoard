@@ -4,7 +4,7 @@
 // instância em 2026-07-28 (1 Novo, 2 Em atendimento, 4 Pendente e 6 Fechado).
 //
 // Toda a LEITURA continua na V2.1 (`@/lib/glpi`). Aqui mora só o que ela não faz.
-// Ver `glpi-api-v1-referencia.md`.
+// Ver `docs/glpi-api-v1-referencia.md`.
 import "server-only";
 
 const URL_BASE = (process.env.GLPI_URL ?? "").replace(/\/$/, "");

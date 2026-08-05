@@ -172,7 +172,7 @@ Agrega `relatorio_diario` num **intervalo de datas** (`inicio`–`fim`). Hook
 - **`mes_referencia` / `ano_referencia`** — competência da venda; base de quase todo filtro/relatório.
 - **`mrr` (boolean)** — separa recorrente de venda única.
 - **`status_ixc`** — fonte de verdade do estado do contrato (A/AA/P/B/C/...); ver
-  `IXC_INTEGRATION_HANDOFF.md`.
+  `docs/IXC_INTEGRATION_HANDOFF.md`.
 - **`dias_em_aa`** — quanto tempo o contrato está aguardando assinatura (alerta no Dashboard).
 - **Sync é o motor:** quase nada é digitado à mão (exceto relatório diário). Dados de cliente/contrato
   vêm do IXC; ver doc de integração para MRR, filiais, vendedores autorizados.

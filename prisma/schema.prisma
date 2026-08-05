@@ -746,7 +746,7 @@ model MarketingTask {
 // Espelho READ-ONLY dos chamados do GLPI 11 (API V2.1 / OAuth2 password grant).
 // "Demanda do marketing" = ticket cujo autor (user_recipient) é um dos usuários
 // rastreados (env GLPI_TRACKED_USER_IDS). Vínculo frouxo por glpiId (sem FK),
-// derivados pré-computados no sync. Ver glpi-api-v2-integracao.md.
+// derivados pré-computados no sync. Ver docs/glpi-api-v2-integracao.md.
 model GlpiTicket {
   id                 String    @id @default(cuid())
   glpiId             Int       @unique

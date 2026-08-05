@@ -814,7 +814,7 @@ export async function getVendedoresCRM(): Promise<VendedorRow[]> {
 }
 
 // ══════════════════════════════════════════════════════════════════════════
-// Cross-links OpenBoard ↔ Comercial (COMERCIAL_INTEGRATION_IDEAS.md)
+// Cross-links OpenBoard ↔ Comercial (docs/COMERCIAL_INTEGRATION_IDEAS.md)
 // ══════════════════════════════════════════════════════════════════════════
 
 // ── A2/C1: Clientes (lista + Cliente 360) ────────────────────────────────────

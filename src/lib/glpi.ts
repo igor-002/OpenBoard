@@ -1,6 +1,6 @@
 // Cliente da API GLPI 11 — V2.1 (High-Level, OAuth2). Server-only (usa segredos:
 // client_secret + senha do usuário de serviço). Toda a lógica/armadilhas vêm de
-// glpi-api-v2-integracao.md.
+// docs/glpi-api-v2-integracao.md.
 //
 // Auth: OAuth2 password grant → access_token (1h) + refresh_token. O token é
 // cacheado em memória (globalThis, sobrevive HMR) e renovado ~5min antes de expirar
