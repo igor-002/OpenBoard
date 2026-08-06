@@ -2,8 +2,9 @@
 
 // Modal de criação de atividade (avulsa/presencial/planejada), com tipo,
 // cliente, estimativa e descrição inicial (vira 1ª atualização da timeline).
-import { useEffect, useActionState } from "react";
+import { useEffect, useActionState, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
+import { PickerCampo } from "@/components/ui/PickerCampo";
 import { ClientePicker } from "./ClientePicker";
 import { createAtividade } from "@/app/(app)/atividades/actions";
 import { ORIGEM_META } from "@/lib/meta";
@@ -25,6 +26,8 @@ export function NovaAtividadeModal({
   onClose: () => void;
 }) {
   const [state, formAction, pending] = useActionState(createAtividade, {});
+  // O picker não é campo nativo: o valor viaja no hidden input `projectId`.
+  const [projectId, setProjectId] = useState("");
 
   useEffect(() => {
     if (state.ok) onClose();
@@ -102,15 +105,18 @@ export function NovaAtividadeModal({
           <textarea className="input" id="at-desc" name="descricao" rows={3} placeholder="Contexto da demanda, quem pediu, o que foi combinado…" style={{ resize: "vertical" }} />
         </div>
 
-        <div className="field">
-          <label htmlFor="at-project">Projeto (opcional)</label>
-          <select className="input" id="at-project" name="projectId" defaultValue="">
-            <option value="">Sem projeto (atividade avulsa)</option>
-            {projects.map((p) => (
-              <option key={p.id} value={p.id}>{p.name}</option>
-            ))}
-          </select>
-        </div>
+        <PickerCampo
+          className="field"
+          label="Projeto (opcional)"
+          titulo="Escolher projeto"
+          name="projectId"
+          valor={projectId}
+          opcoes={projects.map((p) => ({ id: p.id, nome: p.name }))}
+          onChange={setProjectId}
+          vazioLabel="Sem projeto (atividade avulsa)"
+          placeholderBusca="Buscar projeto…"
+          vazioTexto="(nenhum projeto)"
+        />
 
         {state.error && <div className="form-error">{state.error}</div>}
 

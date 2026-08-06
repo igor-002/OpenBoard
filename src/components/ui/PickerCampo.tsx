@@ -20,11 +20,17 @@ export function PickerCampo({
   titulo,
   placeholderBusca = "Buscar…",
   vazioTexto = "(nenhuma opção)",
+  name,
+  className,
 }: {
   label: string;
   valor: string;
   opcoes: PickerOpcao[];
   onChange: (id: string) => void;
+  /** Quando dentro de um <form>: leva o id escolhido no FormData. */
+  name?: string;
+  /** Ex.: "field" — usa o label/espaçamento do formulário em volta. */
+  className?: string;
   /** Rótulo da opção "nenhum". Omitir torna a escolha obrigatória. */
   vazioLabel?: string;
   titulo?: string;
@@ -37,15 +43,18 @@ export function PickerCampo({
   const rotulo = atual?.nome ?? vazioLabel ?? vazioTexto;
 
   return (
-    <div>
-      <label className="muted" style={{ fontSize: 12, fontWeight: 600 }}>{label}</label>
+    <div className={className}>
+      <label className={className ? undefined : "muted"} style={className ? undefined : { fontSize: 12, fontWeight: 600 }}>
+        {label}
+      </label>
+      {name && <input type="hidden" name={name} value={valor} />}
       <button
         type="button"
         className="input row gap8"
         onClick={() => setAberto(true)}
         style={{
           width: "100%",
-          marginTop: 6,
+          marginTop: className ? 0 : 6,
           alignItems: "center",
           justifyContent: "space-between",
           textAlign: "left",
