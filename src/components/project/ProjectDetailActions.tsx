@@ -12,9 +12,11 @@ import type { ProjectEdit } from "@/server/projects";
 export function ProjectDetailActions({
   project,
   users,
+  categorias,
 }: {
   project: ProjectEdit;
   users: { id: string; name: string }[];
+  categorias: { nome: string; total: number }[];
 }) {
   const [open, setOpen] = useState(false);
   const [confirming, setConfirming] = useState(false);
@@ -64,6 +66,7 @@ export function ProjectDetailActions({
           <ProjectForm
             action={updateProject.bind(null, project.id)}
             users={users}
+            categorias={categorias}
             initial={project}
             submitLabel="Salvar alterações"
             onDone={() => {

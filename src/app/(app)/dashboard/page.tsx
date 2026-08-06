@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import { getDashboardData } from "@/server/dashboard";
 import { getUsers } from "@/server/users";
+import { getProjectCategorias } from "@/server/projects";
 import { getComercialOverview, getDashboard as getComercialDashboard } from "@/server/comercial/queries";
 import { Card } from "@/components/ui/Card";
 import { StatCard } from "@/components/ui/Stat";
@@ -17,10 +18,11 @@ import { dayLabel, deadlineInfo, deadlineColor, brl } from "@/lib/format";
 
 export default async function DashboardPage() {
   const user = await requireUser();
-  const [data, users, comercial] = await Promise.all([
+  const [data, users, comercial, categorias] = await Promise.all([
     getDashboardData(user.workspaceId),
     getUsers(user.workspaceId),
     getComercialOverview(),
+    getProjectCategorias(user.workspaceId),
   ]);
   const memberOpts = users.map((u) => ({ id: u.id, name: u.name }));
 
@@ -44,7 +46,7 @@ export default async function DashboardPage() {
           <p className="page-sub">Bem-vindo de volta, {firstName} — resumo do workspace.</p>
         </div>
         <div className="row gap12">
-          <NewProjectButton users={memberOpts} />
+          <NewProjectButton users={memberOpts} categorias={categorias} />
         </div>
       </div>
 

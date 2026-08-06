@@ -1,5 +1,6 @@
 import "server-only";
 import { db } from "@/lib/db";
+import { chaveCategoria, limparCategoria } from "@/lib/categoria";
 import type {
   ProjectStatus,
   Priority,
@@ -67,6 +68,39 @@ export async function getProjectsList(workspaceId: string): Promise<ProjectListI
       spentPct: p.spentPct,
     };
   });
+}
+
+// Categorias existentes no workspace, para o filtro da lista e o select do
+// cadastro. Grafias que só diferem em caixa viram uma só; fica a variante mais
+// usada (empate: a primeira em ordem alfabética).
+export async function getProjectCategorias(workspaceId: string): Promise<{ nome: string; total: number }[]> {
+  const grupos = await db.project.groupBy({
+    by: ["tag"],
+    where: { workspaceId },
+    _count: { _all: true },
+  });
+
+  const porChave = new Map<string, { nome: string; total: number; maior: number }>();
+  for (const g of grupos) {
+    const nome = limparCategoria(g.tag);
+    if (!nome) continue;
+    const k = chaveCategoria(nome);
+    const atual = porChave.get(k);
+    const n = g._count._all;
+    if (!atual) porChave.set(k, { nome, total: n, maior: n });
+    else {
+      atual.total += n;
+      // Variante vencedora: a mais usada; empate resolve pelo nome.
+      if (n > atual.maior || (n === atual.maior && nome.localeCompare(atual.nome) < 0)) {
+        atual.nome = nome;
+        atual.maior = n;
+      }
+    }
+  }
+
+  return [...porChave.values()]
+    .map(({ nome, total }) => ({ nome, total }))
+    .sort((a, b) => b.total - a.total || a.nome.localeCompare(b.nome));
 }
 
 export type ProjectMemberDetail = AvatarUser & {

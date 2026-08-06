@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireUser } from "@/lib/auth";
-import { getProjectDetail, getProjectForEdit } from "@/server/projects";
+import { getProjectDetail, getProjectForEdit, getProjectCategorias } from "@/server/projects";
 import { notasDoProjeto } from "@/server/notas";
 import { getUsers } from "@/server/users";
 import { ProjectDetailActions } from "@/components/project/ProjectDetailActions";
@@ -23,11 +23,12 @@ export default async function ProjectDetailPage({
 }) {
   const { id } = await params;
   const user = await requireUser();
-  const [p, edit, users, notas] = await Promise.all([
+  const [p, edit, users, notas, categorias] = await Promise.all([
     getProjectDetail(user.workspaceId, id),
     getProjectForEdit(user.workspaceId, id),
     getUsers(user.workspaceId),
     notasDoProjeto(user.workspaceId, user.id, id),
+    getProjectCategorias(user.workspaceId),
   ]);
   if (!p || !edit) notFound();
   const memberOpts = users.map((u) => ({ id: u.id, name: u.name }));
@@ -114,7 +115,7 @@ export default async function ProjectDetailPage({
           <Icon name="chevLeft" size={16} />
           Voltar para projetos
         </Link>
-        <ProjectDetailActions project={edit} users={memberOpts} />
+        <ProjectDetailActions project={edit} users={memberOpts} categorias={categorias} />
       </div>
 
       <div className="grid" style={{ gridTemplateColumns: "1.7fr 1fr" }}>

@@ -5,6 +5,8 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
+import { chaveCategoria, limparCategoria } from "@/lib/categoria";
+import { getProjectCategorias } from "@/server/projects";
 import { notify } from "@/server/notifications";
 import { emitAppEvent } from "@/server/events";
 
@@ -44,6 +46,15 @@ function parse(formData: FormData) {
 // data de prazo (meio-dia local p/ não deslocar fuso) ou null.
 const dueDateValue = (s?: string) => (s ? new Date(s + "T12:00:00") : null);
 
+// Categoria digitada que já existe com outra caixa ("hotspot" vs "Hotspot")
+// grava na grafia que o workspace já usa — senão vira categoria duplicada no
+// filtro. Nome novo entra como foi escrito.
+async function categoriaCanonica(workspaceId: string, tag: string): Promise<string> {
+  const nome = limparCategoria(tag);
+  const existentes = await getProjectCategorias(workspaceId);
+  return existentes.find((c) => chaveCategoria(c.nome) === chaveCategoria(nome))?.nome ?? nome;
+}
+
 // membros válidos = os que pertencem ao workspace.
 async function buildMembers(workspaceId: string, memberIds: string[]) {
   const valid = await db.user.findMany({
@@ -65,7 +76,7 @@ export async function createProject(_prev: ProjectActionState, formData: FormDat
       workspaceId: user.workspaceId,
       name: d.name,
       client: d.client,
-      tag: d.tag,
+      tag: await categoriaCanonica(user.workspaceId, d.tag),
       status: d.status,
       manualProgress: d.manualProgress,
       startDate: new Date(d.startDate + "T12:00:00"),
@@ -122,6 +133,7 @@ export async function updateProject(projectId: string, _prev: ProjectActionState
 
   const before = new Set((await db.projectMember.findMany({ where: { projectId }, select: { userId: true } })).map((m) => m.userId));
   const members = await buildMembers(user.workspaceId, d.memberIds);
+  const tag = await categoriaCanonica(user.workspaceId, d.tag);
   await db.$transaction([
     db.projectMember.deleteMany({ where: { projectId } }),
     db.project.update({
@@ -129,7 +141,7 @@ export async function updateProject(projectId: string, _prev: ProjectActionState
       data: {
         name: d.name,
         client: d.client,
-        tag: d.tag,
+        tag,
         status: d.status,
         manualProgress: d.manualProgress,
         startDate: new Date(d.startDate + "T12:00:00"),

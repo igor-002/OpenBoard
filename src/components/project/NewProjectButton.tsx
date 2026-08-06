@@ -7,7 +7,13 @@ import { Modal } from "@/components/ui/Modal";
 import { ProjectForm } from "./ProjectForm";
 import { createProject } from "@/app/(app)/projects/actions";
 
-export function NewProjectButton({ users }: { users: { id: string; name: string }[] }) {
+export function NewProjectButton({
+  users,
+  categorias,
+}: {
+  users: { id: string; name: string }[];
+  categorias: { nome: string; total: number }[];
+}) {
   const [open, setOpen] = useState(false);
   const router = useRouter();
   return (
@@ -21,6 +27,7 @@ export function NewProjectButton({ users }: { users: { id: string; name: string 
           <ProjectForm
             action={createProject}
             users={users}
+            categorias={categorias}
             submitLabel="Criar projeto"
             onDone={(id) => {
               setOpen(false);

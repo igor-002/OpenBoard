@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useState } from "react";
+import { chaveCategoria } from "@/lib/categoria";
 import type { ProjectActionState } from "@/app/(app)/projects/actions";
 import type { ProjectEdit } from "@/server/projects";
 
@@ -16,12 +17,15 @@ const STATUS_OPTS: [string, string][] = [
 export function ProjectForm({
   action,
   users,
+  categorias,
   initial,
   submitLabel,
   onDone,
 }: {
   action: Action;
   users: { id: string; name: string }[];
+  /** Categorias já usadas no workspace — viram as opções do campo. */
+  categorias: { nome: string; total: number }[];
   initial?: ProjectEdit;
   submitLabel: string;
   onDone: (id?: string) => void;
@@ -48,9 +52,9 @@ export function ProjectForm({
           <label htmlFor="client">Cliente</label>
           <input className="input" id="client" name="client" defaultValue={initial?.client} required />
         </div>
-        <div className="field" style={{ width: 150 }}>
+        <div className="field" style={{ width: 190 }}>
           <label htmlFor="tag">Categoria</label>
-          <input className="input" id="tag" name="tag" defaultValue={initial?.tag} placeholder="Web, Infra…" required />
+          <CategoriaCampo categorias={categorias} inicial={initial?.tag} />
         </div>
       </div>
       <div className="field">
@@ -139,5 +143,47 @@ export function ProjectForm({
         </button>
       </div>
     </form>
+  );
+}
+
+// Categoria = lista das que já existem + atalho pra criar uma nova. O valor vai
+// no mesmo campo `tag` de sempre; o servidor é quem unifica grafia (Hotspot ×
+// hotspot), então digitar diferente não cria categoria repetida.
+const NOVA = "__nova__";
+
+function CategoriaCampo({ categorias, inicial }: { categorias: { nome: string; total: number }[]; inicial?: string }) {
+  // Categoria de um projeto antigo que não está mais na lista também precisa
+  // aparecer, senão editar o projeto troca a categoria sem querer.
+  const opcoes = inicial && !categorias.some((c) => chaveCategoria(c.nome) === chaveCategoria(inicial))
+    ? [{ nome: inicial, total: 0 }, ...categorias]
+    : categorias;
+  const [nova, setNova] = useState(opcoes.length === 0);
+
+  if (nova) {
+    return (
+      <>
+        <input className="input" id="tag" name="tag" defaultValue={inicial} placeholder="Ex.: Hotspot" required autoFocus={opcoes.length > 0} />
+        {opcoes.length > 0 && (
+          <button type="button" className="btn btn-ghost" style={{ alignSelf: "flex-start", padding: "2px 0", fontSize: 12 }} onClick={() => setNova(false)}>
+            escolher existente
+          </button>
+        )}
+      </>
+    );
+  }
+
+  return (
+    <select
+      className="input"
+      id="tag"
+      name="tag"
+      defaultValue={inicial ?? ""}
+      required
+      onChange={(e) => { if (e.target.value === NOVA) setNova(true); }}
+    >
+      <option value="" disabled>Selecione…</option>
+      {opcoes.map((c) => <option key={c.nome} value={c.nome}>{c.nome}</option>)}
+      <option value={NOVA}>+ Nova categoria…</option>
+    </select>
   );
 }
