@@ -19,7 +19,7 @@ import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { useOverlayClose } from "@/components/ui/useOverlayClose";
 import { Avatar } from "@/components/ui/Avatar";
 import { TaskCard } from "./TaskCard";
-import { KANBAN_COLS } from "@/lib/meta";
+import { KANBAN_COLS, DIAS_CONCLUIDA_QUADRO } from "@/lib/meta";
 import {
   createTask, moveTask, updateTask, deleteTask,
   addSubtask, toggleSubtask, deleteSubtask, addTaskComment, deleteTaskComment,
@@ -32,6 +32,7 @@ type CurrentUser = AvatarUser & { id: string };
 export function KanbanBoard({ data, currentUser, isAdmin }: { data: KanbanData; currentUser: CurrentUser; isAdmin: boolean }) {
   const router = useRouter();
   const [tasks, setTasks] = useState<TaskCardData[]>(data.tasks);
+  const [verAntigas, setVerAntigas] = useState(false);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<TaskCardData | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -64,14 +65,27 @@ export function KanbanBoard({ data, currentUser, isAdmin }: { data: KanbanData; 
     });
   }
 
+  // `doneAntiga` vem pronta do servidor (ver getKanbanData).
+  const antigas = tasks.filter((t) => t.doneAntiga);
+  const visiveis = verAntigas ? tasks : tasks.filter((t) => !t.doneAntiga);
+
   return (
     <>
       <div className="page-head">
         <div>
           <h1 className="page-title">Quadro de tarefas</h1>
-          <p className="page-sub">{tasks.length} tarefas · arraste entre as colunas (clique para abrir)</p>
+          <p className="page-sub">
+            {visiveis.length} tarefas no quadro · arraste entre as colunas (clique para abrir)
+            {antigas.length > 0 && ` · concluídas há mais de ${DIAS_CONCLUIDA_QUADRO} dias ficam ocultas`}
+          </p>
         </div>
         <div className="row gap12">
+          {antigas.length > 0 && (
+            <button className="btn" onClick={() => setVerAntigas((v) => !v)}>
+              <Icon name="check" size={15} />
+              {verAntigas ? "Ocultar concluídas antigas" : `Ver concluídas antigas (${antigas.length})`}
+            </button>
+          )}
           <button className="btn btn-primary" onClick={() => setOpen(true)}>
             <Icon name="plus" size={16} />
             Nova tarefa
@@ -82,7 +96,7 @@ export function KanbanBoard({ data, currentUser, isAdmin }: { data: KanbanData; 
       <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragCancel={() => setActiveId(null)}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 16, alignItems: "start" }}>
           {KANBAN_COLS.map((col) => {
-            const items = tasks.filter((t) => t.column === col.id);
+            const items = visiveis.filter((t) => t.column === col.id);
             return (
               <Column key={col.id} id={col.id} label={col.label} color={col.c} count={items.length}>
                 {items.map((t) => (

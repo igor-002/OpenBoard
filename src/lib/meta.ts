@@ -32,6 +32,10 @@ export const KANBAN_COLS: { id: TaskColumn; label: string; c: string }[] = [
   { id: "done", label: "Concluído", c: "var(--st-done)" },
 ];
 
+// Tarefa concluída some do quadro depois disso: a coluna "Concluído" crescia
+// pra sempre e enterrava as três colunas que importam.
+export const DIAS_CONCLUIDA_QUADRO = 7;
+
 export const MONTHS = [
   "Jan", "Fev", "Mar", "Abr", "Mai", "Jun",
   "Jul", "Ago", "Set", "Out", "Nov", "Dez",

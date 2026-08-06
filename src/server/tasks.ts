@@ -1,5 +1,6 @@
 import "server-only";
 import { db } from "@/lib/db";
+import { DIAS_CONCLUIDA_QUADRO } from "@/lib/meta";
 import type { Priority, TaskColumn, ProjectStatus, AvatarUser, TaskOrigin } from "@/lib/types";
 
 export type SubtaskItem = { id: string; title: string; done: boolean };
@@ -20,6 +21,10 @@ export type TaskCardData = {
   comments: number; // derivado
   dueDate: Date | null;
   dueIso: string | null; // YYYY-MM-DD para <input type=date>
+  // Concluída fora da janela de DIAS_CONCLUIDA_QUADRO (doneAt null = fechada
+  // antes do campo existir, logo velha). Calculado aqui pra o quadro não
+  // precisar de relógio durante o render.
+  doneAntiga: boolean;
   assignee: AvatarUser | null;
   assigneeId: string | null;
   subtasks: SubtaskItem[];
@@ -52,6 +57,8 @@ export async function getKanbanData(workspaceId: string): Promise<KanbanData> {
     db.user.findMany({ where: { workspaceId }, orderBy: { createdAt: "asc" }, select: { id: true, name: true } }),
   ]);
 
+  const corteConcluida = Date.now() - DIAS_CONCLUIDA_QUADRO * 86400000;
+
   return {
     tasks: tasks.map((t) => ({
       id: t.id,
@@ -68,6 +75,7 @@ export async function getKanbanData(workspaceId: string): Promise<KanbanData> {
       comments: t.comments.length,
       dueDate: t.dueDate,
       dueIso: t.dueDate ? t.dueDate.toISOString().slice(0, 10) : null,
+      doneAntiga: t.column === "done" && !(t.doneAt && +t.doneAt >= corteConcluida),
       assignee: t.assignee,
       assigneeId: t.assigneeId,
       subtasks: t.subtasks,
