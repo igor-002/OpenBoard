@@ -2,7 +2,7 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
-import { PRESETS, presetRange, activePreset } from "./periodo-presets";
+import { PRESETS, META_PRESET, presetRange, activePreset } from "./periodo-presets";
 
 const ABAS = [
   { key: "gerencial", label: "Gerenciais" },
@@ -82,7 +82,7 @@ export function RelatoriosNav({
           <div style={{ flex: 1 }} />
 
           <div className="row gap8" style={{ background: "var(--surface-3)", border: "1px solid var(--line-2)", borderRadius: "var(--r-pill)", padding: 4 }}>
-            {PRESETS.map((p) => (
+            {[...PRESETS, META_PRESET].map((p) => (
               <button key={p.key} className="btn" style={pill(custom && activePreset(urlIni, urlFim) === p.key)}
                 onClick={() => { const r = presetRange(p.key); go({ ini: r.ini, fim: r.fim, periodo: "" }); }}>
                 {p.label}
