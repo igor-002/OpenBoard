@@ -33,7 +33,7 @@ export default async function ProjectsPage() {
         </div>
       </div>
 
-      <ProjectsList projects={projects} categorias={categorias} />
+      <ProjectsList projects={projects} />
     </div>
   );
 }

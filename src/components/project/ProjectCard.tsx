@@ -5,19 +5,15 @@ import { StatusBadge } from "@/components/ui/Badge";
 import { ProgressBar } from "@/components/ui/Progress";
 import { AvatarStack } from "@/components/ui/Avatar";
 import { dayLabel, deadlineInfo, deadlineColor } from "@/lib/format";
-import { corCategoria } from "@/lib/categoria";
 import type { ProjectListItem } from "@/server/projects";
 
 export function ProjectCard({ p }: { p: ProjectListItem }) {
   // Projeto concluído não tem urgência de prazo (não marca "atrasado").
   const dl = p.dueDate && p.status !== "done" ? deadlineInfo(p.dueDate) : null;
-  // Cor da categoria na borda e no chip: dá pra separar Atendai/Interno/Hotspot
-  // no olho, sem ler o texto de cada card.
-  const cor = corCategoria(p.tag);
   return (
-    <Link href={`/projects/${p.id}`} className="card card-pad proj-card" style={{ borderLeft: `3px solid ${cor.fg}` }}>
+    <Link href={`/projects/${p.id}`} className="card card-pad proj-card">
       <div className="row between" style={{ marginBottom: 14 }}>
-        <span className="tag" style={{ background: cor.bg, color: cor.fg, borderColor: "transparent" }}>{p.tag}</span>
+        <span className="tag">{p.tag}</span>
         <div className="row gap8">
           {p.risk && (
             <span className="badge" style={{ color: "var(--st-risk)", background: "var(--st-risk-bg)" }}>
