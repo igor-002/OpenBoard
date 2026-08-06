@@ -7,7 +7,7 @@ import type { ProjectListItem } from "@/server/projects";
 import type { ProjectStatus } from "@/lib/types";
 
 const TABS: [ProjectStatus | "all", string][] = [
-  ["all", "Todos"],
+  ["all", "Ativos"],
   ["progress", "Em andamento"],
   ["review", "Em revisão"],
   ["planned", "Planejados"],
@@ -19,7 +19,9 @@ export function ProjectsList({ projects }: { projects: ProjectListItem[] }) {
   const [q, setQ] = useState("");
 
   const list = projects.filter((p) => {
-    if (filter !== "all" && p.status !== filter) return false;
+    // "Ativos" esconde concluído: projeto encerrado só na aba Concluídos, senão
+    // a lista vira histórico e o que está em aberto some no meio.
+    if (filter === "all" ? p.status === "done" : p.status !== filter) return false;
     if (q && !`${p.name} ${p.client}`.toLowerCase().includes(q.toLowerCase())) return false;
     return true;
   });

@@ -15,6 +15,7 @@ export default async function ProjectsPage() {
 
   const active = projects.filter((p) => p.status === "progress").length;
   const review = projects.filter((p) => p.status === "review").length;
+  const done = projects.filter((p) => p.status === "done").length;
 
   return (
     <div className="page">
@@ -22,7 +23,7 @@ export default async function ProjectsPage() {
         <div>
           <h1 className="page-title">Projetos</h1>
           <p className="page-sub">
-            {projects.length} projetos · {active} ativos · {review} em revisão
+            {projects.length - done} em aberto · {active} ativos · {review} em revisão · {done} concluídos
           </p>
         </div>
         <div className="row gap12">
