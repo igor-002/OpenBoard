@@ -8,6 +8,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Icon, type IconName } from "@/components/ui/Icon";
+import { PickerCampo } from "@/components/ui/PickerCampo";
 import { emitToast } from "@/lib/toast";
 import {
   paletteSearchAction,
@@ -313,13 +314,16 @@ export function CommandPalette() {
                 style={{ width: "100%", marginTop: 6, resize: "vertical", lineHeight: 1.6, fontFamily: "inherit" }}
               />
             </div>
-            <div>
-              <label className="muted" style={{ fontSize: 12, fontWeight: 600 }}>Projeto (opcional)</label>
-              <select className="input" value={projectId} onChange={(e) => setProjectId(e.target.value)} style={{ width: "100%", marginTop: 6 }}>
-                <option value="">Nota avulsa</option>
-                {opcoes.projetos.map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}
-              </select>
-            </div>
+            <PickerCampo
+              label="Projeto (opcional)"
+              titulo="Escolher projeto"
+              valor={projectId}
+              opcoes={opcoes.projetos}
+              onChange={setProjectId}
+              vazioLabel="Nota avulsa"
+              placeholderBusca="Buscar projeto…"
+              vazioTexto="(nenhum projeto)"
+            />
             <div className="row gap8" style={{ justifyContent: "space-between", alignItems: "center" }}>
               <span className="muted" style={{ fontSize: 11 }}>Ctrl+Enter salva</span>
               <span className="row gap8">
@@ -338,13 +342,16 @@ export function CommandPalette() {
         {modo === "tarefa" && (
           <div style={{ padding: 14, display: "flex", flexDirection: "column", gap: 12 }}>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 150px", gap: 12 }}>
-              <div>
-                <label className="muted" style={{ fontSize: 12, fontWeight: 600 }}>Projeto</label>
-                <select className="input" value={projectId} onChange={(e) => setProjectId(e.target.value)} style={{ width: "100%", marginTop: 6 }}>
-                  <option value="">Sem projeto (atividade avulsa)</option>
-                  {opcoes.projetos.map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}
-                </select>
-              </div>
+              <PickerCampo
+                label="Projeto"
+                titulo="Escolher projeto"
+                valor={projectId}
+                opcoes={opcoes.projetos}
+                onChange={setProjectId}
+                vazioLabel="Sem projeto (tarefa avulsa)"
+                placeholderBusca="Buscar projeto…"
+                vazioTexto="(nenhum projeto)"
+              />
               <div>
                 <label className="muted" style={{ fontSize: 12, fontWeight: 600 }}>Prazo</label>
                 <input type="date" className="input" value={dueDate} onChange={(e) => setDueDate(e.target.value)} style={{ width: "100%", marginTop: 6 }} />
@@ -357,13 +364,15 @@ export function CommandPalette() {
         {modo === "atividade" && (
           <div style={{ padding: 14, display: "flex", flexDirection: "column", gap: 12 }}>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-              <div>
-                <label className="muted" style={{ fontSize: 12, fontWeight: 600 }}>Tipo</label>
-                <select className="input" value={tipoId} onChange={(e) => setTipoId(e.target.value)} style={{ width: "100%", marginTop: 6 }}>
-                  {opcoes.tipos.length === 0 && <option value="">(nenhum tipo cadastrado)</option>}
-                  {opcoes.tipos.map((t) => <option key={t.id} value={t.id}>{t.nome}</option>)}
-                </select>
-              </div>
+              <PickerCampo
+                label="Tipo"
+                titulo="Escolher tipo"
+                valor={tipoId}
+                opcoes={opcoes.tipos}
+                onChange={setTipoId}
+                placeholderBusca="Buscar tipo…"
+                vazioTexto="(nenhum tipo cadastrado)"
+              />
               <div>
                 <label className="muted" style={{ fontSize: 12, fontWeight: 600 }}>Prioridade</label>
                 <select className="input" value={prioridade} onChange={(e) => setPrioridade(e.target.value as Prioridade)} style={{ width: "100%", marginTop: 6 }}>
@@ -374,13 +383,16 @@ export function CommandPalette() {
               </div>
             </div>
 
-            <div>
-              <label className="muted" style={{ fontSize: 12, fontWeight: 600 }}>Projeto</label>
-              <select className="input" value={projectId} onChange={(e) => setProjectId(e.target.value)} style={{ width: "100%", marginTop: 6 }}>
-                <option value="">Sem projeto</option>
-                {opcoes.projetos.map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}
-              </select>
-            </div>
+            <PickerCampo
+              label="Projeto"
+              titulo="Escolher projeto"
+              valor={projectId}
+              opcoes={opcoes.projetos}
+              onChange={setProjectId}
+              vazioLabel="Sem projeto"
+              placeholderBusca="Buscar projeto…"
+              vazioTexto="(nenhum projeto)"
+            />
 
             {/* Registrar algo JÁ FEITO. O tempo informado vira a duração real
                 ancorando o início pra trás — é assim que o resto do sistema
