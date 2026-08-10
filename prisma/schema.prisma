@@ -782,6 +782,13 @@ model GlpiTicket {
   dueAt              DateTime?
   dueSetById         String? // loose FK -> User.id (quem definiu o prazo)
 
+  // Excluir o cartão de um chamado no quadro só apagava a linha do MktCard — e a
+  // ingestão recriava o cartão na carga seguinte, porque o chamado continua ABERTO
+  // no GLPI. Esta flag é o "tirei do quadro": a ingestão pula o chamado. O chamado
+  // segue vivo no GLPI; vincular o nº num cartão novo traz ele de volta.
+  // O sync nunca escreve esta coluna — buildTicketData não a inclui.
+  hiddenFromBoard    Boolean   @default(false)
+
   @@index([requesterId, statusId])
   @@index([dateCreation])
   @@index([dueAt])

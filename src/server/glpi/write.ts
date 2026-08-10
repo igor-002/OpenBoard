@@ -3,8 +3,8 @@
 // Requer que o perfil do usuário de serviço tenha DIREITO DE ESCRITA no GLPI
 // (o v1 era só-leitura); sem isso a API responde ERROR_RIGHT_MISSING.
 import "server-only";
-import { glpiPost, glpiDelete, DEFAULT_ENTITY_ID, TRACKED_USER_IDS } from "@/lib/glpi";
-import { v1SetTicketStatus } from "@/lib/glpi-v1";
+import { glpiPost, glpiDelete, glpiGetOne, DEFAULT_ENTITY_ID, TRACKED_USER_IDS } from "@/lib/glpi";
+import { v1SetTicketStatus, v1SetTicketCategory } from "@/lib/glpi-v1";
 import { db } from "@/lib/db";
 import { syncOneTicket } from "./sync";
 
@@ -171,8 +171,34 @@ export async function aplicarStatus(glpiId: number, m: StatusMecanismo): Promise
   }
 }
 
+// ── Categoria ────────────────────────────────────────────────────────────────
+// Reclassificar um chamado já aberto. `null` remove a categoria.
+//
+// Vai pela v1 pelo mesmo motivo do status: a V2.1 aceita `category.id` na CRIAÇÃO
+// (`createTicket`), mas o PATCH de ticket nunca foi exercido nesta instância — e o
+// precedente do status (200 OK sem gravar) é caro demais pra repetir. A v1 grava e
+// `v1SetTicketCategory` ainda relê pra conferir.
+export async function updateCategory(glpiId: number, categoryId: number | null): Promise<void> {
+  await v1SetTicketCategory(glpiId, categoryId ?? 0);
+  await syncOneTicket(glpiId); // espelho (e os cards do quadro) pegam o nome novo
+}
+
 // Atribui um técnico (role=assigned) ao chamado.
+//
+// Confere ANTES se a pessoa já está no chamado com esse papel: repostar um membro
+// que já existe devolve `400 ERROR_INVALID_PARAMETER` sem `detail` — erro cru que
+// chegava na tela sem dizer o que houve (verificado no #38534 em 2026-08-10:
+// usuário novo → 201, usuário repetido → 400).
 export async function setAssignee(glpiId: number, userId: number, role = "assigned"): Promise<void> {
+  const atual = await glpiGetOne<{ team?: { id: number; name?: string; display_name?: string; role: string }[] }>(
+    `/Assistance/Ticket/${glpiId}`,
+    "id,team",
+  );
+  const jaEsta = (atual?.team ?? []).find((m) => m.id === userId && m.role === role);
+  if (jaEsta) {
+    const quem = jaEsta.display_name || jaEsta.name || `usuário ${userId}`;
+    throw new Error(`${quem} já é responsável por este chamado.`);
+  }
   await addTeamMember(glpiId, userId, role);
   await syncOneTicket(glpiId);
 }

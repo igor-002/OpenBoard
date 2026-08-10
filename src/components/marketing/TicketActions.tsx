@@ -28,11 +28,13 @@ export function TicketActions({
   glpiId,
   statusId,
   assignable,
+  assigneeIds = [],
   dueAt,
 }: {
   glpiId: number;
   statusId: number;
   assignable: GlpiUserOpt[];
+  assigneeIds?: number[];
   dueAt: string | null;
 }) {
   const router = useRouter();
@@ -45,6 +47,11 @@ export function TicketActions({
   const [assignee, setAssignee] = useState("");
   const prazoAtual = toDateInput(dueAt);
   const [prazo, setPrazo] = useState(prazoAtual);
+
+  // Quem já é responsável sai da lista: a API devolve 400 ERROR_INVALID_PARAMETER
+  // se o mesmo usuário for postado duas vezes com o mesmo papel.
+  const jaAtribuidos = new Set(assigneeIds);
+  const podeAtribuir = assignable.filter((u) => !jaAtribuidos.has(u.id));
 
   function run(fn: () => Promise<{ ok: boolean; error?: string }>, okText: string, after?: () => void) {
     setMsg(null);
@@ -115,7 +122,7 @@ export function TicketActions({
           <div className="row gap8" style={{ marginTop: 6 }}>
             <select className="input" value={assignee} onChange={(e) => setAssignee(e.target.value)} style={{ flex: 1 }}>
               <option value="">Escolher…</option>
-              {assignable.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+              {podeAtribuir.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
             </select>
             <button
               className="btn btn-ghost"

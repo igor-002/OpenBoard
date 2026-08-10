@@ -60,11 +60,13 @@ export interface TicketDetail {
   priority: number;
   urgency: number;
   entityName: string;
+  categoryId: number | null; // id da ITILCategory — o seletor de categoria precisa dele
   categoryName: string | null;
   locationName: string | null;
   requestType: string;
   requesterName: string;
   assignees: string;
+  assigneeIds: number[]; // quem já é responsável — repostar um deles dá 400 na API
   observers: string;
   dateCreation: string | null;
   dateMod: string | null;
@@ -136,11 +138,13 @@ export async function getTicketDetail(glpiId: number): Promise<TicketDetail | nu
     priority: t.priority ?? 0,
     urgency: t.urgency ?? 0,
     entityName: t.entity?.name ?? "",
+    categoryId: t.category?.id ?? null,
     categoryName: t.category?.name ?? null,
     locationName: t.location?.name ?? null,
     requestType: t.request_type?.name ?? "",
     requesterName: teamNames(t.team, "requester") || t.user_recipient?.name || "",
     assignees: teamNames(t.team, "assigned"),
+    assigneeIds: (t.team ?? []).filter((m) => m.role === "assigned").map((m) => m.id),
     observers: teamNames(t.team, "observer"),
     dateCreation: glpiDate(t.date_creation)?.toISOString() ?? null,
     dateMod: glpiDate(t.date_mod)?.toISOString() ?? null,

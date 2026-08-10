@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/auth";
 import { requireModuleUser } from "@/lib/permissions";
 import { runGlpiSync } from "@/server/glpi/sync";
-import { addFollowup, createTicket, updateStatus, setAssignee, removeAssignee, setTicketDue, type CreateTicketInput } from "@/server/glpi/write";
+import { addFollowup, createTicket, updateStatus, updateCategory, setAssignee, removeAssignee, setTicketDue, type CreateTicketInput } from "@/server/glpi/write";
 
 export type GlpiSyncState = { ok?: boolean; error?: string };
 
@@ -24,6 +24,7 @@ export type WriteState = { ok: boolean; error?: string; id?: number };
 function revalidate(glpiId?: number) {
   revalidatePath("/marketing/demandas");
   revalidatePath("/marketing/equipe");
+  revalidatePath("/marketing/quadro"); // o quadro mostra os mesmos chamados, via espelho
   if (glpiId) revalidatePath(`/marketing/demandas/${glpiId}`);
 }
 
@@ -70,6 +71,18 @@ export async function updateStatusAction(glpiId: number, statusId: number): Prom
   await requireModuleUser("marketing");
   try {
     await updateStatus(glpiId, statusId);
+    revalidate(glpiId);
+    return { ok: true };
+  } catch (e) {
+    return fail(e);
+  }
+}
+
+// Reclassifica o chamado. `categoryId` null = sem categoria.
+export async function atualizarCategoriaAction(glpiId: number, categoryId: number | null): Promise<WriteState> {
+  await requireModuleUser("marketing");
+  try {
+    await updateCategory(glpiId, categoryId);
     revalidate(glpiId);
     return { ok: true };
   } catch (e) {

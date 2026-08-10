@@ -112,7 +112,9 @@ async function ingestGlpiCards(boardId: string): Promise<void> {
 
   const [espelho, existentes] = await Promise.all([
     db.glpiTicket.findMany({
-      where: { isDeleted: false },
+      // `hiddenFromBoard` = chamado que o time tirou do quadro (excluiu o cartão).
+      // Sem isso a ingestão recriava o cartão na carga seguinte.
+      where: { isDeleted: false, hiddenFromBoard: false },
       select: { glpiId: true, name: true, statusId: true, dueAt: true },
     }),
     db.mktCard.findMany({
@@ -272,6 +274,7 @@ export async function createCard(input: {
     },
     select: { id: true },
   });
+  if (kind === "glpi" && input.glpiId != null) await unhideTicket(input.glpiId);
   return card;
 }
 
@@ -290,10 +293,25 @@ export async function updateCard(
   if (patch.kind !== undefined) data.kind = patch.kind;
   if (patch.glpiId !== undefined) data.glpiId = patch.glpiId;
   await db.mktCard.update({ where: { id: cardId }, data });
+  // Vincular um chamado a um cartão desfaz o "tirei do quadro" — é o caminho de
+  // volta pra quem excluiu o cartão sem querer.
+  if (patch.glpiId != null) await unhideTicket(patch.glpiId);
 }
 
+async function unhideTicket(glpiId: number): Promise<void> {
+  await db.glpiTicket.updateMany({ where: { glpiId, hiddenFromBoard: true }, data: { hiddenFromBoard: false } });
+}
+
+// Exclui o cartão. Se ele for de um chamado do GLPI, marca o chamado como fora do
+// quadro — senão a ingestão o recria na carga seguinte (o chamado continua aberto
+// lá) e a exclusão parecia não funcionar. O chamado NÃO é tocado no GLPI; pra
+// trazer de volta, vincule o número num cartão (ver `updateCard`/`createCard`).
 export async function deleteCard(cardId: string): Promise<void> {
+  const card = await db.mktCard.findUnique({ where: { id: cardId }, select: { glpiId: true } });
   await db.mktCard.delete({ where: { id: cardId } });
+  if (card?.glpiId != null) {
+    await db.glpiTicket.updateMany({ where: { glpiId: card.glpiId }, data: { hiddenFromBoard: true } });
+  }
 }
 
 // Move o card pra uma coluna/posição. Reindexa a coluna destino de forma simples

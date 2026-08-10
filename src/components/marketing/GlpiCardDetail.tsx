@@ -14,6 +14,7 @@ import { fullLabel, hourLabel } from "@/lib/format";
 import { statusColors, PRIORITY_LABEL, initialsOf, colorForName } from "@/lib/glpi-format";
 import { carregarChamadoAction, anexarNoChamadoAction } from "@/app/(marketing)/marketing/quadro/actions";
 import { addFollowupAction } from "@/app/(marketing)/marketing/demandas/actions";
+import { CategoriaPicker, type CategoriaOpt } from "./CategoriaPicker";
 import type { TicketDetail } from "@/server/glpi/detail";
 
 function quando(iso: string | null): string {
@@ -45,7 +46,15 @@ function Av({ nome, size = 26 }: { nome: string; size?: number }) {
   );
 }
 
-export function GlpiCardDetail({ glpiId, onWrote }: { glpiId: number; onWrote: () => void }) {
+export function GlpiCardDetail({
+  glpiId,
+  categorias = [],
+  onWrote,
+}: {
+  glpiId: number;
+  categorias?: CategoriaOpt[];
+  onWrote: () => void;
+}) {
   const [t, setT] = useState<TicketDetail | null>(null);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState(false);
@@ -54,6 +63,14 @@ export function GlpiCardDetail({ glpiId, onWrote }: { glpiId: number; onWrote: (
   const [enviando, start] = useTransition();
   const [anexando, setAnexando] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // Relê o chamado ao vivo depois de escrever nele e avisa o quadro (que relê o
+  // espelho). Toda escrita daqui passa por isto.
+  async function recarregar() {
+    const novo = await carregarChamadoAction(glpiId);
+    if (novo) setT(novo);
+    onWrote();
+  }
 
   async function anexar(file: File) {
     setAnexando(true);
@@ -67,9 +84,7 @@ export function GlpiCardDetail({ glpiId, onWrote }: { glpiId: number; onWrote: (
       return;
     }
     emitToast({ variant: "success", title: "Arquivo anexado no chamado", sub: file.name });
-    const novo = await carregarChamadoAction(glpiId);
-    if (novo) setT(novo);
-    onWrote();
+    await recarregar();
   }
 
   useEffect(() => {
@@ -96,10 +111,7 @@ export function GlpiCardDetail({ glpiId, onWrote }: { glpiId: number; onWrote: (
       }
       setTexto("");
       emitToast({ variant: "success", title: `Acompanhamento enviado`, sub: `Chamado #${glpiId}` });
-      // Relê pra a nova mensagem entrar na linha do tempo.
-      const novo = await carregarChamadoAction(glpiId);
-      if (novo) setT(novo);
-      onWrote();
+      await recarregar(); // a nova mensagem entra na linha do tempo
     });
   }
 
@@ -138,7 +150,14 @@ export function GlpiCardDetail({ glpiId, onWrote }: { glpiId: number; onWrote: (
           <span className="muted" style={{ fontWeight: 800, fontSize: 12 }}>#{t.glpiId}</span>
           <span className="badge" style={{ color: sc.color, background: sc.bg }}>{t.statusName || "—"}</span>
           <span className="tag" style={{ fontSize: 10.5 }}>{PRIORITY_LABEL[t.priority] ?? "—"}</span>
-          {t.categoryName && <span className="tag" style={{ fontSize: 10.5 }}>{t.categoryName}</span>}
+          <CategoriaPicker
+            glpiId={t.glpiId}
+            categoriaId={t.categoryId}
+            categoriaNome={t.categoryName}
+            categorias={categorias}
+            variant="tag"
+            onSaved={recarregar}
+          />
           <Link
             href={`/marketing/demandas/${t.glpiId}`}
             className="btn btn-ghost"

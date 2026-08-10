@@ -172,3 +172,28 @@ export async function v1SetTicketStatus(glpiId: number, statusId: number): Promi
     }
   });
 }
+
+// Grava a categoria (ITILCategory) do chamado. Na v1 o campo é `itilcategories_id`
+// — `category` é o formato da V2.1. `0` limpa a categoria (dropdown vazio no GLPI).
+//
+// Mesma conferência por releitura do status: o corpo de sucesso da v1 diz que a
+// operação foi aceita, não que o campo ficou com o valor pedido.
+export async function v1SetTicketCategory(glpiId: number, categoryId: number): Promise<void> {
+  await comSessao(async (headers) => {
+    const r = await fetch(`${API}/Ticket/${glpiId}`, {
+      method: "PUT",
+      headers,
+      body: JSON.stringify({ input: { itilcategories_id: categoryId } }),
+      cache: "no-store",
+    });
+    const txt = await r.text();
+    if (!r.ok) throw new GlpiV1Error(r.status, `PUT Ticket/${glpiId}`, limparHtml(txt));
+
+    const check = await fetch(`${API}/Ticket/${glpiId}`, { headers, cache: "no-store" });
+    if (!check.ok) return; // não conseguimos reler; o PUT foi aceito, seguimos
+    const atual = (await check.json())?.itilcategories_id;
+    if (typeof atual === "number" && atual !== categoryId) {
+      throw new GlpiV1Error(409, `PUT Ticket/${glpiId}`, `o GLPI manteve a categoria em ${atual}`);
+    }
+  });
+}

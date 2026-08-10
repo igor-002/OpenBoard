@@ -9,6 +9,7 @@ import { Icon, type IconName } from "@/components/ui/Icon";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Modal } from "@/components/ui/Modal";
 import { GlpiCardDetail } from "./GlpiCardDetail";
+import type { CategoriaOpt } from "./CategoriaPicker";
 import { emitToast } from "@/lib/toast";
 import { statusColors } from "@/lib/glpi-format";
 import type { BoardDTO, CardDTO, LabelDTO, AttachmentDTO } from "@/server/marketing/board";
@@ -74,7 +75,17 @@ function fmtSize(n: number): string {
 
 type ModalState = { mode: "create"; columnId: string } | { mode: "edit"; card: CardDTO };
 
-export function QuadroBoard({ board, openCardId = null }: { board: BoardDTO; openCardId?: string | null }) {
+export function QuadroBoard({
+  board,
+  openCardId = null,
+  categorias = [],
+}: {
+  board: BoardDTO;
+  openCardId?: string | null;
+  // Categorias do GLPI (já carregadas na página pro "Nova demanda") — descem até o
+  // seletor de categoria do chamado no modal, sem chamada nova à API v1.
+  categorias?: CategoriaOpt[];
+}) {
   const router = useRouter();
   const [, start] = useTransition();
   // Chegou por link de notificação (?card=<id>) → abre o card direto (init lazy, sem efeito).
@@ -350,6 +361,7 @@ export function QuadroBoard({ board, openCardId = null }: { board: BoardDTO; ope
           key={modal.mode === "edit" ? modal.card.id : "new-" + modal.columnId}
           init={modal}
           allLabels={board.labels}
+          categorias={categorias}
           onClose={() => setModal(null)}
           run={run}
           refresh={() => router.refresh()}
@@ -679,12 +691,14 @@ function CardTile({
 function CardModal({
   init,
   allLabels,
+  categorias,
   onClose,
   run,
   refresh,
 }: {
   init: ModalState;
   allLabels: LabelDTO[];
+  categorias: CategoriaOpt[];
   onClose: () => void;
   run: (action: () => Promise<{ ok: boolean; error?: string }>, okMsg?: string) => void;
   refresh: () => void;
@@ -835,7 +849,7 @@ function CardModal({
           {/* Chamado do GLPI ao vivo: informações, conversa e resposta */}
           {chamadoId != null && (
             <>
-              <GlpiCardDetail glpiId={chamadoId} onWrote={refresh} />
+              <GlpiCardDetail glpiId={chamadoId} categorias={categorias} onWrote={refresh} />
               {/* Fronteira entre "o chamado no GLPI" e "o cartão aqui no quadro" —
                   sem ela, os campos do cartão pareciam continuar o chamado. */}
               <div className="row gap8" style={{ alignItems: "center", marginTop: 4 }}>
@@ -980,8 +994,13 @@ function CardModal({
             </>
           ) : (
             <>
-              <button className="btn btn-ghost" style={{ color: "var(--st-risk)" }} onClick={() => setConfirmDelete(true)}>
-                <Icon name="trash" size={14} /> Excluir
+              <button
+                className="btn btn-ghost"
+                style={{ color: "var(--st-risk)" }}
+                onClick={() => setConfirmDelete(true)}
+                title={chamadoId ? "Tira o cartão do quadro; o chamado continua no GLPI" : undefined}
+              >
+                <Icon name="trash" size={14} /> {chamadoId ? "Tirar do quadro" : "Excluir"}
               </button>
               <div className="row gap8">
                 <button className="btn btn-ghost" onClick={onClose}>Fechar</button>
@@ -995,9 +1014,15 @@ function CardModal({
     <ConfirmDialog
       open={confirmDelete}
       danger
-      title="Excluir este cartão?"
-      message={initialCard?.title ? `“${initialCard.title}” será removido do quadro.` : "O cartão será removido do quadro."}
-      confirmLabel="Excluir cartão"
+      title={chamadoId ? `Tirar o chamado #${chamadoId} do quadro?` : "Excluir este cartão?"}
+      message={
+        chamadoId
+          ? `“${initialCard?.title ?? "O cartão"}” sai do quadro e NÃO volta na próxima carga. O chamado #${chamadoId} continua aberto no GLPI — pra trazer de volta, crie um cartão vinculado a esse número.`
+          : initialCard?.title
+            ? `“${initialCard.title}” será removido do quadro.`
+            : "O cartão será removido do quadro."
+      }
+      confirmLabel={chamadoId ? "Tirar do quadro" : "Excluir cartão"}
       onConfirm={() => { setConfirmDelete(false); if (cardId) run(() => deleteCardAction(cardId)); onClose(); }}
       onCancel={() => setConfirmDelete(false)}
     />

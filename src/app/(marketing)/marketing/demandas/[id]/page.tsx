@@ -5,6 +5,8 @@ import { getTicketDetail, type TimelineEntry } from "@/server/glpi/detail";
 import { glpiConfigured } from "@/server/glpi/queries";
 import { getAssignableUsers } from "@/server/glpi/users";
 import { TicketActions } from "@/components/marketing/TicketActions";
+import { CategoriaPicker } from "@/components/marketing/CategoriaPicker";
+import { v1ListCategories } from "@/lib/glpi-v1";
 import { Icon } from "@/components/ui/Icon";
 import { fullLabel, hourLabel } from "@/lib/format";
 import { statusColors, PRIORITY_LABEL, staleDays, staleLevel, initialsOf, colorForName } from "@/lib/glpi-format";
@@ -80,7 +82,7 @@ export default async function DemandaDetailPage({ params }: { params: Promise<{ 
   const t = await getTicketDetail(glpiId);
   if (!t) notFound();
 
-  const assignable = await getAssignableUsers();
+  const [assignable, categorias] = await Promise.all([getAssignableUsers(), v1ListCategories()]);
 
   const glpiBase = (process.env.GLPI_URL ?? "").replace(/\/$/, "");
   const sc = statusColors(t.statusId);
@@ -197,7 +199,13 @@ export default async function DemandaDetailPage({ params }: { params: Promise<{ 
             )}
           </div>
 
-          <TicketActions glpiId={t.glpiId} statusId={t.statusId} assignable={assignable} dueAt={t.dueAt} />
+          <TicketActions
+            glpiId={t.glpiId}
+            statusId={t.statusId}
+            assignable={assignable}
+            assigneeIds={t.assigneeIds}
+            dueAt={t.dueAt}
+          />
         </div>
 
         {/* Painel lateral */}
@@ -234,7 +242,18 @@ export default async function DemandaDetailPage({ params }: { params: Promise<{ 
               <MetaRow label="Responsável" value={assignees.length ? assignees.join(", ") : "—"} />
               {t.observers && <MetaRow label="Observadores" value={t.observers} />}
               <MetaRow label="Entidade" value={t.entityName || "—"} />
-              {t.categoryName && <MetaRow label="Categoria" value={t.categoryName} />}
+              {/* Sempre visível (mesmo sem categoria): é aí que mais se precisa definir uma. */}
+              <MetaRow
+                label="Categoria"
+                value={
+                  <CategoriaPicker
+                    glpiId={t.glpiId}
+                    categoriaId={t.categoryId}
+                    categoriaNome={t.categoryName}
+                    categorias={categorias}
+                  />
+                }
+              />
               <MetaRow label="Origem" value={t.requestType || "—"} />
             </div>
           </div>

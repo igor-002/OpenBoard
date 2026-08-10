@@ -42,7 +42,7 @@ export default async function QuadroPage({
           <NovaDemanda trackedUsers={trackedUsers} assignable={assignable} categorias={categorias} irParaDetalhe={false} />
         )}
       </div>
-      <QuadroBoard board={board} openCardId={card ?? null} />
+      <QuadroBoard board={board} openCardId={card ?? null} categorias={categorias} />
     </div>
   );
 }
