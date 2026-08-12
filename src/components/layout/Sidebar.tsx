@@ -6,7 +6,7 @@ import { Icon } from "@/components/ui/Icon";
 import { Avatar } from "@/components/ui/Avatar";
 import { NAV_MAIN, NAV_ADMIN } from "./nav";
 import { activeNavHref } from "@/lib/nav-active";
-import { toolForPath } from "@/lib/modules";
+import { firstToolHref, toolForPath } from "@/lib/modules";
 import type { AvatarUser } from "@/lib/types";
 
 export function Sidebar({
@@ -27,6 +27,8 @@ export function Sidebar({
     const t = toolForPath(n.href);
     return !t || tools.includes(t.key);
   });
+  const comercialHref = firstToolHref(tools, ["comercial", "leads", "margem"]);
+  const marketingHref = firstToolHref(tools, ["marketing"]);
   return (
     <aside className="sidebar">
       <div className="sb-brand">
@@ -64,23 +66,27 @@ export function Sidebar({
         </>
       )}
 
-      <div className="sb-section">Sistemas</div>
-      <Link
-        href="/comercial"
-        className={`sb-item ${pathname.startsWith("/comercial") ? "active" : ""}`}
-        title="Comercial · IXC"
-      >
-        <Icon name="briefcase" />
-        <span className="sb-label">Comercial</span>
-      </Link>
-      <Link
-        href="/marketing"
-        className={`sb-item ${pathname.startsWith("/marketing") ? "active" : ""}`}
-        title="Marketing"
-      >
-        <Icon name="share" />
-        <span className="sb-label">Marketing</span>
-      </Link>
+      {(comercialHref || marketingHref) && <div className="sb-section">Sistemas</div>}
+      {comercialHref && (
+        <Link
+          href={comercialHref}
+          className={`sb-item ${pathname.startsWith("/comercial") ? "active" : ""}`}
+          title="Comercial · IXC"
+        >
+          <Icon name="briefcase" />
+          <span className="sb-label">Comercial</span>
+        </Link>
+      )}
+      {marketingHref && (
+        <Link
+          href={marketingHref}
+          className={`sb-item ${pathname.startsWith("/marketing") ? "active" : ""}`}
+          title="Marketing"
+        >
+          <Icon name="share" />
+          <span className="sb-label">Marketing</span>
+        </Link>
+      )}
 
       <Link href="/settings/account" className="sb-user" title="Minha conta">
         <Avatar user={user} size={38} />

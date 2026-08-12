@@ -13,7 +13,7 @@ export default async function SemAcessoPage() {
         <p style={{ color: "#64748b", marginBottom: 20 }}>
           Você não tem permissão para esta área. Fale com um administrador para liberar o acesso.
         </p>
-        <Link href="/dashboard" style={{ color: "#2D6FF2", fontWeight: 600 }}>
+        <Link href="/" style={{ color: "#2D6FF2", fontWeight: 600 }}>
           Voltar ao início
         </Link>
       </div>

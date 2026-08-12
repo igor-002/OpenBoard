@@ -6,7 +6,7 @@ import { Icon } from "@/components/ui/Icon";
 import { Avatar } from "@/components/ui/Avatar";
 import { COMERCIAL_NAV } from "./nav";
 import { activeNavHref } from "@/lib/nav-active";
-import { toolForPath } from "@/lib/modules";
+import { firstToolHref, toolForPath } from "@/lib/modules";
 import type { AvatarUser } from "@/lib/types";
 
 // Sidebar do segundo sistema (Comercial). Mesma estrutura/tema da do OpenBoard,
@@ -25,6 +25,7 @@ export function ComercialSidebar({
     const t = toolForPath(n.href);
     return !t || tools.includes(t.key);
   });
+  const inicioHref = firstToolHref(tools) ?? "/";
   return (
     <aside className="sidebar">
       <div className="sb-brand">
@@ -38,7 +39,7 @@ export function ComercialSidebar({
       </div>
 
       {/* Switcher: volta pro OpenBoard */}
-      <Link href="/dashboard" className="sb-item" title="Voltar ao OpenBoard">
+      <Link href={inicioHref} className="sb-item" title="Voltar ao início">
         <Icon name="chevLeft" />
         <span className="sb-label">OpenBoard</span>
       </Link>

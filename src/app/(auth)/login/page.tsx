@@ -6,8 +6,8 @@ import { loginAction } from "../actions";
 export const dynamic = "force-dynamic";
 
 export default async function LoginPage() {
-  // Se já há um usuário REAL logado, vai pro dashboard. (Token órfão cai aqui e mostra o login.)
+  // Se já há um usuário REAL logado, vai para sua primeira ferramenta. (Token órfão cai aqui e mostra o login.)
   const user = await getCurrentUser();
-  if (user) redirect("/dashboard");
+  if (user) redirect("/");
   return <AuthForm mode="login" action={loginAction} />;
 }

@@ -65,7 +65,7 @@ export async function loginAction(_prev: AuthState, formData: FormData): Promise
   }
   resetRateLimit(key);
   await setSession(user.id);
-  redirect("/dashboard");
+  redirect("/");
 }
 
 export async function registerAction(_prev: AuthState, formData: FormData): Promise<AuthState> {

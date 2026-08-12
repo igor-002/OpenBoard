@@ -97,6 +97,12 @@ export function toolsOfModule(m: ModuleKey): Tool[] {
   return TOOLS.filter((t) => t.module === m);
 }
 
+// Primeira tela que uma pessoa pode abrir. Usada na entrada e nos atalhos entre
+// sistemas: nunca apontar para a visão geral de um módulo que ela não recebeu.
+export function firstToolHref(tools: readonly string[], modules?: readonly ModuleKey[]): string | null {
+  return TOOLS.find((tool) => tools.includes(tool.key) && (!modules || modules.includes(tool.module)))?.href ?? null;
+}
+
 export function moduleOfTool(key: string): ModuleKey | null {
   return TOOL_BY_KEY.get(key)?.module ?? null;
 }
