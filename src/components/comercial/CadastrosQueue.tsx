@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Icon } from "@/components/ui/Icon";
 import { fullLabel } from "@/lib/format";
+import { withBasePath } from "@/lib/basePath";
 import {
   SOLICITACAO_STATUS,
   solicitacaoStatusMeta,
@@ -13,7 +14,7 @@ import {
   isUrgenteEfetivo,
   type SolicitacaoStatus,
 } from "@/lib/cadastros";
-import type { SolicitacaoCadastro } from "@/generated/prisma";
+import type { SolicitacaoCadastroComImagens } from "@/server/comercial/cadastros";
 import { changeStatusAction } from "@/app/(comercial)/comercial/cadastros/actions";
 
 // "2h" / "3 dias" — duração entre duas datas (fim default = agora).
@@ -68,7 +69,7 @@ export function CadastrosQueue({
   ativo,
   counts,
 }: {
-  itens: SolicitacaoCadastro[];
+  itens: SolicitacaoCadastroComImagens[];
   ativo: SolicitacaoStatus;
   counts: Record<string, number>;
 }) {
@@ -191,6 +192,26 @@ export function CadastrosQueue({
                   {s.observacao && (
                     <div style={{ marginTop: 14 }}>
                       <Campo label="Observação" valor={s.observacao} />
+                    </div>
+                  )}
+
+                  {s.imagens.length > 0 && (
+                    <div style={{ marginTop: 14 }}>
+                      <div style={{ fontSize: 11.5, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: ".4px", marginBottom: 7 }}>
+                        Imagens ({s.imagens.length})
+                      </div>
+                      <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
+                        {s.imagens.map((imagem) => {
+                          const url = withBasePath(`/comercial/cadastros/${s.id}/imagens/${imagem.id}`);
+                          return (
+                            <span key={imagem.id} className="row gap8" style={{ padding: "7px 9px", border: "1px solid var(--line)", borderRadius: "var(--r-sm)", background: "var(--surface)" }}>
+                              <Icon name="paperclip" size={14} />
+                              <a href={url} target="_blank" rel="noopener noreferrer">Ver</a>
+                              <a href={`${url}?download=1`}>Baixar</a>
+                            </span>
+                          );
+                        })}
+                      </div>
                     </div>
                   )}
 

@@ -32,6 +32,40 @@ export function solicitacaoTipoLabel(t: string): string {
 // Dias de vencimento aceitos pelo financeiro.
 export const VENCIMENTO_DIAS = [5, 10, 15, 20, 25] as const;
 
+// Imagens da solicitação: limite total, para caber no corpo de Server Action de
+// 12 MB configurado no Next. SVG fica fora porque será servido no mesmo domínio.
+export const CADASTRO_IMAGEM_MAX_BYTES = 10 * 1024 * 1024;
+export const CADASTRO_IMAGEM_MIMES = ["image/jpeg", "image/png", "image/webp", "image/gif"] as const;
+
+export function cadastroImagemTamanho(bytes: number): string {
+  return `${(bytes / (1024 * 1024)).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} MB`;
+}
+
+export function validaCadastroImagens(files: readonly { name: string; type: string; size: number }[]): string | null {
+  const total = files.reduce((sum, file) => sum + file.size, 0);
+  for (const file of files) {
+    if (!CADASTRO_IMAGEM_MIMES.includes(file.type as (typeof CADASTRO_IMAGEM_MIMES)[number])) {
+      return "Use imagens JPEG, PNG, WebP ou GIF.";
+    }
+    if (file.size === 0) return `A imagem “${file.name || "sem nome"}” está vazia.`;
+  }
+  if (total > CADASTRO_IMAGEM_MAX_BYTES) {
+    return `As imagens somadas passam de ${cadastroImagemTamanho(CADASTRO_IMAGEM_MAX_BYTES)}.`;
+  }
+  return null;
+}
+
+export function sanitizeNomeImagem(nome: string): string {
+  const semPath = nome.split(/[\\/]/).pop() ?? "";
+  return (
+    Array.from(semPath)
+      .filter((c) => c.charCodeAt(0) >= 32 && c !== '"' && c !== "\\")
+      .join("")
+      .trim()
+      .slice(0, 120) || "imagem"
+  );
+}
+
 // Prazo a ≤ este nº de dias torna a solicitação urgente automaticamente.
 export const URGENTE_PRAZO_DIAS = 2;
 

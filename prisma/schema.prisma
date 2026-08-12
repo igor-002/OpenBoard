@@ -497,9 +497,25 @@ model SolicitacaoCadastro {
   finalizadoPorId   String? // User.id frouxo — quem cadastrou/cancelou
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
+  imagens           SolicitacaoCadastroImagem[]
 
   @@index([status, createdAt])
   @@index([cnpjCpfNorm])
+}
+
+// Imagens enviadas junto da solicitação pública. Guardadas no Postgres para não
+// depender de storage/volume no VPS. Só a fila Comercial autenticada as serve.
+model SolicitacaoCadastroImagem {
+  id            String              @id @default(cuid())
+  solicitacaoId String
+  solicitacao   SolicitacaoCadastro @relation(fields: [solicitacaoId], references: [id], onDelete: Cascade)
+  nome          String
+  mime          String
+  tamanho       Int
+  data          Bytes
+  createdAt     DateTime            @default(now())
+
+  @@index([solicitacaoId, createdAt])
 }
 
 // Histórico de transições de status da solicitação (análogo a LeadStageEvent).

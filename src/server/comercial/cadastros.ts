@@ -8,7 +8,7 @@ import { compareSolicitacoes, isSolicitacaoStatus, type SolicitacaoStatus } from
 import { emitAppEvent } from "@/server/events";
 import { notify } from "@/server/notifications";
 import { getSetting, SETTING_KEYS } from "@/server/settings";
-import type { SolicitacaoCadastro } from "@/generated/prisma";
+import type { SolicitacaoCadastro, SolicitacaoCadastroImagem } from "@/generated/prisma";
 
 export type SolicitacaoInput = {
   tipo?: "cadastro" | "upgrade";
@@ -32,6 +32,11 @@ export type SolicitacaoInput = {
   observacao?: string | null;
   situacao: "normal" | "urgente";
   prazoAt?: Date | null;
+  imagens?: { nome: string; mime: string; bytes: Buffer }[];
+};
+
+export type SolicitacaoCadastroComImagens = SolicitacaoCadastro & {
+  imagens: Pick<SolicitacaoCadastroImagem, "id" | "nome" | "mime" | "tamanho" | "createdAt">[];
 };
 
 // Destinatários das notificações de solicitação nova. Configurável em
@@ -83,6 +88,16 @@ export async function createSolicitacao(input: SolicitacaoInput): Promise<{ id: 
       observacao: input.observacao?.trim() || null,
       situacao: input.situacao,
       prazoAt: input.prazoAt ?? null,
+      imagens: input.imagens?.length
+        ? {
+            create: input.imagens.map((imagem) => ({
+              nome: imagem.nome,
+              mime: imagem.mime,
+              tamanho: imagem.bytes.length,
+              data: Uint8Array.from(imagem.bytes),
+            })),
+          }
+        : undefined,
     },
   });
   await db.solicitacaoCadastroEvent.create({
@@ -117,10 +132,16 @@ export async function createSolicitacao(input: SolicitacaoInput): Promise<{ id: 
 // Fila ordenada por prioridade efetiva (urgente > prazo próximo > mais antigo).
 // Sort em JS: urgência efetiva é derivada (situacao OU prazo ≤2 dias), não dá
 // pra expressar 100% no SQL — volume é baixo (fila operacional).
-export async function listSolicitacoes(status: SolicitacaoStatus): Promise<SolicitacaoCadastro[]> {
+export async function listSolicitacoes(status: SolicitacaoStatus): Promise<SolicitacaoCadastroComImagens[]> {
   const rows = await db.solicitacaoCadastro.findMany({
     where: { status },
     orderBy: { createdAt: "asc" },
+    include: {
+      imagens: {
+        select: { id: true, nome: true, mime: true, tamanho: true, createdAt: true },
+        orderBy: { createdAt: "asc" },
+      },
+    },
   });
   return rows.sort((a, b) => compareSolicitacoes(a, b));
 }

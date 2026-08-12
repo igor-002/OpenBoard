@@ -2,7 +2,15 @@
 
 import { useActionState, useState } from "react";
 import { Icon } from "@/components/ui/Icon";
-import { VENCIMENTO_DIAS, parseSolicitacaoTexto, type SolicitacaoPrefill, type SolicitacaoTipo } from "@/lib/cadastros";
+import {
+  CADASTRO_IMAGEM_MAX_BYTES,
+  cadastroImagemTamanho,
+  VENCIMENTO_DIAS,
+  parseSolicitacaoTexto,
+  validaCadastroImagens,
+  type SolicitacaoPrefill,
+  type SolicitacaoTipo,
+} from "@/lib/cadastros";
 import { solicitarCadastroAction, type SolicitarState } from "@/app/(public)/solicitar-cadastro/actions";
 
 // Form público de solicitação de cadastro de cliente (sem login).
@@ -24,6 +32,7 @@ export function SolicitarCadastroForm() {
 
   // Novo contrato (cadastro completo) x Upgrade (troca de plano, form reduzido).
   const [tipo, setTipo] = useState<SolicitacaoTipo>("cadastro");
+  const [erroImagens, setErroImagens] = useState<string | null>(null);
   const ehUpgrade = tipo === "upgrade";
 
   const aplicarTexto = () => {
@@ -292,6 +301,23 @@ export function SolicitarCadastroForm() {
           />
         </div>
 
+        <div className="field">
+          <label htmlFor="imagens">Imagens (opcional)</label>
+          <input
+            className="input"
+            id="imagens"
+            name="imagens"
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/gif"
+            multiple
+            onChange={(event) => setErroImagens(validaCadastroImagens(Array.from(event.currentTarget.files ?? [])))}
+          />
+          <div className="muted" style={{ fontSize: 12, marginTop: 5 }}>
+            JPEG, PNG, WebP ou GIF. Total máximo: {cadastroImagemTamanho(CADASTRO_IMAGEM_MAX_BYTES)}.
+          </div>
+          {erroImagens && <div className="form-error" style={{ marginTop: 6 }}>{erroImagens}</div>}
+        </div>
+
         <div className="row gap12" style={{ alignItems: "start", flexWrap: "wrap" }}>
           <div className="field" style={{ flex: "1 1 150px" }}>
             <label>Situação</label>
@@ -312,7 +338,7 @@ export function SolicitarCadastroForm() {
 
         {state.error && <div className="form-error">{state.error}</div>}
 
-        <button className="btn btn-primary btn-block" type="submit" disabled={pending}>
+        <button className="btn btn-primary btn-block" type="submit" disabled={pending || !!erroImagens}>
           {pending ? "Enviando…" : "Enviar solicitação"}
         </button>
       </form>
