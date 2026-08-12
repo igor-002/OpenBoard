@@ -3,12 +3,14 @@ import { TOOL_KEYS } from "@/lib/modules";
 import { getNotifications } from "@/server/notifications";
 import { getActiveTimer } from "@/server/time";
 import { AppShell } from "@/components/layout/AppShell";
+import { getPendingTaskAcknowledgements } from "@/server/task-acknowledgements";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await requireUser();
-  const [notifications, activeTimer] = await Promise.all([
+  const [notifications, activeTimer, pendingAcknowledgements] = await Promise.all([
     getNotifications(user.id),
     getActiveTimer(user.id),
+    getPendingTaskAcknowledgements(user.id),
   ]);
   return (
     <AppShell
@@ -19,6 +21,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       tools={user.role === "admin" ? TOOL_KEYS : user.tools}
       activeTimer={activeTimer}
       mustChangePassword={user.mustChangePassword}
+      pendingAcknowledgements={pendingAcknowledgements}
     >
       {children}
     </AppShell>

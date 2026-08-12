@@ -4,8 +4,10 @@ import { useState } from "react";
 import { MarketingSidebar } from "./MarketingSidebar";
 import { MarketingTopbar } from "./MarketingTopbar";
 import { ToastHost } from "@/components/layout/ToastHost";
+import { DemandAcknowledgementModal } from "@/components/layout/DemandAcknowledgementModal";
 import type { AvatarUser } from "@/lib/types";
 import type { NotificationItem } from "@/server/notifications";
+import type { PendingTaskAcknowledgement } from "@/server/task-acknowledgements";
 
 // Shell do módulo Marketing. Mesma casca do AppShell (tema/CSS compartilhado),
 // mas com sidebar/topbar do Marketing.
@@ -13,11 +15,13 @@ export function MarketingShell({
   user,
   notifications,
   tools,
+  pendingAcknowledgements,
   children,
 }: {
   user: AvatarUser & { jobTitle: string };
   notifications: { items: NotificationItem[]; unread: number };
   tools: string[];
+  pendingAcknowledgements: PendingTaskAcknowledgement[];
   children: React.ReactNode;
 }) {
   const [collapsed, setCollapsed] = useState(false);
@@ -29,6 +33,7 @@ export function MarketingShell({
         <div className="scroll">{children}</div>
       </div>
       <ToastHost />
+      <DemandAcknowledgementModal key={pendingAcknowledgements.map((item) => item.id).join(",")} initial={pendingAcknowledgements} />
     </div>
   );
 }

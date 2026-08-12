@@ -108,6 +108,7 @@ export async function createAtividade(_prev: AtividadeActionState, formData: For
       doneAt: jaFeita ? now : null,
       report: jaFeita ? d.report?.trim() || d.title : null,
       order: count,
+      acknowledgements: assigneeId !== user.id ? { create: { userId: assigneeId } } : undefined,
     },
     select: { id: true },
   });

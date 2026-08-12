@@ -47,6 +47,13 @@ export async function createTask(_prev: TaskActionState, formData: FormData): Pr
 
   const count = await db.task.count({ where: { projectId: parsed.data.projectId } });
 
+  let assigneeId: string | null = null;
+  if (parsed.data.assigneeId) {
+    const assignee = await db.user.findFirst({ where: { id: parsed.data.assigneeId, workspaceId: user.workspaceId }, select: { id: true } });
+    if (!assignee) return { error: "Responsável inválido." };
+    assigneeId = assignee.id;
+  }
+
   await db.task.create({
     data: {
       workspaceId: user.workspaceId,
@@ -55,15 +62,16 @@ export async function createTask(_prev: TaskActionState, formData: FormData): Pr
       priority: parsed.data.priority,
       column: parsed.data.column ?? "todo",
       doneAt: parsed.data.column === "done" ? new Date() : null,
-      assigneeId: parsed.data.assigneeId || null,
+      assigneeId,
       order: count,
       tags: tags.length ? { create: tags.map((label) => ({ label })) } : undefined,
+      acknowledgements: assigneeId && assigneeId !== user.id ? { create: { userId: assigneeId } } : undefined,
     },
   });
 
   // Notifica o responsável (se for outra pessoa).
-  if (parsed.data.assigneeId && parsed.data.assigneeId !== user.id) {
-    await notify([parsed.data.assigneeId], {
+  if (assigneeId && assigneeId !== user.id) {
+    await notify([assigneeId], {
       type: "task_assigned",
       title: "Nova tarefa atribuída a você",
       body: parsed.data.title,
@@ -73,7 +81,7 @@ export async function createTask(_prev: TaskActionState, formData: FormData): Pr
 
   // Anúncio para o resto do workspace (menos o autor e o responsável já avisado).
   const exclude = [user.id];
-  if (parsed.data.assigneeId) exclude.push(parsed.data.assigneeId);
+  if (assigneeId) exclude.push(assigneeId);
   const others = await db.user.findMany({
     where: { workspaceId: user.workspaceId, id: { notIn: exclude } },
     select: { id: true },

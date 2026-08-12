@@ -105,6 +105,7 @@ model User {
   notasRecebidas NoteShare[]     @relation("NoteShareUser")
   notifications  Notification[]
   taskComments   TaskComment[]
+  taskAcknowledgements TaskAcknowledgement[]
   createdProjects Project[]      @relation("ProjectCreator")
 
   @@index([workspaceId])
@@ -274,6 +275,7 @@ model Task {
   tags     TaskTag[]
   subtasks Subtask[]
   comments TaskComment[]
+  acknowledgements TaskAcknowledgement[]
   notas    Note[]
 
   @@index([workspaceId])
@@ -316,6 +318,21 @@ model TaskComment {
 
   @@index([taskId])
   @@index([authorId])
+}
+
+// Confirmação explícita de leitura da demanda pelo responsável. Uma pendência
+// nasce apenas quando outra pessoa cria tarefa/atividade para ele.
+model TaskAcknowledgement {
+  id         String   @id @default(cuid())
+  task       Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  taskId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId     String
+  receivedAt DateTime?
+  createdAt  DateTime @default(now())
+
+  @@unique([taskId, userId])
+  @@index([userId, receivedAt])
 }
 
 model TaskTag {
