@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
-import { INTEGRATION_AUTH_ERROR, integrationAuthError, integrationWorkspaceId } from "@/lib/integration-auth";
+import { INTEGRATION_AUTH_ERROR, integrationAuthError } from "@/lib/integration-auth";
 import { IntegrationError, createPloomesProject, ploomesProjectSchema } from "@/server/integrations/ploomes-projects";
+import { resolveIntegrationWorkspace } from "@/server/integrations/workspace";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -9,8 +10,8 @@ export async function POST(request: Request) {
   const authError = integrationAuthError(request);
   if (authError) return NextResponse.json({ error: INTEGRATION_AUTH_ERROR[authError] }, { status: authError });
 
-  const workspaceId = integrationWorkspaceId();
-  if (!workspaceId) return NextResponse.json({ error: "integration_unavailable" }, { status: 500 });
+  const workspace = await resolveIntegrationWorkspace();
+  if (!workspace.ok) return NextResponse.json({ error: workspace.code }, { status: workspace.status });
   if (!request.headers.get("idempotency-key")?.trim()) {
     return NextResponse.json({ error: "idempotency_key_required" }, { status: 400 });
   }
@@ -28,7 +29,7 @@ export async function POST(request: Request) {
   if (!parsed.success) return NextResponse.json({ error: "invalid_payload" }, { status: 400 });
 
   try {
-    const result = await createPloomesProject(workspaceId, parsed.data, request.headers.get("idempotency-key")!.trim());
+    const result = await createPloomesProject(workspace.workspaceId, parsed.data, request.headers.get("idempotency-key")!.trim());
     return NextResponse.json(result, { status: result.created ? 201 : 200 });
   } catch (error) {
     if (error instanceof IntegrationError) return NextResponse.json({ error: error.code }, { status: error.status });

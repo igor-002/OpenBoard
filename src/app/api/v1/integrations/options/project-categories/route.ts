@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { INTEGRATION_AUTH_ERROR, integrationAuthError, integrationWorkspaceId } from "@/lib/integration-auth";
+import { INTEGRATION_AUTH_ERROR, integrationAuthError } from "@/lib/integration-auth";
+import { resolveIntegrationWorkspace } from "@/server/integrations/workspace";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -8,11 +9,11 @@ export const runtime = "nodejs";
 export async function GET(request: Request) {
   const authError = integrationAuthError(request);
   if (authError) return NextResponse.json({ error: INTEGRATION_AUTH_ERROR[authError] }, { status: authError });
-  const workspaceId = integrationWorkspaceId();
-  if (!workspaceId) return NextResponse.json({ error: "integration_unavailable" }, { status: 500 });
+  const workspace = await resolveIntegrationWorkspace();
+  if (!workspace.ok) return NextResponse.json({ error: workspace.code }, { status: workspace.status });
 
   const categories = await db.projectCategory.findMany({
-    where: { workspaceId, active: true },
+    where: { workspaceId: workspace.workspaceId, active: true },
     orderBy: { name: "asc" },
     select: { id: true, name: true },
   });

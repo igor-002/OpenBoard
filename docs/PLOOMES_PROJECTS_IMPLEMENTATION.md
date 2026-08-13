@@ -73,9 +73,18 @@ INTEGRATION_TOKEN="$(openssl rand -hex 32)"
 INTEGRATION_WORKSPACE_ID="id-do-workspace"
 ```
 
-`INTEGRATION_WORKSPACE_ID` é obrigatório. Não existe fallback para primeiro
-workspace. Consulte o ID pelo Prisma Studio ou PostgreSQL antes do deploy.
-Após alterar variáveis, recrie o container da aplicação.
+`INTEGRATION_WORKSPACE_ID` é o **id** do workspace, não o nome. Não existe
+fallback para o primeiro workspace: id inexistente derruba as rotas com
+`500 integration_workspace_not_found` e um log explicando, em vez de responder
+lista vazia. Pegue o id antes do deploy:
+
+```bash
+docker exec openboard-db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc "SELECT id, name FROM \"Workspace\";"'
+```
+
+As duas variáveis precisam estar em `environment:` no `compose.prod.yml` — pôr
+só no `.env.production` não basta, o container não as enxerga. Após alterar,
+recrie o container da aplicação (`up -d`, não `restart`).
 
 ## Autenticação e transporte
 
@@ -168,7 +177,8 @@ projeto ter andado devolve `"em andamento"`, `"em revisão"` ou `"concluído"`.
 
 Erros: `400` payload/chave inválidos, `401` token inválido, `403` sem HTTPS em
 produção, `404` categoria/usuário ausente ou inativo, `409` conflito de evento,
-cliente ou negócio externo, `429` IP bloqueado por falhas de token e `500` falha
+cliente ou negócio externo, `429` IP bloqueado por falhas de token,
+`500 integration_workspace_not_found` workspace mal configurado e `500` falha
 inesperada sem detalhes internos.
 
 ## GETs de opções
@@ -197,7 +207,8 @@ npm run test:integration
 Precisa de `DATABASE_URL` apontando para um Postgres de desenvolvimento: o teste
 cria o próprio workspace e o apaga no fim.
 
-Cobertura (11 testes): token inválido, criação, replay idempotente, cliente
+Cobertura (12 testes): workspace mal configurado, token inválido, criação,
+replay idempotente, cliente
 existente por documento/e-mail, equipe inválida, usuário inativo na equipe,
 negócio duplicado (`external_deal_conflict`), chave reaproveitada
 (`idempotency_conflict`), HTTP recusado em produção, HTTPS via

@@ -186,6 +186,23 @@ test("accepts a forwarded HTTPS request in production", async () => {
   }
 });
 
+test("fails loudly when the configured workspace does not exist", async () => {
+  // Erro clássico de deploy: pôr o NOME do workspace no lugar do id. Antes isso
+  // devolvia 200 com lista vazia e parecia workspace sem categorias.
+  process.env.INTEGRATION_WORKSPACE_ID = "Meu Workspace";
+  try {
+    const response = await getCategories(
+      new Request("http://openboard.test/api/v1/integrations/options/project-categories", {
+        headers: { Authorization: `Bearer ${token}` },
+      }),
+    );
+    assert.equal(response.status, 500);
+    assert.equal((await response.json()).error, "integration_workspace_not_found");
+  } finally {
+    process.env.INTEGRATION_WORKSPACE_ID = workspaceId;
+  }
+});
+
 test("returns only active option records", async () => {
   const [categoryResponse, userResponse] = await Promise.all([
     getCategories(new Request("http://openboard.test/api/v1/integrations/options/project-categories", { headers: { Authorization: `Bearer ${token}` } })),
