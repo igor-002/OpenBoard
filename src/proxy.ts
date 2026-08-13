@@ -2,10 +2,15 @@ import { NextResponse, type NextRequest } from "next/server";
 import { verifyToken, SESSION_COOKIE } from "@/lib/jwt";
 
 const AUTH_PAGES = ["/login", "/register", "/esqueci-senha", "/redefinir-senha"];
-// Rotas públicas com gate próprio por token (painel de TV, webhook de leads)
-// ou abertas por natureza (/r = redirect do encurtador, escaneado via QR;
-// /solicitar-cadastro = form aberto com rate-limit + honeypot na action).
-const PUBLIC_PAGES = ["/tv", "/api/tv", "/api/comercial/leads", "/r/", "/solicitar-cadastro"];
+// Rotas públicas com gate próprio por token (painel de TV, webhook de leads,
+// API de integração) ou abertas por natureza (/r = redirect do encurtador,
+// escaneado via QR; /solicitar-cadastro = form aberto com rate-limit +
+// honeypot na action).
+//
+// `/api/v1/integrations` é chamada por sistema, sem cookie de sessão: sem estar
+// aqui, o proxy responde 307 para /login e o consumidor nunca chega no handler.
+// Cada rota de lá exige Bearer + HTTPS + rate limit por conta própria.
+const PUBLIC_PAGES = ["/tv", "/api/tv", "/api/comercial/leads", "/api/v1/integrations", "/r/", "/solicitar-cadastro"];
 
 // Convenção "proxy" do Next 16 (substitui o antigo middleware).
 export async function proxy(req: NextRequest) {

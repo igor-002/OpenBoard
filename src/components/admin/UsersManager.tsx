@@ -7,7 +7,7 @@ import { Avatar } from "@/components/ui/Avatar";
 import { Card } from "@/components/ui/Card";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { useOverlayClose } from "@/components/ui/useOverlayClose";
-import { createUser, updateUserRole, deleteUser, resetUserPassword, updateUserHourlyCost, updateUserTools, updateUserManages } from "@/app/(app)/settings/users/actions";
+import { createUser, updateUserRole, deleteUser, resetUserPassword, updateUserHourlyCost, updateUserTools, updateUserManages, setUserActive } from "@/app/(app)/settings/users/actions";
 import type { UserRow } from "@/server/users";
 import type { Role } from "@/lib/types";
 import { MODULES, MODULE_SHORT, toolsOfModule, type ModuleKey } from "@/lib/modules";
@@ -61,13 +61,29 @@ export function UsersManager({
       router.refresh();
     });
   }
+  // Desativar é reversível, então não pede confirmação — diferente de remover.
+  function toggleActive(id: string, active: boolean) {
+    setErr(null);
+    start(async () => {
+      const r = await setUserActive(id, active);
+      if (r.error) setErr(r.error);
+      router.refresh();
+    });
+  }
+
+  const ativos = users.filter((u) => u.active).length;
+  const inativos = users.length - ativos;
 
   return (
     <>
       <div className="page-head">
         <div>
           <h1 className="page-title">Usuários</h1>
-          <p className="page-sub">{users.length} pessoas · gerencie acessos e papéis</p>
+          <p className="page-sub">
+            {ativos} {ativos === 1 ? "pessoa ativa" : "pessoas ativas"}
+            {inativos > 0 && ` · ${inativos} ${inativos === 1 ? "desativada" : "desativadas"}`}
+            {" · gerencie acessos e papéis"}
+          </p>
         </div>
         {isAdmin && (
           <button className="btn btn-primary" onClick={() => setOpen(true)}>
@@ -82,13 +98,13 @@ export function UsersManager({
       <Card pad={false}>
         <table className="tbl" style={{ marginTop: 6 }}>
           <thead>
-            <tr><th>Pessoa</th><th>E-mail</th><th>Cargo</th><th>Custo/h</th><th>Papel</th><th></th></tr>
+            <tr><th>Pessoa</th><th>E-mail</th><th>Cargo</th><th>Custo/h</th><th>Papel</th><th>Acesso</th><th></th></tr>
           </thead>
           <tbody>
             {users.map((u) => {
               const isSelf = u.id === currentUserId;
               return (
-                <tr key={u.id}>
+                <tr key={u.id} style={u.active ? undefined : { opacity: 0.55 }}>
                   <td>
                     <div className="row gap12">
                       <Avatar user={u} size={34} />
@@ -109,6 +125,25 @@ export function UsersManager({
                       <option value="admin">Admin</option>
                       <option value="membro">Membro</option>
                     </select>
+                  </td>
+                  <td>
+                    {isAdmin ? (
+                      <button
+                        className="btn"
+                        style={{
+                          padding: "5px 12px",
+                          fontSize: 12,
+                          color: isSelf ? "var(--muted-2)" : u.active ? "var(--st-risk)" : "var(--st-done)",
+                        }}
+                        disabled={isSelf || pendingDel}
+                        title={isSelf ? "Você não pode desativar a si mesmo" : u.active ? "Desativar: bloqueia o login e some dos seletores, mantendo o histórico" : "Reativar acesso"}
+                        onClick={() => toggleActive(u.id, !u.active)}
+                      >
+                        {u.active ? "Desativar" : "Reativar"}
+                      </button>
+                    ) : (
+                      <span className="muted" style={{ fontSize: 12 }}>{u.active ? "Ativo" : "Desativado"}</span>
+                    )}
                   </td>
                   <td style={{ textAlign: "right" }}>
                     <div className="row gap8" style={{ justifyContent: "flex-end" }}>

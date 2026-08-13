@@ -65,6 +65,9 @@ model Workspace {
   createdAt DateTime  @default(now())
   users     User[]
   projects  Project[]
+  projectClients ProjectClient[]
+  projectCategories ProjectCategory[]
+  integrationEvents IntegrationEvent[]
   tasks     Task[]
   notas     Note[]
 }
@@ -92,6 +95,7 @@ model User {
   // nem em quem gerencia o quê — isso segue só com admin.
   manages      String[] @default([])
   mustChangePassword Boolean @default(false)
+  active       Boolean  @default(true)
   // "Esqueci minha senha": guarda só o SHA-256 do token (nunca o token cru).
   resetTokenHash      String?
   resetTokenExpiresAt DateTime?
@@ -117,16 +121,22 @@ model Project {
   workspaceId String
   name        String
   client      String
+  clientRecord ProjectClient? @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  clientId    String?
   tag         String
+  category    ProjectCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  categoryId  String?
   status      ProjectStatus @default(planned)
   manualProgress Int?       // override manual; null = progresso automático (% tarefas concluídas)
-  startDate   DateTime
+  startDate   DateTime?
   dueDate     DateTime?
   budgetCents Int           @default(0)
   spentPct    Int           @default(0)
   risk        Boolean       @default(false)
   ixcClienteId String?      // vínculo frouxo ao IxcCliente (A2 — Cliente 360), sem FK
   createdAt   DateTime      @default(now())
+  source      String?
+  externalDealId String?
   creator     User?         @relation("ProjectCreator", fields: [creatorId], references: [id], onDelete: SetNull)
   creatorId   String?
 
@@ -136,10 +146,74 @@ model Project {
   timeLogs   TimeLog[]
   notes      ProjectNote[]
   notas      Note[]
+  integrationEvents IntegrationEvent[]
 
   @@index([workspaceId])
   @@index([creatorId])
   @@index([ixcClienteId])
+  @@index([clientId])
+  @@index([categoryId])
+  @@unique([source, externalDealId])
+}
+
+model ProjectClient {
+  id           String    @id @default(cuid())
+  workspace    Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspaceId  String
+  externalId   String?
+  name         String
+  email        String?
+  emailNorm    String?
+  phone        String?
+  document     String?
+  documentNorm String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  projects    Project[]
+  integrationEvents IntegrationEvent[]
+
+  // Unicidade é por workspace: dois workspaces podem ter o mesmo CNPJ/e-mail
+  // sem um enxergar o cliente do outro.
+  @@unique([workspaceId, externalId])
+  @@unique([workspaceId, emailNorm])
+  @@unique([workspaceId, documentNorm])
+  @@index([workspaceId])
+}
+
+model ProjectCategory {
+  id          String    @id @default(cuid())
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspaceId String
+  name        String
+  key         String
+  active      Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  projects Project[]
+
+  @@unique([workspaceId, key])
+  @@index([workspaceId, active])
+}
+
+model IntegrationEvent {
+  id             String    @id @default(cuid())
+  workspace      Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspaceId    String
+  source         String
+  eventId        String
+  idempotencyKey String
+  client         ProjectClient? @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  clientId       String?
+  project        Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  projectId      String?
+  notificationsCreated Int @default(0)
+  createdAt      DateTime @default(now())
+
+  @@unique([source, eventId])
+  @@unique([source, idempotencyKey])
+  @@index([workspaceId])
 }
 
 model Notification {

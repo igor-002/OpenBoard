@@ -96,7 +96,8 @@ export function ProjectForm({
       <div className="row gap12">
         <div className="field" style={{ flex: 1 }}>
           <label htmlFor="startDate">Início</label>
-          <input className="input" id="startDate" name="startDate" type="date" defaultValue={initial?.startDate} required />
+          {/* opcional: projeto vindo de integração chega sem data de início */}
+          <input className="input" id="startDate" name="startDate" type="date" defaultValue={initial?.startDate} />
         </div>
         <div className="field" style={{ flex: 1 }}>
           <label htmlFor="dueDate">Prazo</label>

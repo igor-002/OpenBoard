@@ -77,6 +77,14 @@ export async function createTask(_prev: TaskActionState, formData: FormData): Pr
       body: parsed.data.title,
       link: "/kanban",
     });
+    // Abre o modal de confirmação na hora, sem esperar o próximo carregamento.
+    emitAppEvent({
+      kind: "demanda_atribuida",
+      recipientIds: [assigneeId],
+      actorName: user.name,
+      entity: parsed.data.title,
+      link: "/kanban",
+    });
   }
 
   // Anúncio para o resto do workspace (menos o autor e o responsável já avisado).

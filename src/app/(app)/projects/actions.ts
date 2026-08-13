@@ -5,10 +5,9 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
-import { chaveCategoria, limparCategoria } from "@/lib/categoria";
-import { getProjectCategorias } from "@/server/projects";
 import { notify } from "@/server/notifications";
 import { emitAppEvent } from "@/server/events";
+import { ensureProjectCategory } from "@/server/project-categories";
 
 export type ProjectActionState = { ok?: boolean; error?: string; id?: string };
 
@@ -17,7 +16,7 @@ const schema = z.object({
   client: z.string().min(1, "Informe o cliente"),
   tag: z.string().min(1, "Informe uma categoria"),
   status: z.enum(["progress", "done", "review", "planned"]),
-  startDate: z.string().min(1, "Informe a data de início"),
+  startDate: z.string().optional(), // vazio = sem início definido (projeto vindo de integração)
   dueDate: z.string().optional(), // vazio = sem prazo
   manualProgress: z.number().min(0).max(100).nullable(), // null = progresso automático
   risk: z.boolean(),
@@ -35,7 +34,7 @@ function parse(formData: FormData) {
     client: formData.get("client"),
     tag: formData.get("tag"),
     status: formData.get("status"),
-    startDate: formData.get("startDate"),
+    startDate: formData.get("startDate")?.toString() || undefined,
     dueDate: formData.get("dueDate")?.toString() || undefined,
     manualProgress,
     risk: formData.get("risk") === "on",
@@ -43,17 +42,8 @@ function parse(formData: FormData) {
   });
 }
 
-// data de prazo (meio-dia local p/ não deslocar fuso) ou null.
+// data (meio-dia local p/ não deslocar fuso) ou null. Serve para início e prazo.
 const dueDateValue = (s?: string) => (s ? new Date(s + "T12:00:00") : null);
-
-// Categoria digitada que já existe com outra caixa ("hotspot" vs "Hotspot")
-// grava na grafia que o workspace já usa — senão vira categoria duplicada no
-// filtro. Nome novo entra como foi escrito.
-async function categoriaCanonica(workspaceId: string, tag: string): Promise<string> {
-  const nome = limparCategoria(tag);
-  const existentes = await getProjectCategorias(workspaceId);
-  return existentes.find((c) => chaveCategoria(c.nome) === chaveCategoria(nome))?.nome ?? nome;
-}
 
 // membros válidos = os que pertencem ao workspace.
 async function buildMembers(workspaceId: string, memberIds: string[]) {
@@ -71,15 +61,17 @@ export async function createProject(_prev: ProjectActionState, formData: FormDat
   const d = p.data;
 
   const members = await buildMembers(user.workspaceId, d.memberIds);
+  const category = await ensureProjectCategory(user.workspaceId, d.tag);
   const created = await db.project.create({
     data: {
       workspaceId: user.workspaceId,
       name: d.name,
       client: d.client,
-      tag: await categoriaCanonica(user.workspaceId, d.tag),
+      tag: category.name,
+      categoryId: category.id,
       status: d.status,
       manualProgress: d.manualProgress,
-      startDate: new Date(d.startDate + "T12:00:00"),
+      startDate: dueDateValue(d.startDate),
       dueDate: dueDateValue(d.dueDate),
       risk: d.risk,
       creatorId: user.id,
@@ -133,7 +125,7 @@ export async function updateProject(projectId: string, _prev: ProjectActionState
 
   const before = new Set((await db.projectMember.findMany({ where: { projectId }, select: { userId: true } })).map((m) => m.userId));
   const members = await buildMembers(user.workspaceId, d.memberIds);
-  const tag = await categoriaCanonica(user.workspaceId, d.tag);
+  const category = await ensureProjectCategory(user.workspaceId, d.tag);
   await db.$transaction([
     db.projectMember.deleteMany({ where: { projectId } }),
     db.project.update({
@@ -141,10 +133,11 @@ export async function updateProject(projectId: string, _prev: ProjectActionState
       data: {
         name: d.name,
         client: d.client,
-        tag,
+        tag: category.name,
+        categoryId: category.id,
         status: d.status,
         manualProgress: d.manualProgress,
-        startDate: new Date(d.startDate + "T12:00:00"),
+        startDate: dueDateValue(d.startDate),
         dueDate: dueDateValue(d.dueDate),
         risk: d.risk,
         members: members.length ? { create: members } : undefined,

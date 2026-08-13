@@ -1,9 +1,15 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { Icon } from "@/components/ui/Icon";
 import { acknowledgeTaskDemand } from "@/app/(app)/acknowledgements/actions";
 import type { PendingTaskAcknowledgement } from "@/server/task-acknowledgements";
+import { withBasePath } from "@/lib/basePath";
+import { onServerEvent } from "@/lib/app-events-client";
+
+// Rede de segurança para SSE caído (proxy, aba dormindo). O caminho normal é o
+// evento `demanda_atribuida`, que chega na hora.
+const FALLBACK_MS = 60_000;
 
 const PRIORITY = {
   high: { label: "Alta", color: "var(--st-risk)", bg: "var(--st-risk-bg)" },
@@ -15,6 +21,46 @@ export function DemandAcknowledgementModal({ initial }: { initial: PendingTaskAc
   const [pendingItems, setPendingItems] = useState(initial);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const confirmedIds = useRef(new Set<string>());
+
+  function sync(items: PendingTaskAcknowledgement[]) {
+    setPendingItems(items.filter((item) => !confirmedIds.current.has(item.id)));
+  }
+
+  useEffect(() => {
+    sync(initial);
+  }, [initial]);
+
+  useEffect(() => {
+    let alive = true;
+    async function refresh() {
+      try {
+        const response = await fetch(withBasePath("/api/acknowledgements/pending"), { cache: "no-store" });
+        if (!response.ok || !alive) return;
+        const data = await response.json() as { items?: PendingTaskAcknowledgement[] };
+        sync(data.items ?? []);
+      } catch {
+        // Keep current pending queue on transient request failure.
+      }
+    }
+    function onVisibilityChange() {
+      if (document.visibilityState === "visible") void refresh();
+    }
+
+    void refresh();
+    const timer = window.setInterval(() => void refresh(), FALLBACK_MS);
+    const unsubscribe = onServerEvent((event) => {
+      if (event.kind === "demanda_atribuida") void refresh();
+    });
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      alive = false;
+      window.clearInterval(timer);
+      unsubscribe();
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, []);
+
   const item = pendingItems[0];
   if (!item) return null;
 
@@ -26,6 +72,7 @@ export function DemandAcknowledgementModal({ initial }: { initial: PendingTaskAc
     startTransition(async () => {
       const result = await acknowledgeTaskDemand(item.id);
       if (!result.ok) return setError(result.error ?? "Não foi possível confirmar.");
+      confirmedIds.current.add(item.id);
       setPendingItems((items) => items.filter((current) => current.id !== item.id));
     });
   }

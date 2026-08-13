@@ -59,7 +59,9 @@ export async function loginAction(_prev: AuthState, formData: FormData): Promise
   // Constant-time: roda bcrypt sempre (contra hash isca se o usuário não existe),
   // pra não vazar por tempo se o e-mail existe. O `!user` decide o resultado.
   const passwordOk = await verifyPassword(parsed.data.password, user?.passwordHash ?? DUMMY_PASSWORD_HASH);
-  if (!user || !passwordOk) {
+  // Conta desativada devolve a mesma mensagem da senha errada: não confirma
+  // pra quem está tentando que o e-mail existe.
+  if (!user || !passwordOk || !user.active) {
     registerFailure(key);
     return { error: "E-mail ou senha incorretos." };
   }

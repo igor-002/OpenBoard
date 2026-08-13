@@ -7,7 +7,8 @@ import { EventEmitter } from "node:events";
 // - direcionado: recipientIds — só esses users (ex.: solicitação de cadastro
 //   vinda do form público, que não tem workspace nem autor logado).
 export type AppEvent = {
-  kind: "project_created" | "task_created" | "solicitacao_cadastro" | "nota_compartilhada";
+  // demanda_atribuida não vira toast: o modal de confirmação é quem escuta.
+  kind: "project_created" | "task_created" | "solicitacao_cadastro" | "nota_compartilhada" | "demanda_atribuida";
   workspaceId?: string;
   actorId?: string;
   recipientIds?: string[]; // se presente, entrega SÓ a estes users

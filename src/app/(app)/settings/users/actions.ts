@@ -172,6 +172,26 @@ export async function resetUserPassword(userId: string, newPassword: string): Pr
   return { ok: true };
 }
 
+// Liga/desliga o acesso de um usuário. Desativar é o caminho preferido ao
+// excluir: preserva histórico (tarefas, atividades, projetos) e derruba a
+// sessão na requisição seguinte, via getCurrentUser().
+export async function setUserActive(userId: string, active: boolean): Promise<UserActionState> {
+  const admin = await requireAdmin();
+  if (userId === admin.id) return { error: "Você não pode desativar a si mesmo." };
+
+  const target = await db.user.findFirst({ where: { id: userId, workspaceId: admin.workspaceId }, select: { id: true, role: true } });
+  if (!target) return { error: "Usuário não encontrado." };
+
+  if (!active && target.role === "admin") {
+    const admins = await db.user.count({ where: { workspaceId: admin.workspaceId, role: "admin", active: true } });
+    if (admins <= 1) return { error: "O workspace precisa de pelo menos um admin ativo." };
+  }
+
+  await db.user.update({ where: { id: userId }, data: { active } });
+  revalidatePath("/settings/users");
+  return { ok: true };
+}
+
 // Remove um usuário. Não permite remover a si mesmo nem o último admin.
 export async function deleteUser(userId: string): Promise<UserActionState> {
   const admin = await requireAdmin();

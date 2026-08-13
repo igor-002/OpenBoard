@@ -37,11 +37,13 @@ export async function getSessionUserId(): Promise<string | null> {
 }
 
 // Usuário atual (com workspace). null se não autenticado.
+// Usuário desativado conta como não autenticado: a sessão que já existia para
+// de valer na próxima requisição, sem precisar revogar token.
 export async function getCurrentUser() {
   const userId = await getSessionUserId();
   if (!userId) return null;
-  return db.user.findUnique({
-    where: { id: userId },
+  return db.user.findFirst({
+    where: { id: userId, active: true },
     include: { workspace: true },
   });
 }

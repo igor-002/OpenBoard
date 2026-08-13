@@ -17,11 +17,13 @@ export const NAV_MAIN: NavItem[] = [
 // Itens visíveis só para admin.
 export const NAV_ADMIN: NavItem[] = [
   { href: "/settings/users", label: "Usuários", icon: "settings" },
+  { href: "/settings/categorias", label: "Categorias", icon: "grid" },
 ];
 
 // Título do topbar (migalha "a > b") por prefixo de rota.
 export const CRUMBS: { prefix: string; a: string; b: string }[] = [
   { prefix: "/settings/users", a: "Configurações", b: "Usuários" },
+  { prefix: "/settings/categorias", a: "Configurações", b: "Categorias" },
   { prefix: "/projects/", a: "Projetos", b: "Detalhe" },
   { prefix: "/dashboard", a: "Início", b: "Visão geral" },
   { prefix: "/projects", a: "Projetos", b: "Todos os projetos" },

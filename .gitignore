@@ -59,3 +59,10 @@ geoip/
 
 # Saídas dos scripts de diagnóstico
 /scripts/out/
+
+# Rascunhos de sessão de agente (o que vale fica em docs/)
+/findings.md
+/progress.md
+/task_plan.md
+/cross-cutting-principles.md
+/skill-observations/

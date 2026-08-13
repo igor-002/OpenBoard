@@ -53,8 +53,13 @@ export async function getTimelineData(
   const yEnd = new Date(year, 11, 31, 23, 59, 59);
 
   const bars: GanttBar[] = projects
+    // Projeto vindo de integração (Ploomes) não traz data de início: cai no
+    // createdAt, mesma regra do detalhe do projeto — senão some do gráfico.
+    .map((p) => ({ ...p, startDate: p.startDate ?? p.createdAt }))
     // cruza o ano: começou até o fim do ano e (sem prazo OU prazo após início do ano)
     .filter((p) => p.startDate <= yEnd && (!p.dueDate || p.dueDate >= yStart))
+    // o orderBy do banco põe os sem data no fim; reordena com a data resolvida.
+    .sort((a, b) => +a.startDate - +b.startDate)
     .map((p) => {
       const sMonth = p.startDate < yStart ? 0 : p.startDate.getMonth();
       // sem prazo → barra aberta até dezembro

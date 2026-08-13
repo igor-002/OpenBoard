@@ -125,6 +125,14 @@ export async function createAtividade(_prev: AtividadeActionState, formData: For
       body: d.title,
       link: "/atividades",
     });
+    // Abre o modal de confirmação na hora, sem esperar o próximo carregamento.
+    emitAppEvent({
+      kind: "demanda_atribuida",
+      recipientIds: [assigneeId],
+      actorName: user.name,
+      entity: d.title,
+      link: "/atividades",
+    });
   }
 
   emitAppEvent({

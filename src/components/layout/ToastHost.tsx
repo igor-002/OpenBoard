@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Icon, type IconName } from "@/components/ui/Icon";
-import { withBasePath } from "@/lib/basePath";
+import { onServerEvent } from "@/lib/app-events-client";
 import { TOAST_EVENT, type LocalToast } from "@/lib/toast";
 
 // Toast unificado: eventos SSE (com link/ator) OU status local (sync iniciado/
@@ -52,28 +52,24 @@ export function ToastHost() {
   );
 
   // 1) Eventos do servidor (SSE) — criação de projeto/tarefa/solicitação.
-  useEffect(() => {
-    const es = new EventSource(withBasePath("/api/events"));
-    es.onmessage = (ev) => {
-      let data: { kind?: string; actorName?: string; entity?: string; link?: string };
-      try {
-        data = JSON.parse(ev.data);
-      } catch {
-        return;
-      }
-      if (!data.kind || !(data.kind in EVENT_META)) return;
-      const m = EVENT_META[data.kind as EventKind];
-      push({
-        icon: m.icon,
-        title: `${m.label}: ${data.entity ?? ""}`.trim(),
-        sub: `${m.verb} ${data.actorName ?? "Alguém"}`,
-        accent: "var(--primary)",
-        link: data.link ?? undefined,
-      });
-      router.refresh(); // atualiza o sino (não-lidas) sem reload
-    };
-    return () => es.close();
-  }, [router, push]);
+  // Kind sem entrada em EVENT_META (ex.: demanda_atribuida) não vira toast:
+  // outro componente cuida dele.
+  useEffect(
+    () =>
+      onServerEvent((data) => {
+        if (!data.kind || !(data.kind in EVENT_META)) return;
+        const m = EVENT_META[data.kind as EventKind];
+        push({
+          icon: m.icon,
+          title: `${m.label}: ${data.entity ?? ""}`.trim(),
+          sub: `${m.verb} ${data.actorName ?? "Alguém"}`,
+          accent: "var(--primary)",
+          link: data.link ?? undefined,
+        });
+        router.refresh(); // atualiza o sino (não-lidas) sem reload
+      }),
+    [router, push],
+  );
 
   // 2) Toasts locais (client) — status de sync etc. via emitToast().
   useEffect(() => {

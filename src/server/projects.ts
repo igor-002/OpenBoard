@@ -1,6 +1,5 @@
 import "server-only";
 import { db } from "@/lib/db";
-import { chaveCategoria, limparCategoria } from "@/lib/categoria";
 import type {
   ProjectStatus,
   Priority,
@@ -70,36 +69,18 @@ export async function getProjectsList(workspaceId: string): Promise<ProjectListI
   });
 }
 
-// Categorias existentes no workspace, para o filtro da lista e o select do
-// cadastro. Grafias que só diferem em caixa viram uma só; fica a variante mais
-// usada (empate: a primeira em ordem alfabética).
+// Categorias do workspace, para o filtro da lista e o select do cadastro.
+// Fonte única = tabela ProjectCategory (a mesma que a API de integração usa);
+// `Project.tag` continua guardando o texto só como histórico do projeto.
+// Categoria desativada some daqui, mesmo que ainda tenha projeto ligado.
 export async function getProjectCategorias(workspaceId: string): Promise<{ nome: string; total: number }[]> {
-  const grupos = await db.project.groupBy({
-    by: ["tag"],
-    where: { workspaceId },
-    _count: { _all: true },
+  const categorias = await db.projectCategory.findMany({
+    where: { workspaceId, active: true },
+    select: { name: true, _count: { select: { projects: true } } },
   });
 
-  const porChave = new Map<string, { nome: string; total: number; maior: number }>();
-  for (const g of grupos) {
-    const nome = limparCategoria(g.tag);
-    if (!nome) continue;
-    const k = chaveCategoria(nome);
-    const atual = porChave.get(k);
-    const n = g._count._all;
-    if (!atual) porChave.set(k, { nome, total: n, maior: n });
-    else {
-      atual.total += n;
-      // Variante vencedora: a mais usada; empate resolve pelo nome.
-      if (n > atual.maior || (n === atual.maior && nome.localeCompare(atual.nome) < 0)) {
-        atual.nome = nome;
-        atual.maior = n;
-      }
-    }
-  }
-
-  return [...porChave.values()]
-    .map(({ nome, total }) => ({ nome, total }))
+  return categorias
+    .map((c) => ({ nome: c.name, total: c._count.projects }))
     .sort((a, b) => b.total - a.total || a.nome.localeCompare(b.nome));
 }
 
@@ -164,7 +145,7 @@ export type ProjectEdit = {
   memberIds: string[];
 };
 
-const iso = (d: Date) => d.toISOString().slice(0, 10);
+const iso = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : "");
 
 // Dados de um projeto para preencher o formulário de edição.
 export async function getProjectForEdit(
@@ -236,7 +217,7 @@ export async function getProjectDetail(
       p.tasks.filter((t) => t.column === "done").length,
       p.tasks.length,
     ),
-    startDate: p.startDate,
+    startDate: p.startDate ?? p.createdAt,
     dueDate: p.dueDate,
     budgetCents: p.budgetCents,
     spentPct: p.spentPct,
