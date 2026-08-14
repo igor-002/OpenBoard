@@ -13,8 +13,10 @@ export function ProjectCard({ p }: { p: ProjectListItem }) {
   const dl = p.dueDate && p.status !== "done" ? deadlineInfo(p.dueDate) : null;
   const statusColor = STATUS_META[p.status].c;
 
+  // draggable={false}: o drag nativo de âncora do browser briga com o @dnd-kit
+  // no quadro (ver DraggableCard em ProjectsList).
   return (
-    <Link href={`/projects/${p.id}`} className={`card ${styles.card}`}>
+    <Link href={`/projects/${p.id}`} className={`card ${styles.card}`} draggable={false}>
       <div className={styles.cardTop}>
         <span className={`tag ${styles.tag}`} title={p.tag}>{p.tag}</span>
         {p.risk && (

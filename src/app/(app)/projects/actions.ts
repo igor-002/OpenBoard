@@ -11,11 +11,13 @@ import { ensureProjectCategory } from "@/server/project-categories";
 
 export type ProjectActionState = { ok?: boolean; error?: string; id?: string };
 
+const statusEnum = z.enum(["progress", "done", "review", "planned"]);
+
 const schema = z.object({
   name: z.string().min(2, "Informe o nome do projeto"),
   client: z.string().min(1, "Informe o cliente"),
   tag: z.string().min(1, "Informe uma categoria"),
-  status: z.enum(["progress", "done", "review", "planned"]),
+  status: statusEnum,
   startDate: z.string().optional(), // vazio = sem início definido (projeto vindo de integração)
   dueDate: z.string().optional(), // vazio = sem prazo
   manualProgress: z.number().min(0).max(100).nullable(), // null = progresso automático
@@ -150,6 +152,28 @@ export async function updateProject(projectId: string, _prev: ProjectActionState
     members.map((m) => m.userId).filter((id) => !before.has(id) && id !== user.id),
     { type: "project_member", title: "Você foi adicionado a um projeto", body: d.name, link: `/projects/${projectId}` },
   );
+
+  revalidatePath("/projects");
+  revalidatePath(`/projects/${projectId}`);
+  revalidatePath("/dashboard");
+  revalidatePath("/timeline");
+  return { ok: true, id: projectId };
+}
+
+// Arrastar o card entre as colunas do quadro só mexe no status — o resto do
+// projeto continua sendo editado pelo formulário (updateProject).
+export async function moveProject(projectId: string, status: string): Promise<ProjectActionState> {
+  const user = await requireUser();
+  const s = statusEnum.safeParse(status);
+  if (!s.success) return { error: "Status inválido." };
+
+  const exists = await db.project.findFirst({
+    where: { id: projectId, workspaceId: user.workspaceId },
+    select: { id: true },
+  });
+  if (!exists) return { error: "Projeto não encontrado." };
+
+  await db.project.update({ where: { id: projectId }, data: { status: s.data } });
 
   revalidatePath("/projects");
   revalidatePath(`/projects/${projectId}`);

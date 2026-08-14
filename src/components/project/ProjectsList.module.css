@@ -66,12 +66,49 @@
   min-width: 1100px;
 }
 
+.erro {
+  margin: 0 0 14px;
+  padding: 10px 14px;
+  color: var(--st-risk);
+  background: var(--st-risk-bg);
+  border-radius: var(--r-md);
+  font-size: 13px;
+  font-weight: 600;
+}
+
 .column {
   min-width: 0;
   padding: 12px;
   background: var(--surface-3);
   border: 1px solid var(--line);
   border-radius: var(--r-lg);
+  outline: 2px dashed transparent;
+  transition: outline-color 0.12s;
+}
+
+/* Coluna sob o card arrastado. */
+.columnOver {
+  outline-color: var(--primary);
+}
+
+/* O card é um <a>: sem matar o drag nativo do browser e a seleção de texto, o
+   Chrome inicia o próprio arraste no pointerdown e engole os pointermove/up —
+   o @dnd-kit começa o drag e nunca recebe o drop. */
+.draggable,
+.draggable a {
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.draggable {
+  cursor: grab;
+  outline: none;
+  /* sem isso o browser rola a página em vez de arrastar no touch */
+  touch-action: none;
+}
+
+.dragging {
+  cursor: grabbing;
 }
 
 .columnHeader,
