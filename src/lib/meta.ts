@@ -36,6 +36,11 @@ export const KANBAN_COLS: { id: TaskColumn; label: string; c: string }[] = [
 // pra sempre e enterrava as três colunas que importam.
 export const DIAS_CONCLUIDA_QUADRO = 7;
 
+// Mesmo problema no quadro de projetos, mas Project não tem data de conclusão
+// (só createdAt), então o corte é por quantidade e não por dias: mostra os N
+// mais recentes e esconde o resto atrás de um botão.
+export const PROJETOS_CONCLUIDOS_QUADRO = 8;
+
 export const MONTHS = [
   "Jan", "Fev", "Mar", "Abr", "Mai", "Jun",
   "Jul", "Ago", "Set", "Out", "Nov", "Dez",

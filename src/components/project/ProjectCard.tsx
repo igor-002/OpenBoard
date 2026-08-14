@@ -1,58 +1,56 @@
 // Card de projeto clicável. Portado de screens-a.jsx.
 import Link from "next/link";
 import { Icon } from "@/components/ui/Icon";
-import { StatusBadge } from "@/components/ui/Badge";
 import { ProgressBar } from "@/components/ui/Progress";
 import { AvatarStack } from "@/components/ui/Avatar";
 import { dayLabel, deadlineInfo, deadlineColor } from "@/lib/format";
+import { STATUS_META } from "@/lib/meta";
 import type { ProjectListItem } from "@/server/projects";
+import styles from "./ProjectsList.module.css";
 
 export function ProjectCard({ p }: { p: ProjectListItem }) {
   // Projeto concluído não tem urgência de prazo (não marca "atrasado").
   const dl = p.dueDate && p.status !== "done" ? deadlineInfo(p.dueDate) : null;
+  const statusColor = STATUS_META[p.status].c;
+
   return (
-    <Link href={`/projects/${p.id}`} className="card card-pad proj-card">
-      <div className="row between" style={{ marginBottom: 14 }}>
-        <span className="tag">{p.tag}</span>
-        <div className="row gap8">
-          {p.risk && (
-            <span className="badge" style={{ color: "var(--st-risk)", background: "var(--st-risk-bg)" }}>
-              <Icon name="alert" size={12} />
-              Em risco
-            </span>
-          )}
-          <StatusBadge status={p.status} />
-        </div>
+    <Link href={`/projects/${p.id}`} className={`card ${styles.card}`}>
+      <div className={styles.cardTop}>
+        <span className={`tag ${styles.tag}`} title={p.tag}>{p.tag}</span>
+        {p.risk && (
+          <span className={`badge ${styles.riskBadge}`} style={{ color: "var(--st-risk)", background: "var(--st-risk-bg)" }}>
+            <Icon name="alert" size={12} />
+            Em risco
+          </span>
+        )}
       </div>
-      <h3 style={{ margin: "0 0 4px", fontSize: 16.5, fontWeight: 800, letterSpacing: "-.3px", lineHeight: 1.25, fontFamily: "var(--font-display)" }}>
-        {p.name}
-      </h3>
-      <p style={{ margin: 0, fontSize: 13, color: "var(--muted)", fontWeight: 500 }}>{p.client}</p>
+      <h3 className={styles.cardTitle}>{p.name}</h3>
+      <p className={styles.cardClient} title={p.client}>{p.client}</p>
 
-      <div style={{ margin: "18px 0 16px" }}>
-        <div className="row between" style={{ marginBottom: 7 }}>
-          <span style={{ fontSize: 12.5, color: "var(--muted)", fontWeight: 600 }}>Progresso</span>
-          <b style={{ fontSize: 13 }}>{p.progress}%</b>
+      <div className={styles.progress}>
+        <div className={styles.progressLabel}>
+          <span>Progresso</span>
+          <b>{p.progress}%</b>
         </div>
-        <ProgressBar value={p.progress} color={p.status === "done" ? "var(--st-done)" : "var(--primary)"} />
+        <ProgressBar value={p.progress} color={statusColor} />
       </div>
 
-      <div className="row between" style={{ paddingTop: 15, borderTop: "1px solid var(--line)" }}>
-        <div style={{ display: "flex", gap: 18 }}>
-          <div>
-            <div style={{ fontSize: 11, color: "var(--muted)", fontWeight: 600 }}>Tarefas</div>
-            <b style={{ fontSize: 14 }}>{p.tasksDone}/{p.tasksTotal}</b>
+      <div className={styles.cardFooter}>
+        <div className={styles.cardMetrics}>
+          <div className={styles.cardMetric}>
+            <span>Tarefas</span>
+            <b>{p.tasksDone}/{p.tasksTotal}</b>
           </div>
-          <div>
-            <div style={{ fontSize: 11, color: "var(--muted)", fontWeight: 600 }}>Prazo</div>
+          <div className={styles.cardMetric}>
+            <span>Prazo</span>
             {dl ? (
-              <b style={{ fontSize: 14, color: deadlineColor(dl.tone) }} title={dayLabel(p.dueDate!)}>{dl.label}</b>
+              <b style={{ color: deadlineColor(dl.tone) }} title={dayLabel(p.dueDate!)}>{dl.label}</b>
             ) : (
-              <b style={{ fontSize: 14 }}>{p.dueDate ? dayLabel(p.dueDate) : "Sem prazo"}</b>
+              <b>{p.dueDate ? dayLabel(p.dueDate) : "Sem prazo"}</b>
             )}
           </div>
         </div>
-        <AvatarStack users={p.members} size={28} />
+        <AvatarStack users={p.members} size={26} max={3} />
       </div>
     </Link>
   );

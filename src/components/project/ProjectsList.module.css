@@ -1,0 +1,329 @@
+.filters {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 22px;
+}
+
+.categoryBar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.filterLabel {
+  flex: none;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.categorySegments {
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.categorySegments button {
+  flex: none;
+  max-width: 220px;
+}
+
+.categoryName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.categoryCount {
+  margin-left: 6px;
+  opacity: 0.6;
+}
+
+/* margin-left mantém a busca à direita mesmo quando não há barra de
+   categorias e o space-between fica sem par. */
+.search {
+  width: 260px;
+  flex: none;
+  margin-left: auto;
+}
+
+.boardViewport {
+  max-width: 100%;
+  overflow-x: auto;
+  padding-bottom: 8px;
+  scrollbar-width: thin;
+}
+
+.board {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(260px, 1fr));
+  align-items: start;
+  gap: 16px;
+  min-width: 1100px;
+}
+
+.column {
+  min-width: 0;
+  padding: 12px;
+  background: var(--surface-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+}
+
+.columnHeader,
+.columnTitle {
+  display: flex;
+  align-items: center;
+}
+
+.columnHeader {
+  justify-content: space-between;
+  gap: 12px;
+  padding: 3px 5px 12px;
+}
+
+.columnTitle {
+  min-width: 0;
+  gap: 8px;
+}
+
+.columnTitle h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 13.5px;
+  font-weight: 800;
+  letter-spacing: -0.1px;
+}
+
+.statusDot {
+  width: 9px;
+  height: 9px;
+  flex: none;
+  border-radius: 50%;
+}
+
+.columnCount {
+  position: relative;
+  min-width: 26px;
+  padding: 2px 8px;
+  color: var(--muted);
+  background: var(--surface);
+  border-radius: var(--r-pill);
+  font-size: 12px;
+  font-weight: 800;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.columnBody {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 96px;
+}
+
+.showMore {
+  padding: 9px 12px;
+  color: var(--muted);
+  background: transparent;
+  border: 1px dashed var(--line-2);
+  border-radius: var(--r-md);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
+.showMore:hover {
+  color: var(--ink);
+  border-style: solid;
+}
+
+.columnEmpty {
+  display: grid;
+  min-height: 96px;
+  place-items: center;
+  padding: 18px;
+  color: var(--muted-2);
+  border: 1px dashed var(--line-2);
+  border-radius: var(--r-md);
+  font-size: 12.5px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.card {
+  display: flex;
+  min-width: 0;
+  min-height: 214px;
+  flex-direction: column;
+  padding: 16px;
+  color: inherit;
+  transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
+}
+
+.card:hover {
+  border-color: var(--line-2);
+  box-shadow: var(--sh-md);
+  transform: translateY(-2px);
+}
+
+.card:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--primary) 28%, transparent);
+  outline-offset: 2px;
+}
+
+.cardTop {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.tag {
+  min-width: 0;
+  max-width: 60%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.riskBadge {
+  flex: none;
+}
+
+.cardTitle {
+  display: -webkit-box;
+  min-width: 0;
+  min-height: 40px;
+  margin: 0 0 4px;
+  overflow: hidden;
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 800;
+  line-height: 1.25;
+  letter-spacing: -0.3px;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.cardClient {
+  margin: 0;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.progress {
+  margin: 15px 0 14px;
+}
+
+.progressLabel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 7px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.progressLabel b {
+  color: var(--ink);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.cardFooter {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: auto;
+  padding-top: 13px;
+  border-top: 1px solid var(--line);
+}
+
+.cardMetrics {
+  display: flex;
+  min-width: 0;
+  gap: 16px;
+}
+
+.cardMetric {
+  min-width: 0;
+}
+
+.cardMetric span,
+.cardMetric b {
+  display: block;
+}
+
+.cardMetric span {
+  margin-bottom: 2px;
+  color: var(--muted);
+  font-size: 10.5px;
+  font-weight: 600;
+}
+
+.cardMetric b {
+  overflow: hidden;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+  .filters,
+  .categoryBar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .search {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  /* O snap vai no elemento que rola (.boardViewport); no .board, que só
+     transborda, a propriedade não tem efeito nenhum. */
+  .boardViewport {
+    scroll-snap-type: x mandatory;
+  }
+
+  .board {
+    grid-template-columns: none;
+    grid-auto-columns: minmax(272px, 86vw);
+    grid-auto-flow: column;
+    min-width: 0;
+  }
+
+  .column {
+    scroll-snap-align: start;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card {
+    transition: none;
+  }
+}
