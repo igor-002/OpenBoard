@@ -3,10 +3,11 @@
 // Requer que o perfil do usuário de serviço tenha DIREITO DE ESCRITA no GLPI
 // (o v1 era só-leitura); sem isso a API responde ERROR_RIGHT_MISSING.
 import "server-only";
-import { glpiPost, glpiDelete, glpiGetOne, DEFAULT_ENTITY_ID, TRACKED_USER_IDS } from "@/lib/glpi";
+import { glpiPost, glpiDelete, glpiGetOne, DEFAULT_ENTITY_ID } from "@/lib/glpi";
 import { v1SetTicketStatus, v1SetTicketCategory } from "@/lib/glpi-v1";
 import { db } from "@/lib/db";
 import { syncOneTicket } from "./sync";
+import { isValidRequester } from "./users";
 
 // Posta um acompanhamento (followup) no chamado.
 export async function addFollowup(glpiId: number, content: string, isPrivate = false): Promise<void> {
@@ -19,7 +20,7 @@ export async function addFollowup(glpiId: number, content: string, isPrivate = f
 export interface CreateTicketInput {
   name: string;
   content: string;
-  requesterId: number; // deve ser um dos GLPI_TRACKED_USER_IDS (senão some do mirror no próximo full sync)
+  requesterId: number; // usuário do time do marketing (ver getTrackedUsers)
   assigneeId?: number; // técnico que já sai atribuído (opcional)
   type?: number; // 1 Incidente, 2 Requisição (default)
   categoryId?: number | null; // ITILCategory da entidade Marketing (lista vem da v1)
@@ -33,15 +34,14 @@ export interface CreateTicketInput {
 // ATENÇÃO ao solicitante: `user_recipient` é read-only na prática — o GLPI grava
 // nele o usuário AUTENTICADO (o de serviço), ignorando o que a gente manda. O
 // solicitante de verdade é um TeamMember role="requester". Sem isso o chamado
-// nasce órfão: `attributedTrackedId` não acha requerente rastreado, cai no autor
-// (o user de serviço, que não é rastreado) e o chamado SOME do espelho no próximo
-// full sync.
+// nasce órfão: `attributedUserId` cai no autor (o user de serviço) e a demanda
+// aparece no espelho como se fosse do `integracaomkt`.
 export async function createTicket(input: CreateTicketInput): Promise<number | null> {
   const name = input.name.trim();
   const content = input.content.trim();
   if (!name) throw new Error("Título obrigatório.");
-  if (!TRACKED_USER_IDS.includes(input.requesterId)) {
-    throw new Error("Solicitante inválido (precisa ser um usuário rastreado do marketing).");
+  if (!(await isValidRequester(input.requesterId))) {
+    throw new Error("Solicitante inválido (precisa ser um usuário ativo do time do marketing).");
   }
   const urgency = input.urgency ?? 3;
   const created = await glpiPost<{ id?: number }>(`/Assistance/Ticket`, {

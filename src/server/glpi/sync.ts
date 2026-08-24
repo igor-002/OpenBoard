@@ -1,14 +1,19 @@
 // Sync GLPI → espelho local (GlpiTicket). Read-only. "Demanda do marketing" =
-// chamado cujo REQUERENTE (ou autor) é um dos usuários rastreados — assim entram
-// também os chamados que OUTRAS pessoas abrem PARA um usuário do marketing.
+// chamado da ENTIDADE Marketing, mais os chamados abertos por alguém do time do
+// marketing em outra entidade.
 //
 // O GLPI não deixa filtrar por requerente via RSQL (a lista de atores não é
 // filtrável — só autor e entidade são). Então puxamos a UNIÃO de dois filtros
-// escaláveis: autor∈rastreados OU entidade Marketing; e filtramos LOCALMENTE
-// mantendo só os chamados cujo requerente/autor é rastreado, atribuindo a demanda
-// a esse usuário de marketing (pro "por pessoa" agrupar certo).
+// escaláveis: autor∈rastreados OU entidade Marketing.
+//
+// A entidade manda: todo chamado da entidade Marketing entra, mesmo que nenhum
+// ator dele esteja em GLPI_TRACKED_USER_IDS. A regra antiga exigia um ator
+// rastreado e DESCARTAVA silenciosamente os chamados de quem não estava na lista
+// (8 chamados reais, incl. 2 abertos pela Caroline em ago/2026) — uma lista fixa
+// de ids no env não é critério confiável de escopo.
 import { db } from "@/lib/db";
 import { glpiGetOne, glpiGetAll, glpiDate, glpiConfigured, TRACKED_USER_IDS, DEFAULT_ENTITY_ID } from "@/lib/glpi";
+import { fetchGlpiUsers, glpiDisplayName } from "./users";
 
 // Campos pedidos ao GLPI (evita despejar o objeto inteiro — doc §3).
 const FIELDS =
@@ -40,22 +45,13 @@ type GlpiTicketRaw = {
   is_deleted?: boolean;
 };
 
-type GlpiUserRaw = { id: number; username?: string; firstname?: string; realname?: string };
-
-// Resolve id → nome de exibição dos usuários rastreados (o user_recipient só traz
-// o login). Um GET por usuário; falha individual não aborta.
-async function resolveTrackedUsers(): Promise<Map<number, { login: string; name: string }>> {
+// Resolve id → nome de exibição de QUALQUER usuário (o user_recipient e o team só
+// trazem o login). Uma chamada só pra instância inteira; se falhar, o upsert cai
+// no login/nome que veio dentro do próprio chamado.
+async function resolveUsers(): Promise<Map<number, { login: string; name: string }>> {
   const map = new Map<number, { login: string; name: string }>();
-  for (const id of TRACKED_USER_IDS) {
-    try {
-      const u = await glpiGetOne<GlpiUserRaw>(`/Administration/User/${id}`, "id,username,firstname,realname");
-      if (u) {
-        const name = [u.firstname, u.realname].filter(Boolean).join(" ").trim() || u.username || String(id);
-        map.set(id, { login: u.username ?? String(id), name });
-      }
-    } catch {
-      // segue sem esse usuário resolvido (usa login/id como fallback no upsert)
-    }
+  for (const u of await fetchGlpiUsers()) {
+    map.set(u.id, { login: u.username ?? String(u.id), name: glpiDisplayName(u) });
   }
   return map;
 }
@@ -64,23 +60,34 @@ async function resolveTrackedUsers(): Promise<Map<number, { login: string; name:
 const hasRole = (m: TeamMember, role: "requester" | "assigned") =>
   String(m.role ?? "").toLowerCase().includes(role);
 
-// Usuário de marketing (rastreado) a quem a demanda pertence, em ordem de força:
-// 1º um REQUERENTE rastreado (chamado aberto PARA ele); 2º o AUTOR, se rastreado;
-// 3º um ATRIBUÍDO rastreado. null = não é demanda de ninguém do marketing → o
-// chamado é descartado no sync.
+// Quem PEDIU a demanda — é isso que a coluna "Solicitante" mostra e o que agrupa
+// as abas "por pessoa". Ordem de força:
+//   1º o AUTOR, quando ele também consta como requerente (caso normal: a pessoa
+//      abre o próprio chamado — desempata quando há vários requerentes);
+//   2º o primeiro REQUERENTE do team, seja ele do marketing ou não;
+//   3º o AUTOR (chamado sem requerente no team);
+//   4º um ATRIBUÍDO (chamado sem autor nem requerente — dado velho do GLPI).
+// null só quando o chamado não tem ator nenhum.
 //
-// O 3º caso não é teoria: quando alguém de fora abre um chamado PARA o marketing,
-// esta instância põe a pessoa do marketing no team só como `assigned`, sem
-// `requester` nenhum — 20 chamados reais da entidade Marketing ficavam invisíveis
-// por isso. Como o pool já é "autor rastreado OU entidade Marketing", cair pro
-// atribuído não amplia o escopo além do que é demanda do time.
-function attributedTrackedId(t: GlpiTicketRaw): number | null {
+// Não exige mais que a pessoa esteja em GLPI_TRACKED_USER_IDS: exigir isso fazia
+// o chamado ser atribuído a quem ATENDEU (fallback pro atribuído), então a coluna
+// "Solicitante" mostrava o técnico do marketing no lugar de quem pediu.
+function attributedUserId(t: GlpiTicketRaw): number | null {
   const team = t.team ?? [];
-  const req = team.find((m) => hasRole(m, "requester") && TRACKED_USER_IDS.includes(m.id));
-  if (req) return req.id;
+  const requesters = team.filter((m) => hasRole(m, "requester"));
   const authorId = t.user_recipient?.id ?? 0;
-  if (TRACKED_USER_IDS.includes(authorId)) return authorId;
-  return team.find((m) => hasRole(m, "assigned") && TRACKED_USER_IDS.includes(m.id))?.id ?? null;
+  if (authorId && requesters.some((m) => m.id === authorId)) return authorId;
+  if (requesters.length > 0) return requesters[0].id;
+  if (authorId) return authorId;
+  return team.find((m) => hasRole(m, "assigned"))?.id ?? null;
+}
+
+// Um chamado é demanda do marketing se está na entidade Marketing ou se um dos
+// atores é do time rastreado (pega o que o time abre em outra entidade).
+function isMarketingDemand(t: GlpiTicketRaw): boolean {
+  if (t.entity?.id === DEFAULT_ENTITY_ID) return true;
+  if (TRACKED_USER_IDS.includes(t.user_recipient?.id ?? 0)) return true;
+  return (t.team ?? []).some((m) => TRACKED_USER_IDS.includes(m.id));
 }
 
 // Mapeia o ticket cru do GLPI → colunas do GlpiTicket (mesma forma no sync completo
@@ -89,7 +96,12 @@ function buildTicketData(t: GlpiTicketRaw, users: Map<number, { login: string; n
   const resolved = users.get(attributedId);
   const actor = (t.team ?? []).find((m) => m.id === attributedId);
   const requesterLogin = resolved?.login ?? actor?.name ?? t.user_recipient?.name ?? "";
-  const requesterName = resolved?.name ?? actor?.display_name ?? actor?.name ?? requesterLogin;
+  // attributedId 0 = chamado sem ator nenhum no GLPI (dado antigo). Fica no espelho
+  // com rótulo próprio em vez de virar uma aba "0" sem nome.
+  const requesterName =
+    attributedId > 0
+      ? (resolved?.name ?? actor?.display_name ?? actor?.name ?? requesterLogin ?? String(attributedId))
+      : "(sem solicitante)";
   const assignees = (t.team ?? [])
     .filter((m) => hasRole(m, "assigned"))
     .map((m) => m.display_name || m.name)
@@ -123,7 +135,7 @@ function buildTicketData(t: GlpiTicketRaw, users: Map<number, { login: string; n
 }
 
 async function syncTickets(): Promise<{ processed: number; errors: number }> {
-  const users = await resolveTrackedUsers();
+  const users = await resolveUsers();
 
   // União de dois filtros escaláveis (autor rastreado OU entidade Marketing).
   // O requerente não é filtrável via RSQL, então trazemos esses dois conjuntos e
@@ -140,10 +152,9 @@ async function syncTickets(): Promise<{ processed: number; errors: number }> {
   const seen: number[] = [];
 
   for (const t of byId.values()) {
-    const attributedId = attributedTrackedId(t);
-    if (attributedId == null) continue; // requerente/autor não é do marketing → ignora
+    if (!isMarketingDemand(t)) continue;
     try {
-      const data = buildTicketData(t, users, attributedId);
+      const data = buildTicketData(t, users, attributedUserId(t) ?? 0);
       await db.glpiTicket.upsert({
         where: { glpiId: t.id },
         create: { glpiId: t.id, ...data },
@@ -173,13 +184,10 @@ async function syncTickets(): Promise<{ processed: number; errors: number }> {
 // Se o ticket não for mais visível/existir, ignora silenciosamente.
 export async function syncOneTicket(glpiId: number): Promise<void> {
   if (!glpiConfigured() || !Number.isInteger(glpiId) || glpiId <= 0) return;
-  const users = await resolveTrackedUsers();
+  const users = await resolveUsers();
   const t = await glpiGetOne<GlpiTicketRaw>(`/Assistance/Ticket/${glpiId}`, FIELDS);
   if (!t || !t.id) return;
-  // Pós-escrita nossa: o ticket é sempre de um usuário rastreado; se não achar,
-  // cai no autor pra não perder o chamado que acabamos de gravar.
-  const attributedId = attributedTrackedId(t) ?? t.user_recipient?.id ?? 0;
-  const data = buildTicketData(t, users, attributedId);
+  const data = buildTicketData(t, users, attributedUserId(t) ?? 0);
   await db.glpiTicket.upsert({
     where: { glpiId: t.id },
     create: { glpiId: t.id, ...data },

@@ -21,8 +21,11 @@ const PASSWORD = process.env.GLPI_PASSWORD ?? "";
 const API = `${URL_BASE}/api.php/v2.1`;
 const TOKEN_URL = `${URL_BASE}/api.php/token`;
 
-// IDs dos usuários do GLPI cujos chamados (como autor) contam como "demanda do
-// marketing". Ex.: "40,41,43,60" (wesley, vinicius, atila, breno).
+// IDs do time do marketing no GLPI. Usados para (a) puxar também os chamados que
+// eles abrem FORA da entidade Marketing e (b) completar a lista de solicitantes de
+// nova demanda, que por padrão vem de quem tem a entidade Marketing como padrão.
+// Ex.: "43,60,78" (atila, breno, jean). NÃO é mais o critério de escopo do sync —
+// a entidade Marketing é. Ver src/server/glpi/sync.ts.
 export const TRACKED_USER_IDS = (process.env.GLPI_TRACKED_USER_IDS || "")
   .split(",")
   .map((s) => Number(s.trim()))
