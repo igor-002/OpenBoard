@@ -123,10 +123,20 @@ export function ContasManager({ companies }: { companies: CompanyRow[] }) {
     async () => {
       const r = await runManualMarketingSyncAction();
       if (!r.ok) return { ok: false, error: "Falha ao sincronizar." };
-      const erros = r.resultados?.filter((x) => x.status === "erro").length ?? 0;
+      const comErro = r.resultados?.filter((x) => x.status === "erro") ?? [];
       const semToken = r.resultados?.filter((x) => x.status === "sem_token").length ?? 0;
       const total = r.resultados?.length ?? 0;
-      if (erros > 0) return { ok: false, error: `${total} conta(s), ${erros} com erro, ${semToken} sem token.` };
+      // Sem o username e a mensagem da API, "1 com erro" não diz qual conta
+      // reconectar — mostra conta por conta.
+      if (comErro.length > 0) {
+        const detalhe = comErro
+          .map((x) => `@${x.username}: ${x.erro ?? "erro desconhecido"}`)
+          .join(" · ");
+        return {
+          ok: false,
+          error: `${total} conta(s), ${semToken} sem token — ${detalhe}`,
+        };
+      }
       return { ok: true };
     },
     { label: "Sync do Instagram", onSuccess: () => router.refresh() },
