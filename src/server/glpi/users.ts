@@ -2,6 +2,7 @@
 // demanda; técnico a atribuir). Buscadas ao vivo — poucos usuários nesta instância.
 import "server-only";
 import { glpiGet, glpiConfigured, TRACKED_USER_IDS, DEFAULT_ENTITY_ID } from "@/lib/glpi";
+import { cached } from "@/lib/ttl-cache";
 
 export interface GlpiUserOpt {
   id: number;
@@ -29,11 +30,24 @@ export function glpiDisplayName(u: RawUser): string {
 
 // Todos os usuários da instância numa chamada só (são ~60). Serve de base pra
 // todas as listas abaixo e pra resolver id → nome no sync.
+//
+// Cacheado: uma tela do marketing pede esta lista duas vezes (solicitante e
+// responsável) e o quadro é `force-dynamic`, então sem cache cada carga fazia
+// dois GETs idênticos de 500 usuários. O single-flight do `cached` junta as duas
+// numa só; o TTL curto mantém entrada/saída de gente aparecendo rápido e ainda
+// deixa o sync (a cada 30min) sempre pegar lista nova.
+const USERS_TTL_MS = 5 * 60_000;
+
 export async function fetchGlpiUsers(): Promise<RawUser[]> {
   if (!glpiConfigured()) return [];
+  // O erro sobe de dentro do `cached` de propósito: assim uma falha momentânea do
+  // GLPI não grava uma lista vazia por 5 minutos (o botão "Nova demanda" sumiria).
+  // Com valor anterior em cache o SWR devolve o velho; sem nenhum, cai no [].
   try {
-    const { data } = await glpiGet<RawUser>("/Administration/User", { fields: USER_FIELDS, limit: 500 });
-    return data.filter((u) => Number.isInteger(u.id) && u.id > 0);
+    return await cached("glpi:users", USERS_TTL_MS, async () => {
+      const { data } = await glpiGet<RawUser>("/Administration/User", { fields: USER_FIELDS, limit: 500 });
+      return data.filter((u) => Number.isInteger(u.id) && u.id > 0);
+    });
   } catch {
     return [];
   }

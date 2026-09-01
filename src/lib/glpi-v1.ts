@@ -6,6 +6,7 @@
 // Toda a LEITURA continua na V2.1 (`@/lib/glpi`). Aqui mora só o que ela não faz.
 // Ver `docs/glpi-api-v1-referencia.md`.
 import "server-only";
+import { cached } from "@/lib/ttl-cache";
 
 const URL_BASE = (process.env.GLPI_URL ?? "").replace(/\/$/, "");
 const API = `${URL_BASE}/apirest.php`;
@@ -76,19 +77,27 @@ export interface GlpiCategoria {
 
 const ENTITY_ID = Number(process.env.GLPI_ENTITY_ID) || 54;
 
+// Cacheado com TTL longo: listar categoria custa TRÊS roundtrips sequenciais
+// (initSession + GET + killSession) e ainda por cima numa sessão `session_write`,
+// que serializa. Categoria de serviço muda de mês em mês, não de minuto em minuto,
+// e três telas do marketing pediam essa lista a cada carga.
+const CATEGORIAS_TTL_MS = 30 * 60_000;
+
 export async function v1ListCategories(): Promise<GlpiCategoria[]> {
   if (!glpiV1Configured()) return [];
   try {
-    return await comSessao(async (headers) => {
-      const r = await fetch(`${API}/ITILCategory?range=0-999`, { headers, cache: "no-store" });
-      if (!r.ok) return [];
-      const raw = (await r.json()) as { id: number; entities_id: number; completename?: string; name?: string }[];
-      if (!Array.isArray(raw)) return [];
-      return raw
-        .filter((c) => c.entities_id === ENTITY_ID)
-        .map((c) => ({ id: c.id, nome: c.completename || c.name || String(c.id) }))
-        .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
-    });
+    return await cached("glpi:categorias", CATEGORIAS_TTL_MS, async () =>
+      comSessao(async (headers) => {
+        const r = await fetch(`${API}/ITILCategory?range=0-999`, { headers, cache: "no-store" });
+        if (!r.ok) throw new GlpiV1Error(r.status, "ITILCategory");
+        const raw = (await r.json()) as { id: number; entities_id: number; completename?: string; name?: string }[];
+        if (!Array.isArray(raw)) throw new GlpiV1Error(502, "ITILCategory", "resposta não é lista");
+        return raw
+          .filter((c) => c.entities_id === ENTITY_ID)
+          .map((c) => ({ id: c.id, nome: c.completename || c.name || String(c.id) }))
+          .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+      }),
+    );
   } catch {
     return []; // categoria é opcional no formulário — sem ela o resto segue
   }

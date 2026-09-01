@@ -903,6 +903,9 @@ model GlpiTicket {
   @@index([requesterId, statusId])
   @@index([dateCreation])
   @@index([dueAt])
+  // A ingestão do quadro roda em toda carga de /marketing/quadro e filtra por
+  // este par; sem índice era varredura da tabela inteira do espelho.
+  @@index([isDeleted, hiddenFromBoard])
 }
 
 // Log de cada execução do sync GLPI. Separado do SyncRun (IXC) de propósito: o

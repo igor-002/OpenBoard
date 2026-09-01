@@ -150,18 +150,25 @@ async function ingestGlpiCards(boardId: string): Promise<void> {
   // 2) cards em coluna mapeada cujo status mudou POR FORA (inclusive pra
   //    solucionado/fechado — senão o chamado resolvido no GLPI ficaria preso na
   //    coluna antiga pra sempre). Coluna do time não é tocada.
+  // Os UPDATEs vão num $transaction só. Antes era um await por card dentro do
+  // laço, ou seja, um roundtrip ao banco por chamado que mudou de status — e isso
+  // roda em TODA carga do quadro, antes de qualquer coisa aparecer na tela.
   const porId = new Map(espelho.map((t) => [t.glpiId, t]));
+  const movimentos = [];
   for (const card of existentes) {
     if (!mapeada.has(card.columnId)) continue;
     const t = porId.get(card.glpiId!);
     if (!t) continue;
     const alvo = colForStatus.get(normalizeGlpiStatus(t.statusId));
     if (!alvo || alvo === card.columnId) continue;
-    await db.mktCard.update({
-      where: { id: card.id },
-      data: { columnId: alvo, order: await proximaOrdem(alvo), ...doneAtPatch(saida.has(alvo), card.doneAt) },
-    });
+    movimentos.push(
+      db.mktCard.update({
+        where: { id: card.id },
+        data: { columnId: alvo, order: await proximaOrdem(alvo), ...doneAtPatch(saida.has(alvo), card.doneAt) },
+      }),
+    );
   }
+  if (movimentos.length) await db.$transaction(movimentos);
 }
 
 // Card que entra numa coluna de saída marca a hora (base do "some depois de 2
