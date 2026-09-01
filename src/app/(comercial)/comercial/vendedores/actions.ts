@@ -27,6 +27,17 @@ export async function setVendedorHistorico(id: string, incluir: boolean): Promis
   return { ok: true };
 }
 
+// Liga/desliga "Relatório Diário" (quem aparece na aba diário dos relatórios).
+// Separado de `ativo` de propósito: desligar `ativo` tiraria o vendedor de todo o
+// módulo comercial (MRR, contratos, ranking), não só do diário.
+export async function setVendedorDiario(id: string, incluir: boolean): Promise<VendedorActionState> {
+  await requireAdmin();
+  await db.vendedor.update({ where: { id }, data: { incluirDiario: incluir } });
+  revalidatePath("/comercial/vendedores");
+  revalidatePath("/comercial/relatorios");
+  return { ok: true };
+}
+
 // Vincula (ou desvincula) um vendedor a um User do OpenBoard (A1). userId vazio = desvincula.
 export async function setVendedorUser(id: string, userId: string | null): Promise<VendedorActionState> {
   await requireAdmin();

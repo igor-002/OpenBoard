@@ -797,6 +797,7 @@ export type VendedorRow = {
   nome: string;
   ativo: boolean;
   incluirHistorico: boolean;
+  incluirDiario: boolean;
   userId: string | null;
   userName: string | null; // nome do User OpenBoard vinculado (A1)
 };
@@ -804,7 +805,7 @@ export type VendedorRow = {
 export async function getVendedoresCRM(): Promise<VendedorRow[]> {
   const vs = await db.vendedor.findMany({
     orderBy: [{ ativo: "desc" }, { nome: "asc" }],
-    select: { id: true, ixcId: true, nome: true, ativo: true, incluirHistorico: true, userId: true },
+    select: { id: true, ixcId: true, nome: true, ativo: true, incluirHistorico: true, incluirDiario: true, userId: true },
   });
   // Vínculo Vendedor↔User é frouxo (sem FK) — resolve os nomes num lote.
   const userIds = [...new Set(vs.map((v) => v.userId).filter((x): x is string => !!x))];

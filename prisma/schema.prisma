@@ -464,6 +464,10 @@ model Vendedor {
   // Governança local (toggles na tela Vendedores — preservados entre syncs):
   ativo            Boolean @default(false) // "Ativo no CRM": aparece nas listas/telas
   incluirHistorico Boolean @default(false) // gate do sync: só estes têm contratos puxados do IXC
+  // "Aparece no Relatório Diário". Independente de `ativo` de propósito: quem sai
+  // do preenchimento diário (mudou de função, saiu da equipe) precisa continuar
+  // ativo no CRM pra que os contratos/MRR históricos dele não sumam dos números.
+  incluirDiario    Boolean @default(true)
   userId    String? // User local vinculado (opcional, sem FK)
   syncedAt  DateTime @default(now())
   createdAt DateTime @default(now())

@@ -159,8 +159,10 @@ async function Equipe({ ini, fim }: { ini: string; fim: string }) {
 // ── Relatório Diário (manual) ─────────────────────────────────────────────────
 async function Diario({ dataISO }: { dataISO: string }) {
   const [vendedores, diaMap] = await Promise.all([getVendedoresCRM(), getDiarioDia(dataISO)]);
+  // `incluirDiario` é o gate desta tela; `ativo` continua sendo o do resto do
+  // comercial. Quem parou de preencher o diário some daqui sem perder histórico.
   const linhas = vendedores
-    .filter((v) => v.ativo)
+    .filter((v) => v.ativo && v.incluirDiario)
     .map((v) => {
       const r = diaMap.get(v.ixcId);
       return {

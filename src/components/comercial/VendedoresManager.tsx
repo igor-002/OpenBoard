@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Icon } from "@/components/ui/Icon";
 import { Card } from "@/components/ui/Card";
 import { useSyncRun } from "@/lib/useSyncRun";
-import { setVendedorAtivo, setVendedorHistorico, setVendedorUser, autoVincularVendedores, syncVendedoresAction } from "@/app/(comercial)/comercial/vendedores/actions";
+import { setVendedorAtivo, setVendedorHistorico, setVendedorDiario, setVendedorUser, autoVincularVendedores, syncVendedoresAction } from "@/app/(comercial)/comercial/vendedores/actions";
 import type { VendedorRow } from "@/server/comercial/queries";
 
 type UserOpt = { id: string; name: string };
@@ -52,6 +52,10 @@ export function VendedoresManager({ rows, userOpts, isAdmin }: { rows: VendedorR
     setList((l) => l.map((x) => (x.id === v.id ? { ...x, incluirHistorico: val } : x)));
     start(async () => { await setVendedorHistorico(v.id, val); });
   }
+  function toggleDiario(v: VendedorRow, val: boolean) {
+    setList((l) => l.map((x) => (x.id === v.id ? { ...x, incluirDiario: val } : x)));
+    start(async () => { await setVendedorDiario(v.id, val); });
+  }
   function vincularUser(v: VendedorRow, userId: string) {
     setList((l) => l.map((x) => (x.id === v.id ? { ...x, userId: userId || null, userName: userId ? userNome.get(userId) ?? null : null } : x)));
     start(async () => { await setVendedorUser(v.id, userId || null); });
@@ -69,7 +73,7 @@ export function VendedoresManager({ rows, userOpts, isAdmin }: { rows: VendedorR
       <div className="page-head">
         <div>
           <h1 className="page-title">Vendedores</h1>
-          <p className="page-sub">Defina quais vendedores aparecem no CRM e entram no sync de contratos.</p>
+          <p className="page-sub">Defina quais vendedores aparecem no CRM, entram no sync de contratos e preenchem o relatório diário.</p>
         </div>
         {isAdmin && (
           <div className="row gap12" style={{ alignItems: "center" }}>
@@ -107,6 +111,7 @@ export function VendedoresManager({ rows, userOpts, isAdmin }: { rows: VendedorR
                   <th style={{ textAlign: "left" }}>Usuário OpenBoard</th>
                   <th style={{ textAlign: "center" }}>Ativo no CRM</th>
                   <th style={{ textAlign: "center" }}>Histórico (sync)</th>
+                  <th style={{ textAlign: "center" }}>Relatório diário</th>
                 </tr>
               </thead>
               <tbody>
@@ -139,6 +144,13 @@ export function VendedoresManager({ rows, userOpts, isAdmin }: { rows: VendedorR
                     <td style={{ textAlign: "center" }}>
                       {v.ativo ? (
                         <Toggle on={v.incluirHistorico} disabled={!isAdmin || pending} onChange={(val) => toggleHist(v, val)} />
+                      ) : (
+                        <span className="muted">—</span>
+                      )}
+                    </td>
+                    <td style={{ textAlign: "center" }}>
+                      {v.ativo ? (
+                        <Toggle on={v.incluirDiario} disabled={!isAdmin || pending} onChange={(val) => toggleDiario(v, val)} />
                       ) : (
                         <span className="muted">—</span>
                       )}
