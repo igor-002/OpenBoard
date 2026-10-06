@@ -1,166 +1,300 @@
 import Link from "next/link";
-import { requireUser } from "@/lib/auth";
-import { getDashboardData } from "@/server/dashboard";
-import { getUsers } from "@/server/users";
-import { getProjectCategorias } from "@/server/projects";
-import { getComercialOverview, getDashboard as getComercialDashboard } from "@/server/comercial/queries";
-import { Card } from "@/components/ui/Card";
-import { StatCard } from "@/components/ui/Stat";
-import { Icon } from "@/components/ui/Icon";
+import { requireTool } from "@/lib/permissions";
+import { getHojeData, type HojeTask } from "@/server/hoje";
 import { Avatar } from "@/components/ui/Avatar";
-import { ProgressBar } from "@/components/ui/Progress";
-import { Donut } from "@/components/charts/Charts";
-import { ProjectRow } from "@/components/project/ProjectRow";
-import { NewProjectButton } from "@/components/project/NewProjectButton";
+import { Icon, type IconName } from "@/components/ui/Icon";
 import { AutoRefresh } from "@/components/common/AutoRefresh";
-import { STATUS_META } from "@/lib/meta";
-import { dayLabel, deadlineInfo, deadlineColor, brl } from "@/lib/format";
+import { Captura } from "@/components/hoje/Captura";
+import { LinhaTarefa } from "@/components/hoje/LinhaTarefa";
+import { deadlineInfo, hourLabel } from "@/lib/format";
 
-export default async function DashboardPage() {
-  const user = await requireUser();
-  const [data, users, comercial, categorias] = await Promise.all([
-    getDashboardData(user.workspaceId),
-    getUsers(user.workspaceId),
-    getComercialOverview(),
-    getProjectCategorias(user.workspaceId),
-  ]);
-  const memberOpts = users.map((u) => ({ id: u.id, name: u.name }));
+const fmtHoje = new Intl.DateTimeFormat("pt-BR", { weekday: "long", day: "numeric", month: "long" });
 
-  // KPIs comerciais (IXC) no dashboard do OpenBoard — só se a integração estiver configurada.
-  const comercialMes = comercial.configured ? await getComercialDashboard(0) : null;
+// "há 40min" | "há 3h" | "há 2 dias" — idade de uma tarefa em relação a agora.
+function ha(desde: Date, agora: number): string {
+  const min = Math.max(0, Math.round((agora - +desde) / 60000));
+  if (min < 1) return "agora";
+  if (min < 60) return `há ${min}min`;
+  const h = Math.floor(min / 60);
+  if (h < 24) return `há ${h}h`;
+  const d = Math.floor(h / 24);
+  return `há ${d} ${d === 1 ? "dia" : "dias"}`;
+}
 
-  const firstName = user.name.split(" ")[0];
-  const donedPct = data.tasksTotal ? Math.round((data.tasksDone / data.tasksTotal) * 100) : 0;
-  const inProgress = data.projects.filter((p) => p.status !== "done");
-  const deadlines = inProgress
-    .filter((p): p is typeof p & { dueDate: Date } => p.dueDate !== null)
-    .sort((a, b) => +a.dueDate - +b.dueDate)
-    .slice(0, 4);
+function junta(partes: (string | null | false | undefined)[]): string {
+  return partes.filter(Boolean).join(" · ");
+}
+
+function Stat({ icon, cor, rotulo, valor }: { icon: IconName; cor: string; rotulo: string; valor: number }) {
+  return (
+    <div className="hj-stat">
+      <div className={`hj-stat-ico ${cor}`}>
+        <Icon name={icon} size={20} />
+      </div>
+      <div>
+        <div className="hj-stat-rotulo">{rotulo}</div>
+        <div className="hj-stat-valor">{valor}</div>
+      </div>
+    </div>
+  );
+}
+
+function Pilula({ cor, children, n }: { cor: string; children: React.ReactNode; n: number }) {
+  return (
+    <span className={`hj-pilula ${cor}`}>
+      <i />
+      {children} <b>{n}</b>
+    </span>
+  );
+}
+
+export default async function HojePage() {
+  const user = await requireTool("gestao.dashboard");
+  const d = await getHojeData(user.workspaceId);
+  const agora = d.agora;
+  const esperando = d.semDono.length + d.semConfirmacao.length;
+  const pendencias = esperando + d.atrasadas.length;
+  const primeiroNome = user.name.trim().split(/\s+/)[0];
+  const dia = fmtHoje.format(agora);
+
+  const prazo = (t: HojeTask) => (t.atrasada && t.dueDate ? <span className="risco">{deadlineInfo(t.dueDate).label}</span> : null);
+  const linha = (t: HojeTask, acao: "despachar" | "andar" | "nenhuma", meta: React.ReactNode, vivo = false) => (
+    <LinhaTarefa
+      key={t.id}
+      id={t.id}
+      numero={t.numero}
+      title={t.title}
+      column={t.column}
+      priority={t.priority}
+      origem={t.origem}
+      assigneeId={t.assigneeId}
+      membros={d.membros}
+      acao={acao}
+      meta={meta}
+      vivo={vivo}
+    />
+  );
 
   return (
     <div className="page">
       <AutoRefresh seconds={60} />
-      <div className="page-head">
+
+      <div className="hj-ola">
+        <Avatar user={user} size={46} ring={false} />
         <div>
-          <h1 className="page-title">Visão geral</h1>
-          <p className="page-sub">Bem-vindo de volta, {firstName} — resumo do workspace.</p>
-        </div>
-        <div className="row gap12">
-          <NewProjectButton users={memberOpts} categorias={categorias} />
+          <h1 style={{ textTransform: "capitalize" }}>Olá, {primeiroNome}</h1>
+          <p>
+            {dia.charAt(0).toUpperCase() + dia.slice(1)}
+            {pendencias === 0 ? (
+              " · nada esperando você"
+            ) : (
+              <>
+                {esperando > 0 && (
+                  <>
+                    {" · "}
+                    <b>
+                      {esperando} {esperando === 1 ? "demanda esperando" : "demandas esperando"} você
+                    </b>
+                  </>
+                )}
+                {d.atrasadas.length > 0 && (
+                  <>
+                    {" · "}
+                    <b className="risco">
+                      {d.atrasadas.length} {d.atrasadas.length === 1 ? "atrasada" : "atrasadas"}
+                    </b>
+                  </>
+                )}
+              </>
+            )}
+          </p>
         </div>
       </div>
 
-      <div className="grid" style={{ gridTemplateColumns: "repeat(4,1fr)" }}>
-        <StatCard icon="briefcase" label="Projetos ativos" value={data.projectsActive} foot={`de ${data.projectsTotal} no total`} accent="var(--primary)" />
-        <StatCard icon="checkCircle" label="Tarefas concluídas" value={donedPct} suffix="%" foot={`de ${data.tasksTotal} tarefas`} accent="var(--st-done)" />
-        <StatCard icon="users" label="Utilização do time" value={data.utilization} suffix="%" foot="carga média" accent="var(--st-progress)" />
-        <StatCard icon="clock" label="Horas apontadas" value={data.hoursWeek} suffix="h" foot={`em ${data.hoursProjects} projetos`} accent="var(--st-review)" />
+      <div className="hj-stats">
+        <Stat icon="inbox" cor="cor-roxo" rotulo="Na fila" valor={d.totais.fila} />
+        <Stat icon="zap" cor="cor-azul" rotulo="Em atendimento" valor={d.totais.fazendo} />
+        <Stat icon="pause" cor="cor-ambar" rotulo="Aguardando" valor={d.totais.aguardando} />
+        <Stat icon="checkCircle" cor="cor-verde" rotulo="Resolvidas hoje" valor={d.totais.feitasHoje} />
       </div>
 
-      {comercial.configured && comercialMes && (
-        <div style={{ marginTop: "var(--gap)" }}>
-          <Card
-            title="Comercial (IXC)"
-            sub="Carteira e resultado do mês — espelho local"
-            action={<Link className="btn btn-ghost" href="/comercial">Abrir Comercial <Icon name="chevRight" size={15} /></Link>}
-          >
-            <div className="grid" style={{ gridTemplateColumns: "repeat(4,1fr)" }}>
-              {/* MRR da carteira não aparece em tela (decisão 2026-07-08) — só a contagem. */}
-              <StatCard icon="briefcase" label="Contratos ativos (carteira)" value={comercial.ativos} foot="base ativa no IXC" accent="var(--st-done)" />
-              <StatCard icon="checkCircle" label="Ativados no mês" value={comercialMes.ativos} foot={`${brl(comercialMes.valorAtivosCents)} em MRR`} accent="var(--primary)" />
-              <StatCard icon="target" label="Pipeline (aguardando)" value={comercialMes.aguardando} foot={`${brl(comercialMes.valorAguardandoCents)}${comercialMes.parados30d ? ` · ${comercialMes.parados30d} parados +30d` : ""}`} accent="var(--st-progress)" />
-              <StatCard icon="alert" label="Cancelados no mês" value={comercialMes.cancelados} foot="contratos cancelados" accent="var(--st-risk)" />
-            </div>
-          </Card>
+      <Captura membros={d.membros} meId={user.id} />
+
+      <div className="hj-grid">
+        <div className="hj-col">
+          <section>
+            <h2 className="hj-secao-titulo">Precisa de você</h2>
+            {pendencias === 0 && (
+              <div className="hj-vazio">
+                <Icon name="checkCircle" size={20} />
+                Tudo que chegou tem dono e está no prazo.
+              </div>
+            )}
+
+            {d.semDono.length > 0 && (
+              <div className="hj-grupo">
+                <div className="hj-grupo-topo">
+                  <Pilula cor="cor-laranja" n={d.semDono.length}>
+                    Sem dono
+                  </Pilula>
+                </div>
+                {d.semDono.map((t) => linha(t, "despachar", junta([`chegou ${ha(t.createdAt, agora)}`, t.contexto])))}
+              </div>
+            )}
+
+            {d.semConfirmacao.length > 0 && (
+              <div className="hj-grupo">
+                <div className="hj-grupo-topo">
+                  <Pilula cor="cor-ambar" n={d.semConfirmacao.length}>
+                    Ainda não viram
+                  </Pilula>
+                </div>
+                {d.semConfirmacao.map((t) => linha(t, "despachar", junta([t.assigneeName, `enviada ${ha(t.createdAt, agora)}`])))}
+              </div>
+            )}
+
+            {d.atrasadas.length > 0 && (
+              <div className="hj-grupo">
+                <div className="hj-grupo-topo">
+                  <Pilula cor="cor-vermelho" n={d.atrasadas.length}>
+                    Atrasadas
+                  </Pilula>
+                </div>
+                {d.atrasadas.map((t) => linha(t, "despachar", prazo(t)))}
+              </div>
+            )}
+          </section>
+
+          <section>
+            <h2 className="hj-secao-titulo">Resolvido hoje</h2>
+            {d.feitasHoje.length === 0 ? (
+              <div className="hj-vazio" style={{ borderStyle: "solid" }}>
+                Nenhuma demanda resolvida hoje ainda.
+              </div>
+            ) : (
+              <div className="hj-grupo">
+                <div className="hj-grupo-topo">
+                  <Pilula cor="cor-verde" n={d.feitasHoje.length}>
+                    Resolvidas
+                  </Pilula>
+                </div>
+                {d.feitasHoje.map((t) => linha(t, "nenhuma", junta([t.doneAt && hourLabel(t.doneAt), t.assigneeName, t.contexto])))}
+              </div>
+            )}
+          </section>
         </div>
-      )}
 
-      <div className="grid" style={{ gridTemplateColumns: "1.7fr 1fr", marginTop: "var(--gap)" }}>
-        <Card
-          title="Projetos em andamento"
-          sub="Acompanhe o progresso de cada frente"
-          action={<Link className="btn btn-ghost" href="/projects">Ver todos <Icon name="chevRight" size={15} /></Link>}
-          pad={false}
-        >
-          <div style={{ padding: "4px 0 8px" }}>
-            {inProgress.slice(0, 5).map((p) => (
-              <ProjectRow key={p.id} p={p} />
-            ))}
-          </div>
-        </Card>
+        <section>
+          <h2 className="hj-secao-titulo">Equipe</h2>
+          {d.pessoas.length === 0 && <div className="hj-vazio">Nenhuma pessoa ativa no workspace.</div>}
+          {d.pessoas.map((p) => {
+            const doDia = p.feitasHoje + p.fazendo.length + p.filaTotal;
+            return (
+              <div key={p.id} className="hj-pessoa">
+                <div className="hj-pessoa-topo">
+                  <Avatar user={p} size={38} ring={false} />
+                  <div style={{ minWidth: 0 }}>
+                    <div className="hj-pessoa-nome" title={p.name}>
+                      {p.name}
+                    </div>
+                    <div className="hj-pessoa-cargo">
+                      {p.jobTitle}
+                      {p.atrasadas > 0 && (
+                        <>
+                          {" · "}
+                          <span style={{ color: "var(--vermelho)", fontWeight: 600 }}>
+                            {p.atrasadas} {p.atrasadas === 1 ? "atrasada" : "atrasadas"}
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  {doDia > 0 && (
+                    <div className="hj-dia">
+                      <div className="hj-dia-rotulo">
+                        <span>Resolvidas hoje</span>
+                        <b>
+                          {p.feitasHoje}/{doDia}
+                        </b>
+                      </div>
+                      {/* Um traço por tarefa, até 12 — acima disso a barra vira ruído. */}
+                      {doDia <= 12 && (
+                        <div className="hj-dia-barra" aria-hidden>
+                          {Array.from({ length: doDia }, (_, i) => (
+                            <i key={i} className={i < p.feitasHoje ? "feita" : i < p.feitasHoje + p.fazendo.length ? "fazendo" : undefined} />
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
 
-        <Card title="Status dos projetos" sub="Distribuição atual">
-          <div className="row gap16" style={{ alignItems: "center" }}>
-            <div style={{ position: "relative" }}>
-              <Donut size={134} stroke={20} segments={data.statusCounts.map((x) => ({ value: x.n, color: STATUS_META[x.status].c }))} />
-              <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", textAlign: "center" }}>
-                <div>
-                  <div style={{ fontSize: 26, fontWeight: 800, fontFamily: "var(--font-display)" }}>{data.projectsTotal}</div>
-                  <div style={{ fontSize: 11.5, color: "var(--muted)", fontWeight: 600 }}>projetos</div>
+                <div className="hj-pessoa-cols">
+                  <div className="hj-grupo">
+                    <div className="hj-grupo-topo">
+                      <Pilula cor="cor-azul" n={p.fazendo.length}>
+                        Em atendimento
+                      </Pilula>
+                    </div>
+                    {p.fazendo.length === 0 ? (
+                      <div className="hj-col-vazio">Nada em atendimento</div>
+                    ) : (
+                      p.fazendo.map((t) =>
+                        linha(
+                          t,
+                          "andar",
+                          <>
+                            {t.column === "waiting" ? junta(["aguardando", t.contexto]) : junta([`começou ${ha(t.startedAt ?? t.createdAt, agora)}`, t.contexto])}
+                            {prazo(t)}
+                          </>,
+                          t.column === "doing",
+                        ),
+                      )
+                    )}
+                  </div>
+
+                  <div className="hj-grupo">
+                    <div className="hj-grupo-topo">
+                      <Pilula cor="cor-roxo" n={p.filaTotal}>
+                        Na fila
+                      </Pilula>
+                    </div>
+                    {p.filaTotal === 0 ? (
+                      <div className="hj-col-vazio">Fila vazia</div>
+                    ) : (
+                      <>
+                        {p.fila.map((t) =>
+                          linha(
+                            t,
+                            "andar",
+                            <>
+                              {junta([`${ha(t.createdAt, agora)}`, t.contexto])}
+                              {prazo(t)}
+                            </>,
+                          ),
+                        )}
+                        {p.filaTotal > p.fila.length && (
+                          <Link className="hj-mais" href={`/atividades?assignee=${p.id}&status=todo`}>
+                            Ver as outras {p.filaTotal - p.fila.length}
+                          </Link>
+                        )}
+                      </>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
-            <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 11 }}>
-              {data.statusCounts.map((x) => (
-                <div key={x.status} className="row between">
-                  <div className="row gap8">
-                    <span className="bdot" style={{ width: 9, height: 9, background: STATUS_META[x.status].c }} />
-                    <span style={{ fontSize: 13, fontWeight: 600, color: "var(--ink-2)" }}>{STATUS_META[x.status].label}</span>
-                  </div>
-                  <b style={{ fontSize: 13.5 }}>{x.n}</b>
-                </div>
-              ))}
-            </div>
-          </div>
-        </Card>
+            );
+          })}
+        </section>
       </div>
 
-      <div className="grid" style={{ gridTemplateColumns: "1fr 1fr", marginTop: "var(--gap)" }}>
-        <Card title="Prazos próximos">
-          {deadlines.length === 0 ? (
-            <div className="muted" style={{ fontSize: 13.5 }}>Nenhum prazo definido.</div>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-              {deadlines.map((p) => {
-                const dl = deadlineInfo(p.dueDate);
-                return (
-                  <div key={p.id} className="row between">
-                    <div className="row gap12">
-                      <div style={{ width: 42, height: 42, borderRadius: 11, background: "var(--surface-3)", display: "grid", placeItems: "center", color: "var(--ink-2)", flex: "none" }}>
-                        <Icon name="calendar" size={18} />
-                      </div>
-                      <div>
-                        <div style={{ fontWeight: 700, fontSize: 13.5, lineHeight: 1.2 }}>{p.name.split("—")[0].trim()}</div>
-                        <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 2 }}>{p.client}</div>
-                      </div>
-                    </div>
-                    <div style={{ textAlign: "right" }}>
-                      <div style={{ fontSize: 12.5, fontWeight: 700, color: deadlineColor(dl.tone) }}>{dl.label}</div>
-                      <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>{dayLabel(p.dueDate)}</div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </Card>
-
-        <Card title="Carga do time">
-          <div style={{ display: "flex", flexDirection: "column", gap: 13 }}>
-            {data.team.slice(0, 4).map((u) => (
-              <div key={u.id} className="row gap12">
-                <Avatar user={u} size={34} />
-                <div style={{ flex: 1 }}>
-                  <div className="row between" style={{ marginBottom: 5 }}>
-                    <span style={{ fontWeight: 700, fontSize: 13 }}>{u.name}</span>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: u.loadPct > 85 ? "var(--st-risk)" : "var(--muted)" }}>{u.loadPct}%</span>
-                  </div>
-                  <ProgressBar value={u.loadPct} color={u.loadPct > 85 ? "var(--st-risk)" : "var(--primary)"} />
-                </div>
-              </div>
-            ))}
-          </div>
-        </Card>
+      <div className="hj-rodape">
+        <Link href="/atividades">Todas as demandas</Link>
+        {d.projetosAtivos > 0 && (
+          <Link href="/projects">
+            {d.projetosAtivos} {d.projetosAtivos === 1 ? "projeto em andamento" : "projetos em andamento"}
+          </Link>
+        )}
       </div>
     </div>
   );

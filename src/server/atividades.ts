@@ -1,70 +1,50 @@
-// Atividades da Equipe — leitura. Tarefas (com ou sem projeto) com tipo, origem,
-// cliente e timeline, prontas pra filtro e relatório.
+// Lista de demandas — leitura para a tela /atividades, com filtros.
+// O detalhe de cada uma vem de getDemanda (src/server/demandas.ts).
 import "server-only";
 import { db } from "@/lib/db";
+import { COLUNAS_ABERTAS, ORIGENS, STATUS_DEMANDA } from "@/lib/meta";
 import type { Priority, TaskColumn, TaskOrigin, AvatarUser } from "@/lib/types";
-
-export type AtividadeComment = {
-  id: string;
-  body: string;
-  createdAt: Date;
-  authorId: string;
-  author: AvatarUser;
-};
 
 export type AtividadeRow = {
   id: string;
+  numero: number;
   title: string;
   column: TaskColumn;
   priority: Priority;
   origem: TaskOrigin;
-  tipoId: string | null;
+  solicitante: string | null;
   tipoName: string | null;
-  clienteId: string | null;
   clienteRazao: string | null;
-  clienteIxcId: string | null;
-  projectId: string | null;
   projectName: string | null;
-  assigneeId: string | null;
   assignee: AvatarUser | null;
   createdAt: Date;
   startedAt: Date | null;
-  doneAt: Date | null;
   dueDate: Date | null;
   estimatedMinutes: number | null;
   realMinutes: number | null; // doneAt − startedAt (null se não concluída/iniciada)
-  report: string | null;
-  comments: AtividadeComment[];
+  acompanhamentos: number;
 };
 
 export type AtividadeFilters = {
-  assigneeId?: string;
+  assigneeId?: string; // id do usuário, ou "nenhum" = sem dono
   tipoId?: string;
-  origem?: TaskOrigin;
-  column?: TaskColumn;
+  origem?: string;
+  status?: string; // um status, ou vazio (= em aberto) / "todas"
   clienteId?: string;
   from?: string; // YYYY-MM-DD
   to?: string; // YYYY-MM-DD
 };
 
-export type AtividadesStats = {
-  abertas: number; // != done (workspace todo)
-  concluidasMes: number; // doneAt no mês corrente
-  avulsasMes: number; // criadas no mês com origem avulsa/presencial
-  emAndamento: number; // column = doing
-};
-
 export type AtividadesData = {
   rows: AtividadeRow[];
-  stats: AtividadesStats;
+  limite: number; // teto de linhas; se rows.length === limite, há mais do que o mostrado
   tipos: { id: string; name: string }[];
   members: { id: string; name: string }[];
   projects: { id: string; name: string }[];
-  clientes: { id: string; razao: string }[]; // clientes já usados em atividades (filtro)
+  clientes: { id: string; razao: string }[]; // clientes já usados em demandas (filtro)
 };
 
-const ORIGENS = ["planejada", "avulsa", "presencial"] as const;
-const COLUMNS = ["todo", "doing", "review", "done"] as const;
+const LIMITE = 300;
 
 function parseDay(s: string | undefined, endOfDay: boolean): Date | undefined {
   if (!s || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return undefined;
@@ -73,46 +53,42 @@ function parseDay(s: string | undefined, endOfDay: boolean): Date | undefined {
 }
 
 export async function getAtividadesData(workspaceId: string, filters: AtividadeFilters): Promise<AtividadesData> {
-  const origem = ORIGENS.includes(filters.origem as (typeof ORIGENS)[number]) ? filters.origem : undefined;
-  const column = COLUMNS.includes(filters.column as (typeof COLUMNS)[number]) ? filters.column : undefined;
+  const origem = ORIGENS.find((o) => o === filters.origem);
   const from = parseDay(filters.from, false);
   const to = parseDay(filters.to, true);
+  // Sem filtro de status a lista mostra o que ainda pede trabalho; o histórico
+  // (resolvidas, canceladas) aparece quando a pessoa pede.
+  const column =
+    filters.status === "todas"
+      ? undefined
+      : filters.status && filters.status in STATUS_DEMANDA
+        ? (filters.status as TaskColumn)
+        : { in: COLUNAS_ABERTAS };
 
-  const monthStart = new Date();
-  monthStart.setDate(1);
-  monthStart.setHours(0, 0, 0, 0);
-
-  const [rows, abertas, concluidasMes, avulsasMes, emAndamento, tipos, members, projects, clientesRaw] = await Promise.all([
+  const [rows, tipos, members, projects, clientesRaw] = await Promise.all([
     db.task.findMany({
       where: {
         workspaceId,
-        ...(filters.assigneeId ? { assigneeId: filters.assigneeId } : {}),
+        ...(column ? { column } : {}),
+        ...(filters.assigneeId === "nenhum" ? { assigneeId: null } : filters.assigneeId ? { assigneeId: filters.assigneeId } : {}),
         ...(filters.tipoId ? { tipoId: filters.tipoId } : {}),
         ...(origem ? { origem } : {}),
-        ...(column ? { column } : {}),
         ...(filters.clienteId ? { ixcClienteId: filters.clienteId } : {}),
         ...(from || to ? { createdAt: { ...(from ? { gte: from } : {}), ...(to ? { lte: to } : {}) } } : {}),
       },
       orderBy: { createdAt: "desc" },
-      take: 300,
+      take: LIMITE,
       include: {
-        tipo: { select: { id: true, name: true } },
-        ixcCliente: { select: { id: true, razao: true, ixcId: true } },
-        project: { select: { id: true, name: true } },
+        tipo: { select: { name: true } },
+        ixcCliente: { select: { razao: true } },
+        project: { select: { name: true } },
         assignee: { select: { name: true, initials: true, color: true } },
-        comments: {
-          orderBy: { createdAt: "asc" },
-          include: { author: { select: { name: true, initials: true, color: true } } },
-        },
+        _count: { select: { comments: true } },
       },
     }),
-    db.task.count({ where: { workspaceId, column: { not: "done" } } }),
-    db.task.count({ where: { workspaceId, column: "done", doneAt: { gte: monthStart } } }),
-    db.task.count({ where: { workspaceId, origem: { in: ["avulsa", "presencial"] }, createdAt: { gte: monthStart } } }),
-    db.task.count({ where: { workspaceId, column: "doing" } }),
     db.taskType.findMany({ where: { active: true }, orderBy: { order: "asc" }, select: { id: true, name: true } }),
-    db.user.findMany({ where: { workspaceId }, orderBy: { createdAt: "asc" }, select: { id: true, name: true } }),
-    db.project.findMany({ where: { workspaceId }, orderBy: { createdAt: "asc" }, select: { id: true, name: true } }),
+    db.user.findMany({ where: { workspaceId, active: true }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
+    db.project.findMany({ where: { workspaceId, status: { not: "done" } }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
     db.task.findMany({
       where: { workspaceId, ixcClienteId: { not: null } },
       distinct: ["ixcClienteId"],
@@ -123,29 +99,24 @@ export async function getAtividadesData(workspaceId: string, filters: AtividadeF
   return {
     rows: rows.map((t) => ({
       id: t.id,
+      numero: t.numero,
       title: t.title,
       column: t.column,
       priority: t.priority,
       origem: t.origem,
-      tipoId: t.tipo?.id ?? null,
+      solicitante: t.solicitante,
       tipoName: t.tipo?.name ?? null,
-      clienteId: t.ixcCliente?.id ?? null,
       clienteRazao: t.ixcCliente?.razao ?? null,
-      clienteIxcId: t.ixcCliente?.ixcId ?? null,
-      projectId: t.project?.id ?? null,
       projectName: t.project?.name ?? null,
-      assigneeId: t.assigneeId,
       assignee: t.assignee,
       createdAt: t.createdAt,
       startedAt: t.startedAt,
-      doneAt: t.doneAt,
       dueDate: t.dueDate,
       estimatedMinutes: t.estimatedMinutes,
       realMinutes: t.startedAt && t.doneAt ? Math.max(0, Math.round((+t.doneAt - +t.startedAt) / 60000)) : null,
-      report: t.report,
-      comments: t.comments.map((c) => ({ id: c.id, body: c.body, createdAt: c.createdAt, authorId: c.authorId, author: c.author })),
+      acompanhamentos: t._count.comments,
     })),
-    stats: { abertas, concluidasMes, avulsasMes, emAndamento },
+    limite: LIMITE,
     tipos,
     members,
     projects,

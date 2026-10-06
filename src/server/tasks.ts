@@ -1,93 +1,79 @@
+// Quadro de demandas — leitura. Só o que o cartão mostra; o detalhe vem de
+// getDemanda (src/server/demandas.ts) quando o painel abre.
 import "server-only";
 import { db } from "@/lib/db";
 import { DIAS_CONCLUIDA_QUADRO } from "@/lib/meta";
-import type { Priority, TaskColumn, ProjectStatus, AvatarUser, TaskOrigin } from "@/lib/types";
-
-export type SubtaskItem = { id: string; title: string; done: boolean };
-export type TaskCommentItem = { id: string; body: string; createdAt: Date; authorId: string; author: AvatarUser };
+import type { Priority, TaskColumn, AvatarUser, TaskOrigin } from "@/lib/types";
 
 export type TaskCardData = {
   id: string;
+  numero: number;
   title: string;
   column: TaskColumn;
   priority: Priority;
-  projectId: string | null; // null = atividade avulsa (sem projeto)
-  projectName: string;
-  projectStatus: ProjectStatus | null;
   origem: TaskOrigin;
-  tags: string[];
-  subDone: number; // derivado
-  subTotal: number; // derivado
-  comments: number; // derivado
+  solicitante: string | null;
+  projectName: string | null;
+  waitingReason: string | null;
+  subDone: number;
+  subTotal: number;
+  comments: number;
   dueDate: Date | null;
-  dueIso: string | null; // YYYY-MM-DD para <input type=date>
-  // Concluída fora da janela de DIAS_CONCLUIDA_QUADRO (doneAt null = fechada
-  // antes do campo existir, logo velha). Calculado aqui pra o quadro não
-  // precisar de relógio durante o render.
-  doneAntiga: boolean;
   assignee: AvatarUser | null;
   assigneeId: string | null;
-  subtasks: SubtaskItem[];
-  commentList: TaskCommentItem[];
 };
 
 export type KanbanData = {
   tasks: TaskCardData[];
+  antigas: number; // resolvidas fora da janela de DIAS_CONCLUIDA_QUADRO (ficam fora do quadro)
+  tipos: { id: string; name: string }[];
   projects: { id: string; name: string }[];
   members: { id: string; name: string }[];
 };
 
 export async function getKanbanData(workspaceId: string): Promise<KanbanData> {
-  const [tasks, projects, members] = await Promise.all([
+  // Resolvida some do quadro depois da janela: a coluna crescia pra sempre e
+  // enterrava as três que importam. Cancelada nem entra.
+  const corte = new Date(Date.now() - DIAS_CONCLUIDA_QUADRO * 86400000);
+
+  const [tasks, antigas, tipos, projects, members] = await Promise.all([
     db.task.findMany({
-      where: { workspaceId },
-      orderBy: [{ column: "asc" }, { order: "asc" }],
+      where: { workspaceId, OR: [{ column: { in: ["todo", "doing", "waiting"] } }, { column: "done", doneAt: { gte: corte } }] },
+      orderBy: [{ order: "asc" }, { createdAt: "desc" }],
       include: {
-        project: { select: { id: true, name: true, status: true } },
+        project: { select: { name: true } },
         assignee: { select: { initials: true, color: true, name: true } },
-        tags: { select: { label: true } },
-        subtasks: { orderBy: { order: "asc" }, select: { id: true, title: true, done: true } },
-        comments: {
-          orderBy: { createdAt: "asc" },
-          include: { author: { select: { initials: true, color: true, name: true } } },
-        },
+        subtasks: { select: { done: true } },
+        _count: { select: { comments: true } },
       },
     }),
-    db.project.findMany({ where: { workspaceId }, orderBy: { createdAt: "asc" }, select: { id: true, name: true } }),
-    db.user.findMany({ where: { workspaceId }, orderBy: { createdAt: "asc" }, select: { id: true, name: true } }),
+    db.task.count({ where: { workspaceId, column: "done", OR: [{ doneAt: null }, { doneAt: { lt: corte } }] } }),
+    db.taskType.findMany({ where: { active: true }, orderBy: { order: "asc" }, select: { id: true, name: true } }),
+    db.project.findMany({ where: { workspaceId, status: { not: "done" } }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
+    db.user.findMany({ where: { workspaceId, active: true }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
   ]);
-
-  const corteConcluida = Date.now() - DIAS_CONCLUIDA_QUADRO * 86400000;
 
   return {
     tasks: tasks.map((t) => ({
       id: t.id,
+      numero: t.numero,
       title: t.title,
       column: t.column,
       priority: t.priority,
-      projectId: t.project?.id ?? null,
-      projectName: t.project?.name ?? "Avulsa",
-      projectStatus: t.project?.status ?? null,
       origem: t.origem,
-      tags: t.tags.map((g) => g.label),
+      solicitante: t.solicitante,
+      projectName: t.project?.name ?? null,
+      waitingReason: t.waitingReason,
       subDone: t.subtasks.filter((s) => s.done).length,
       subTotal: t.subtasks.length,
-      comments: t.comments.length,
+      comments: t._count.comments,
       dueDate: t.dueDate,
-      dueIso: t.dueDate ? t.dueDate.toISOString().slice(0, 10) : null,
-      doneAntiga: t.column === "done" && !(t.doneAt && +t.doneAt >= corteConcluida),
       assignee: t.assignee,
       assigneeId: t.assigneeId,
-      subtasks: t.subtasks,
-      commentList: t.comments.map((c) => ({
-        id: c.id,
-        body: c.body,
-        createdAt: c.createdAt,
-        authorId: c.authorId,
-        author: c.author,
-      })),
     })),
-    projects: projects,
-    members: members,
+    antigas,
+    tipos,
+    projects,
+    members,
   };
 }

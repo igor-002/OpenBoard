@@ -69,6 +69,18 @@ export async function requireModuleUser(key: ModuleKey) {
   return user;
 }
 
+// Telas que mexem em demanda. A demanda aparece em Hoje, lista, quadro e dentro
+// do projeto, então qualquer uma delas basta — exigir uma tela específica
+// trancaria quem só tem as outras.
+export const TOOLS_DEMANDA = ["gestao.dashboard", "gestao.atividades", "gestao.tarefas", "gestao.projetos"];
+
+// Para Server Actions: exige sessão + ao menos uma das ferramentas.
+export async function requireAnyToolUser(toolKeys: readonly string[]) {
+  const user = await requireUser();
+  if (!toolKeys.some((k) => hasTool(user, k))) throw new Error("Sem permissão para esta ferramenta.");
+  return user;
+}
+
 export async function requireToolUser(toolKey: string) {
   const user = await requireUser();
   if (!hasTool(user, toolKey)) throw new Error("Sem permissão para esta ferramenta.");

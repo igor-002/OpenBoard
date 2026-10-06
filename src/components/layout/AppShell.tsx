@@ -1,14 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
-import { TweaksPanel } from "@/components/tweaks/TweaksPanel";
 import { FloatingTimer } from "@/components/time/FloatingTimer";
 import { FirstAccessModal } from "@/components/account/FirstAccessModal";
 import { ToastHost } from "./ToastHost";
 import { CommandPalette } from "./CommandPalette";
 import { DemandAcknowledgementModal } from "./DemandAcknowledgementModal";
+import { PainelDemanda } from "@/components/demanda/PainelDemanda";
 import type { AvatarUser } from "@/lib/types";
 import type { NotificationItem } from "@/server/notifications";
 import type { ActiveTimer } from "@/server/time";
@@ -25,7 +25,7 @@ export function AppShell({
   pendingAcknowledgements,
   children,
 }: {
-  user: AvatarUser & { jobTitle: string };
+  user: AvatarUser & { id: string; jobTitle: string };
   workspaceName: string;
   isAdmin: boolean;
   notifications: { items: NotificationItem[]; unread: number };
@@ -37,17 +37,20 @@ export function AppShell({
 }) {
   const [collapsed, setCollapsed] = useState(false);
   return (
-    <div className="app" data-side-collapsed={collapsed}>
+    <div className="app" data-skin="ob2" data-side-collapsed={collapsed}>
       <Sidebar user={user} workspaceName={workspaceName} isAdmin={isAdmin} tools={tools} />
       <div className="main">
-        <Topbar collapsed={collapsed} setCollapsed={setCollapsed} notifications={notifications} />
+        <Topbar collapsed={collapsed} setCollapsed={setCollapsed} notifications={notifications} tools={tools} />
         <div className="scroll">{children}</div>
       </div>
-      <TweaksPanel />
       <FloatingTimer timer={activeTimer} />
       <FirstAccessModal mustChange={mustChangePassword} />
       <ToastHost />
       <CommandPalette />
+      {/* Lê ?d= da URL — useSearchParams pede um limite de Suspense. */}
+      <Suspense fallback={null}>
+        <PainelDemanda meId={user.id} isAdmin={isAdmin} />
+      </Suspense>
       <DemandAcknowledgementModal key={pendingAcknowledgements.map((item) => item.id).join(",")} initial={pendingAcknowledgements} />
     </div>
   );

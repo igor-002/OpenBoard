@@ -3,6 +3,7 @@ import { TOOL_KEYS } from "@/lib/modules";
 import { getNotifications } from "@/server/notifications";
 import { getActiveTimer } from "@/server/time";
 import { AppShell } from "@/components/layout/AppShell";
+import "./skin.css";
 import { getPendingTaskAcknowledgements } from "@/server/task-acknowledgements";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
@@ -14,7 +15,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   ]);
   return (
     <AppShell
-      user={{ name: user.name, initials: user.initials, color: user.color, jobTitle: user.jobTitle }}
+      user={{ id: user.id, name: user.name, initials: user.initials, color: user.color, jobTitle: user.jobTitle }}
       workspaceName={user.workspace.name}
       isAdmin={user.role === "admin"}
       notifications={notifications}

@@ -5,8 +5,13 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import { searchClientes, createClienteManual, type ClienteHit } from "@/app/(app)/atividades/actions";
 
-export function ClientePicker({ name = "ixcClienteId" }: { name?: string }) {
-  const [selected, setSelected] = useState<ClienteHit | null>(null);
+// `onSelect` avisa quem usa fora de <form> (painel da demanda grava na hora).
+export function ClientePicker({ name = "ixcClienteId", onSelect }: { name?: string; onSelect?: (c: ClienteHit) => void }) {
+  const [selected, setSelectedState] = useState<ClienteHit | null>(null);
+  const setSelected = (c: ClienteHit | null) => {
+    setSelectedState(c);
+    if (c) onSelect?.(c);
+  };
   const [q, setQ] = useState("");
   const [hits, setHits] = useState<ClienteHit[]>([]);
   const [searching, setSearching] = useState(false);

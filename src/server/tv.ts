@@ -1,4 +1,5 @@
 import "server-only";
+import { COLUNAS_ABERTAS } from "@/lib/meta";
 import { db } from "@/lib/db";
 import { getProjectsList, effectiveProgress } from "@/server/projects";
 import { getDashboardData } from "@/server/dashboard";
@@ -92,7 +93,7 @@ export type TvFeatured = {
   tasksTotal: number;
   members: AvatarUser[];
   milestones: { title: string; date: string; state: "todo" | "doing" | "done" }[];
-  kanban: { todo: number; doing: number; review: number; done: number };
+  kanban: { todo: number; doing: number; waiting: number; done: number };
 };
 
 export type TvNote = { id: string; kind: "note" | "comment"; author: AvatarUser; body: string; context: string; at: string };
@@ -161,12 +162,12 @@ export async function getTvData(ws: TvWorkspace): Promise<TvData> {
     getDashboardData(ws.id),
     getTimelineData(ws.id),
     db.task.findMany({
-      where: { workspaceId: ws.id, column: { not: "done" }, dueDate: { not: null } },
+      where: { workspaceId: ws.id, column: { in: COLUNAS_ABERTAS }, dueDate: { not: null } },
       orderBy: { dueDate: "asc" },
       take: 8,
       include: { project: { select: { name: true } }, assignee: { select: { name: true, initials: true, color: true } } },
     }),
-    db.task.count({ where: { workspaceId: ws.id, column: { not: "done" }, dueDate: { lt: nowDate } } }),
+    db.task.count({ where: { workspaceId: ws.id, column: { in: COLUNAS_ABERTAS }, dueDate: { lt: nowDate } } }),
     db.milestone.findMany({
       where: { project: { workspaceId: ws.id }, state: { not: "done" } },
       orderBy: { date: "asc" },
@@ -176,7 +177,7 @@ export async function getTvData(ws: TvWorkspace): Promise<TvData> {
     db.task.groupBy({ by: ["column"], where: { workspaceId: ws.id }, _count: { _all: true } }),
     db.project.findMany({ where: { workspaceId: ws.id }, orderBy: { createdAt: "desc" }, take: 6, include: { creator: { select: { name: true } } } }),
     db.task.findMany({ where: { workspaceId: ws.id }, orderBy: { createdAt: "desc" }, take: 6, include: { project: { select: { name: true } } } }),
-    db.task.groupBy({ by: ["assigneeId"], where: { workspaceId: ws.id, column: { not: "done" }, assigneeId: { not: null } }, _count: { _all: true } }),
+    db.task.groupBy({ by: ["assigneeId"], where: { workspaceId: ws.id, column: { in: COLUNAS_ABERTAS }, assigneeId: { not: null } }, _count: { _all: true } }),
     db.user.findMany({ where: { workspaceId: ws.id }, select: { id: true, name: true, initials: true, color: true, jobTitle: true } }),
     db.project.findMany({
       where: { workspaceId: ws.id, status: { not: "done" } },
@@ -281,9 +282,10 @@ export async function getTvData(ws: TvWorkspace): Promise<TvData> {
 
   // Projetos em destaque (rotativo).
   const featured: TvFeatured[] = featRaw.map((p) => {
-    const cols = { todo: 0, doing: 0, review: 0, done: 0 };
-    for (const t of p.tasks) cols[t.column] += 1;
-    const total = p.tasks.length;
+    // Cancelada não entra na conta: não é trabalho a fazer nem feito.
+    const cols = { todo: 0, doing: 0, waiting: 0, done: 0 };
+    for (const t of p.tasks) if (t.column !== "canceled") cols[t.column] += 1;
+    const total = cols.todo + cols.doing + cols.waiting + cols.done;
     return {
       id: p.id,
       name: p.name,

@@ -1,4 +1,5 @@
 import "server-only";
+import { COLUNAS_ABERTAS } from "@/lib/meta";
 import { db } from "@/lib/db";
 import type { AvatarUser } from "@/lib/types";
 
@@ -36,7 +37,7 @@ export async function getTeamData(workspaceId: string): Promise<TeamData> {
   const [assigned, completed, open] = await Promise.all([
     db.task.groupBy({ by: ["assigneeId"], where: { workspaceId, assigneeId: { not: null } }, _count: { _all: true } }),
     db.task.groupBy({ by: ["assigneeId"], where: { workspaceId, assigneeId: { not: null }, column: "done" }, _count: { _all: true } }),
-    db.task.groupBy({ by: ["assigneeId"], where: { workspaceId, assigneeId: { not: null }, column: { not: "done" } }, _count: { _all: true } }),
+    db.task.groupBy({ by: ["assigneeId"], where: { workspaceId, assigneeId: { not: null }, column: { in: COLUNAS_ABERTAS } }, _count: { _all: true } }),
   ]);
   const map = (rows: { assigneeId: string | null; _count: { _all: number } }[]) =>
     new Map(rows.map((r) => [r.assigneeId as string, r._count._all]));

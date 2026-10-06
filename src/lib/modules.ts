@@ -46,10 +46,10 @@ export type Tool = {
 
 export const TOOLS: Tool[] = [
   // Gestão
-  { key: "gestao.dashboard", module: "gestao", label: "Visão geral", href: "/dashboard", essencial: true },
+  { key: "gestao.dashboard", module: "gestao", label: "Hoje", href: "/dashboard", essencial: true },
   { key: "gestao.projetos", module: "gestao", label: "Projetos", href: "/projects" },
-  { key: "gestao.tarefas", module: "gestao", label: "Tarefas (kanban)", href: "/kanban" },
-  { key: "gestao.atividades", module: "gestao", label: "Atividades", href: "/atividades" },
+  { key: "gestao.tarefas", module: "gestao", label: "Demandas (quadro)", href: "/kanban" },
+  { key: "gestao.atividades", module: "gestao", label: "Demandas (lista)", href: "/atividades" },
   { key: "gestao.notas", module: "gestao", label: "Notas", href: "/notas" },
   { key: "gestao.cronograma", module: "gestao", label: "Cronograma", href: "/timeline" },
   { key: "gestao.tempo", module: "gestao", label: "Tempo", href: "/time" },

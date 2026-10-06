@@ -13,14 +13,13 @@ import { emitToast } from "@/lib/toast";
 import {
   paletteSearchAction,
   paletteOpcoesAction,
-  paletteCriarTarefaAction,
-  paletteCriarAtividadeAction,
+  paletteCriarDemandaAction,
   paletteCriarNotaAction,
   type PaletteOpcoes,
 } from "@/app/(app)/palette-actions";
 import type { PaletteHit, PaletteKind } from "@/server/palette";
 
-type Modo = "busca" | "tarefa" | "atividade" | "nota";
+type Modo = "busca" | "atividade" | "nota";
 type Prioridade = "high" | "med" | "low";
 
 const ICONE: Record<PaletteKind, IconName> = {
@@ -50,7 +49,6 @@ export function CommandPalette() {
 
   // Campos dos formulários rápidos.
   const [projectId, setProjectId] = useState("");
-  const [dueDate, setDueDate] = useState("");
   const [tipoId, setTipoId] = useState("");
   const [prioridade, setPrioridade] = useState<Prioridade>("med");
   const [estimativa, setEstimativa] = useState("");
@@ -68,7 +66,6 @@ export function CommandPalette() {
     setHits([]);
     setSel(0);
     setProjectId("");
-    setDueDate("");
     setEstimativa("");
     setJaFeita(false);
     setMinutosReais("");
@@ -129,8 +126,7 @@ export function CommandPalette() {
   const acoes = temTexto
     ? [
         { id: "nova-nota", label: `Criar nota “${q.trim()}”`, icon: "note" as IconName },
-        { id: "nova-tarefa", label: `Criar tarefa “${q.trim()}”`, icon: "plus" as IconName },
-        { id: "nova-atividade", label: `Criar atividade “${q.trim()}”`, icon: "zap" as IconName },
+        { id: "nova-demanda", label: `Criar demanda “${q.trim()}”`, icon: "plus" as IconName },
       ]
     : [];
   const total = acoes.length + hitsVisiveis.length;
@@ -138,7 +134,7 @@ export function CommandPalette() {
   function executar(indice: number) {
     if (indice < acoes.length) {
       const id = acoes[indice].id;
-      setModo(id === "nova-nota" ? "nota" : id === "nova-tarefa" ? "tarefa" : "atividade");
+      setModo(id === "nova-nota" ? "nota" : "atividade");
       return;
     }
     const hit = hitsVisiveis[indice - acoes.length];
@@ -168,19 +164,6 @@ export function CommandPalette() {
     }
   }
 
-  function criarTarefa() {
-    setBusy(true);
-    void paletteCriarTarefaAction({ title: q, projectId: projectId || null, dueDate: dueDate || null }).then((r) => {
-      setBusy(false);
-      if (!r.ok) return emitToast({ variant: "error", title: "Não deu pra criar", sub: r.error });
-      emitToast({ variant: "success", title: "Tarefa criada", sub: q.trim() });
-      const href = r.href;
-      fechar();
-      if (href) router.push(href);
-      else router.refresh();
-    });
-  }
-
   // `abrir` = ir pra nota; senão salva e devolve a pessoa ao que estava fazendo,
   // que é o ponto de uma captura rápida.
   function criarNota(abrir: boolean) {
@@ -198,9 +181,9 @@ export function CommandPalette() {
 
   function criarAtividade() {
     setBusy(true);
-    void paletteCriarAtividadeAction({
+    void paletteCriarDemandaAction({
       title: q,
-      tipoId,
+      tipoId: tipoId || null,
       projectId: projectId || null,
       priority: prioridade,
       estimatedMinutes: !jaFeita && estimativa ? Number(estimativa) : null,
@@ -208,7 +191,7 @@ export function CommandPalette() {
     }).then((r) => {
       setBusy(false);
       if (!r.ok) return emitToast({ variant: "error", title: "Não deu pra criar", sub: r.error });
-      emitToast({ variant: "success", title: "Atividade criada", sub: q.trim() });
+      emitToast({ variant: "success", title: "Demanda criada", sub: q.trim() });
       const href = r.href;
       fechar();
       if (href) router.push(href);
@@ -339,28 +322,6 @@ export function CommandPalette() {
           </div>
         )}
 
-        {modo === "tarefa" && (
-          <div style={{ padding: 14, display: "flex", flexDirection: "column", gap: 12 }}>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 150px", gap: 12 }}>
-              <PickerCampo
-                label="Projeto"
-                titulo="Escolher projeto"
-                valor={projectId}
-                opcoes={opcoes.projetos}
-                onChange={setProjectId}
-                vazioLabel="Sem projeto (tarefa avulsa)"
-                placeholderBusca="Buscar projeto…"
-                vazioTexto="(nenhum projeto)"
-              />
-              <div>
-                <label className="muted" style={{ fontSize: 12, fontWeight: 600 }}>Prazo</label>
-                <input type="date" className="input" value={dueDate} onChange={(e) => setDueDate(e.target.value)} style={{ width: "100%", marginTop: 6 }} />
-              </div>
-            </div>
-            <Rodape onVoltar={() => setModo("busca")} onConfirmar={criarTarefa} busy={busy} podeConfirmar={!!q.trim()} rotulo="Criar tarefa" />
-          </div>
-        )}
-
         {modo === "atividade" && (
           <div style={{ padding: 14, display: "flex", flexDirection: "column", gap: 12 }}>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
@@ -437,8 +398,8 @@ export function CommandPalette() {
               onVoltar={() => setModo("busca")}
               onConfirmar={criarAtividade}
               busy={busy}
-              podeConfirmar={!!q.trim() && !!tipoId && (!jaFeita || Number(minutosReais) > 0)}
-              rotulo={jaFeita ? "Registrar como feita" : "Criar atividade"}
+              podeConfirmar={!!q.trim() && (!jaFeita || Number(minutosReais) > 0)}
+              rotulo={jaFeita ? "Registrar como feita" : "Criar demanda"}
             />
           </div>
         )}

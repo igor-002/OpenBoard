@@ -1,36 +1,32 @@
 "use client";
 
-// Registro de atividades da equipe: stats, filtros (via querystring) e tabela.
+// Lista de demandas: filtros (via querystring) e tabela. Clicar numa linha abre
+// o painel de detalhe (PainelDemanda), que vive no shell.
 import { useState, useCallback } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { Icon } from "@/components/ui/Icon";
 import { Avatar } from "@/components/ui/Avatar";
-import { PriorityBadge } from "@/components/ui/Badge";
-import { KANBAN_COLS, ORIGEM_META } from "@/lib/meta";
-import { NovaAtividadeModal } from "./NovaAtividadeModal";
-import { AtividadeDetailModal } from "./AtividadeDetailModal";
+import { NovaDemandaModal } from "@/components/demanda/NovaDemandaModal";
+import { useAbrirDemanda } from "@/components/demanda/PainelDemanda";
+import { ORIGEM_META, ORIGENS, PRIORITY_META, STATUS_DEMANDA, isAberta, isAtrasada } from "@/lib/meta";
+import { minLabel } from "@/lib/format";
 import type { AtividadesData, AtividadeRow } from "@/server/atividades";
-import type { AvatarUser, TaskOrigin } from "@/lib/types";
-
-type CurrentUser = AvatarUser & { id: string };
+import type { TaskColumn } from "@/lib/types";
 
 function fmtDay(d: Date | string) {
-  return new Date(d).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" });
+  return new Date(d).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" }).replace(".", "");
 }
 
-function fmtMin(min: number) {
-  if (min < 60) return `${min}min`;
-  const h = Math.floor(min / 60);
-  const m = min % 60;
-  return m ? `${h}h${String(m).padStart(2, "0")}` : `${h}h`;
-}
+const FILTROS_EXTRA = ["tipo", "origem", "cliente", "from", "to"];
 
-export function AtividadesView({ data, currentUser, isAdmin }: { data: AtividadesData; currentUser: CurrentUser; isAdmin: boolean }) {
+export function AtividadesView({ data }: { data: AtividadesData }) {
   const router = useRouter();
   const pathname = usePathname();
   const sp = useSearchParams();
+  const abrir = useAbrirDemanda();
   const [creating, setCreating] = useState(false);
-  const [openId, setOpenId] = useState<string | null>(null);
+  const extrasAtivos = FILTROS_EXTRA.filter((k) => sp.get(k)).length;
+  const [maisFiltros, setMaisFiltros] = useState(extrasAtivos > 0);
 
   const setFilter = useCallback(
     (key: string, value: string) => {
@@ -39,185 +35,198 @@ export function AtividadesView({ data, currentUser, isAdmin }: { data: Atividade
       else params.delete(key);
       router.replace(`${pathname}?${params.toString()}`);
     },
-    [router, pathname, sp]
+    [router, pathname, sp],
   );
 
-  const opened = openId ? data.rows.find((r) => r.id === openId) ?? null : null;
-  const hasFilters = ["assignee", "tipo", "origem", "status", "cliente", "from", "to"].some((k) => sp.get(k));
+  const status = sp.get("status") ?? "";
+  const temFiltro = !!(status || sp.get("assignee") || extrasAtivos);
 
   return (
     <>
       <div className="page-head">
         <div>
-          <h1 className="page-title">Atividades da equipe</h1>
-          <p className="page-sub">Registre demandas avulsas e presenciais, acompanhe execução e histórico</p>
+          <h1 className="page-title">Demandas</h1>
+          <p className="page-sub">
+            {data.rows.length === data.limite ? `Mostrando as ${data.limite} mais recentes` : `${data.rows.length} ${data.rows.length === 1 ? "demanda" : "demandas"}`}
+            {status === "" ? " em aberto" : status === "todas" ? ", de todos os status" : ` com status ${STATUS_DEMANDA[status as TaskColumn]?.label.toLowerCase() ?? ""}`}
+          </p>
         </div>
         <button className="btn btn-primary" onClick={() => setCreating(true)}>
           <Icon name="plus" size={16} />
-          Nova atividade
+          Nova demanda
         </button>
       </div>
 
-      {/* Stats */}
-      <div className="grid" style={{ gridTemplateColumns: "repeat(4,1fr)", gap: 16, marginBottom: 20 }}>
-        <StatCard label="Abertas" value={data.stats.abertas} icon="circle" />
-        <StatCard label="Em andamento" value={data.stats.emAndamento} icon="play" />
-        <StatCard label="Concluídas no mês" value={data.stats.concluidasMes} icon="checkCircle" />
-        <StatCard label="Avulsas/presenciais no mês" value={data.stats.avulsasMes} icon="zap" />
-      </div>
+      <div className="dl-filtros">
+        <select className="hj-select" value={status} onChange={(e) => setFilter("status", e.target.value)} aria-label="Status">
+          <option value="">Em aberto</option>
+          {(Object.keys(STATUS_DEMANDA) as TaskColumn[]).map((c) => (
+            <option key={c} value={c}>
+              {STATUS_DEMANDA[c].label}
+            </option>
+          ))}
+          <option value="todas">Todas</option>
+        </select>
+        <select className="hj-select" value={sp.get("assignee") ?? ""} onChange={(e) => setFilter("assignee", e.target.value)} aria-label="Responsável">
+          <option value="">Todos os responsáveis</option>
+          <option value="nenhum">Sem dono</option>
+          {data.members.map((m) => (
+            <option key={m.id} value={m.id}>
+              {m.name}
+            </option>
+          ))}
+        </select>
+        <button className="hj-flag" aria-pressed={maisFiltros} aria-expanded={maisFiltros} onClick={() => setMaisFiltros((v) => !v)}>
+          <Icon name="filter" size={14} />
+          Filtros{extrasAtivos > 0 ? ` · ${extrasAtivos}` : ""}
+        </button>
+        {temFiltro && (
+          <button className="dm-link" onClick={() => router.replace(pathname)}>
+            Limpar filtros
+          </button>
+        )}
 
-      {/* Filtros */}
-      <div className="card" style={{ padding: 14, marginBottom: 16 }}>
-        <div className="row gap12" style={{ flexWrap: "wrap", alignItems: "flex-end" }}>
-          <FilterSelect label="Responsável" value={sp.get("assignee") ?? ""} onChange={(v) => setFilter("assignee", v)} options={data.members.map((m) => [m.id, m.name])} all="Todos" />
-          <FilterSelect label="Tipo" value={sp.get("tipo") ?? ""} onChange={(v) => setFilter("tipo", v)} options={data.tipos.map((t) => [t.id, t.name])} all="Todos" />
-          <FilterSelect label="Origem" value={sp.get("origem") ?? ""} onChange={(v) => setFilter("origem", v)} options={(Object.keys(ORIGEM_META) as TaskOrigin[]).map((o) => [o, ORIGEM_META[o].label])} all="Todas" />
-          <FilterSelect label="Status" value={sp.get("status") ?? ""} onChange={(v) => setFilter("status", v)} options={KANBAN_COLS.map((c) => [c.id, c.label])} all="Todos" />
-          <FilterSelect label="Cliente" value={sp.get("cliente") ?? ""} onChange={(v) => setFilter("cliente", v)} options={data.clientes.map((c) => [c.id, c.razao])} all="Todos" />
-          <div className="field" style={{ width: 150 }}>
-            <label>De</label>
-            <input className="input" type="date" value={sp.get("from") ?? ""} onChange={(e) => setFilter("from", e.target.value)} />
-          </div>
-          <div className="field" style={{ width: 150 }}>
-            <label>Até</label>
-            <input className="input" type="date" value={sp.get("to") ?? ""} onChange={(e) => setFilter("to", e.target.value)} />
-          </div>
-          {hasFilters && (
-            <button className="btn" style={{ marginBottom: 2 }} onClick={() => router.replace(pathname)}>
-              Limpar
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Tabela */}
-      <div className="card" style={{ padding: 0, overflowX: "auto" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13.5 }}>
-          <thead>
-            <tr style={{ borderBottom: "1px solid var(--line)", textAlign: "left" }}>
-              {["Atividade", "Tipo", "Origem", "Cliente", "Responsável", "Status", "Prior.", "Criada", "Tempo (est/real)"].map((h) => (
-                <th key={h} style={{ padding: "12px 14px", fontSize: 12, fontWeight: 700, color: "var(--muted)", whiteSpace: "nowrap" }}>{h}</th>
+        {maisFiltros && (
+          <div className="dl-filtros-extra">
+            <select className="hj-select" value={sp.get("tipo") ?? ""} onChange={(e) => setFilter("tipo", e.target.value)} aria-label="Tipo">
+              <option value="">Todos os tipos</option>
+              {data.tipos.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                </option>
               ))}
+            </select>
+            <select className="hj-select" value={sp.get("origem") ?? ""} onChange={(e) => setFilter("origem", e.target.value)} aria-label="Chegou por">
+              <option value="">Todos os canais</option>
+              {ORIGENS.map((o) => (
+                <option key={o} value={o}>
+                  {ORIGEM_META[o].label}
+                </option>
+              ))}
+            </select>
+            <select className="hj-select" value={sp.get("cliente") ?? ""} onChange={(e) => setFilter("cliente", e.target.value)} aria-label="Cliente">
+              <option value="">Todos os clientes</option>
+              {data.clientes.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.razao}
+                </option>
+              ))}
+            </select>
+            <label className="dl-data">
+              Abertas de
+              <input className="hj-select" type="date" value={sp.get("from") ?? ""} onChange={(e) => setFilter("from", e.target.value)} />
+            </label>
+            <label className="dl-data">
+              até
+              <input className="hj-select" type="date" value={sp.get("to") ?? ""} onChange={(e) => setFilter("to", e.target.value)} />
+            </label>
+          </div>
+        )}
+      </div>
+
+      <div className="dl-tabela">
+        <table>
+          <thead>
+            <tr>
+              <th style={{ width: 64 }}>Nº</th>
+              <th>Demanda</th>
+              <th>Quem pediu</th>
+              <th>Responsável</th>
+              <th>Status</th>
+              <th>Aberta</th>
+              <th>Tempo</th>
             </tr>
           </thead>
           <tbody>
             {data.rows.length === 0 && (
               <tr>
-                <td colSpan={9} className="muted" style={{ padding: 24, textAlign: "center", fontSize: 13 }}>
-                  Nenhuma atividade encontrada.
+                <td colSpan={7} className="dl-vazio">
+                  {temFiltro ? "Nenhuma demanda com esses filtros." : "Nenhuma demanda em aberto. O que aparecer, registre em Nova demanda."}
                 </td>
               </tr>
             )}
             {data.rows.map((r) => (
-              <Row key={r.id} r={r} onOpen={() => setOpenId(r.id)} />
+              <Row key={r.id} r={r} onOpen={() => abrir(r.numero)} />
             ))}
           </tbody>
         </table>
       </div>
 
       {creating && (
-        <NovaAtividadeModal
+        <NovaDemandaModal
           tipos={data.tipos}
           members={data.members}
           projects={data.projects}
-          currentUserId={currentUser.id}
-          onClose={() => { setCreating(false); router.refresh(); }}
-        />
-      )}
-      {opened && (
-        <AtividadeDetailModal
-          atividade={opened}
-          currentUser={currentUser}
-          isAdmin={isAdmin}
-          onClose={() => { setOpenId(null); router.refresh(); }}
+          onClose={() => {
+            setCreating(false);
+            router.refresh();
+          }}
         />
       )}
     </>
   );
 }
 
-function StatCard({ label, value, icon }: { label: string; value: number; icon: "circle" | "play" | "checkCircle" | "zap" }) {
-  return (
-    <div className="card" style={{ padding: 16 }}>
-      <div className="row gap8" style={{ color: "var(--muted)", fontSize: 12.5, fontWeight: 600, marginBottom: 6 }}>
-        <Icon name={icon} size={15} />
-        {label}
-      </div>
-      <div style={{ fontSize: 26, fontWeight: 800 }}>{value}</div>
-    </div>
-  );
-}
-
-function FilterSelect({ label, value, onChange, options, all }: { label: string; value: string; onChange: (v: string) => void; options: [string, string][]; all: string }) {
-  return (
-    <div className="field" style={{ minWidth: 140 }}>
-      <label>{label}</label>
-      <select className="input" value={value} onChange={(e) => onChange(e.target.value)}>
-        <option value="">{all}</option>
-        {options.map(([k, l]) => (
-          <option key={k} value={k}>{l}</option>
-        ))}
-      </select>
-    </div>
-  );
-}
-
 function Row({ r, onOpen }: { r: AtividadeRow; onOpen: () => void }) {
   const om = ORIGEM_META[r.origem];
-  const col = KANBAN_COLS.find((c) => c.id === r.column);
-  const overdue = r.dueDate && r.column !== "done" && new Date(r.dueDate) < new Date();
+  const st = STATUS_DEMANDA[r.column];
+  const atrasada = isAtrasada(r.column, r.dueDate);
   return (
-    <tr
-      onClick={onOpen}
-      style={{ borderBottom: "1px solid var(--line)", cursor: "pointer" }}
-      onMouseEnter={(e) => (e.currentTarget.style.background = "var(--surface-3)")}
-      onMouseLeave={(e) => (e.currentTarget.style.background = "")}
-    >
-      <td style={{ padding: "11px 14px", fontWeight: 600, maxWidth: 280 }}>
-        <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.title}</div>
-        {r.projectName && <div className="muted" style={{ fontSize: 11.5 }}>{r.projectName}</div>}
-        {r.comments.length > 0 && (
-          <span className="muted" style={{ fontSize: 11.5 }}>
-            <Icon name="msg" size={11} /> {r.comments.length} {r.comments.length > 1 ? "atualizações" : "atualização"}
+    <tr onClick={onOpen} tabIndex={0} onKeyDown={(e) => e.key === "Enter" && onOpen()}>
+      <td className="dl-num">#{r.numero}</td>
+      <td>
+        <div className="dl-titulo">{r.title}</div>
+        <div className="hj-linha-meta">
+          {r.priority === "high" && <span className="hj-chip cor-vermelho">{PRIORITY_META.high.label}</span>}
+          <span className="hj-chip" style={{ color: om.c, background: om.bg }}>
+            {om.label}
           </span>
-        )}
+          {r.tipoName && <span>{r.tipoName}</span>}
+          {r.projectName && <span>{r.projectName}</span>}
+          {r.acompanhamentos > 0 && (
+            <span className="row" style={{ gap: 3 }}>
+              <Icon name="msg" size={12} /> {r.acompanhamentos}
+            </span>
+          )}
+        </div>
       </td>
-      <td style={{ padding: "11px 14px", whiteSpace: "nowrap" }}>{r.tipoName ?? "—"}</td>
-      <td style={{ padding: "11px 14px" }}>
-        <span className="badge" style={{ color: om.c, background: om.bg }}>{om.label}</span>
+      <td>
+        {r.solicitante ?? r.clienteRazao ?? <span className="muted">—</span>}
+        {r.solicitante && r.clienteRazao && <div className="dl-sub">{r.clienteRazao}</div>}
       </td>
-      <td style={{ padding: "11px 14px", maxWidth: 180 }}>
-        <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.clienteRazao ?? "—"}</div>
-      </td>
-      <td style={{ padding: "11px 14px" }}>
+      <td>
         {r.assignee ? (
-          <span className="row gap8" style={{ whiteSpace: "nowrap" }}>
-            <Avatar user={r.assignee} size={24} />
-            <span style={{ fontSize: 12.5 }}>{r.assignee.name}</span>
+          <span className="row gap8">
+            <Avatar user={r.assignee} size={24} ring={false} />
+            <span style={{ textTransform: "capitalize" }}>{r.assignee.name?.split(" ")[0]}</span>
           </span>
         ) : (
-          "—"
+          <span className="hj-chip cor-laranja">Sem dono</span>
         )}
       </td>
-      <td style={{ padding: "11px 14px", whiteSpace: "nowrap" }}>
-        {col && (
-          <span className="badge" style={{ color: col.c, background: "var(--surface-3)" }}>
-            <span className="bdot" style={{ background: col.c }} />
-            {col.label}
-          </span>
-        )}
+      <td>
+        <span className="hj-pilula" style={{ color: st.c, background: st.bg }}>
+          <i />
+          {st.label}
+        </span>
       </td>
-      <td style={{ padding: "11px 14px" }}>
-        <PriorityBadge pr={r.priority} />
-      </td>
-      <td style={{ padding: "11px 14px", whiteSpace: "nowrap", color: overdue ? "var(--st-risk)" : undefined }}>
+      <td>
         {fmtDay(r.createdAt)}
-        {r.dueDate && <div className="muted" style={{ fontSize: 11.5, color: overdue ? "var(--st-risk)" : undefined }}>prazo {fmtDay(r.dueDate)}</div>}
+        {r.dueDate && (
+          <div className="dl-sub" style={atrasada ? { color: "var(--vermelho)", fontWeight: 600 } : undefined}>
+            prazo {fmtDay(r.dueDate)}
+          </div>
+        )}
       </td>
-      <td style={{ padding: "11px 14px", whiteSpace: "nowrap", fontSize: 12.5 }}>
-        {r.estimatedMinutes ? fmtMin(r.estimatedMinutes) : "—"}
-        {" / "}
-        {r.realMinutes != null ? <b>{fmtMin(r.realMinutes)}</b> : r.startedAt && r.column !== "done" ? <span className="muted">em curso</span> : "—"}
+      <td>
+        {r.realMinutes != null ? (
+          <b>{minLabel(r.realMinutes)}</b>
+        ) : r.startedAt && isAberta(r.column) ? (
+          <span className="muted">em curso</span>
+        ) : (
+          <span className="muted">—</span>
+        )}
+        {r.estimatedMinutes != null && <div className="dl-sub">est. {minLabel(r.estimatedMinutes)}</div>}
       </td>
     </tr>
   );

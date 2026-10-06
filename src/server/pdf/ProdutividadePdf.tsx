@@ -18,12 +18,15 @@ const C = {
 };
 
 const ORIGEM: Record<TaskOrigin, { label: string; c: string }> = {
-  planejada: { label: "Planejada", c: C.muted },
-  avulsa: { label: "Avulsa", c: C.purple },
+  whatsapp: { label: "WhatsApp", c: C.done },
+  telefone: { label: "Telefone", c: C.primary },
   presencial: { label: "Presencial", c: C.blue },
+  planejada: { label: "Interna", c: C.muted },
+  monitoramento: { label: "Monitoramento", c: C.risk },
+  avulsa: { label: "Outro", c: C.purple },
 };
 
-const COL_LABEL: Record<string, string> = { todo: "A fazer", doing: "Em andamento", review: "Revisão", done: "Concluída" };
+const COL_LABEL: Record<string, string> = { todo: "Na fila", doing: "Em atendimento", waiting: "Aguardando", done: "Resolvida", canceled: "Cancelada" };
 
 const s = StyleSheet.create({
   page: { padding: 36, fontSize: 9, fontFamily: "Helvetica", color: C.ink2 },

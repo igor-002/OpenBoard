@@ -1,4 +1,5 @@
 import "server-only";
+import { COLUNAS_ABERTAS } from "@/lib/meta";
 import { db } from "@/lib/db";
 import { effectiveProgress } from "@/server/projects";
 import type { ProjectStatus, AvatarUser } from "@/lib/types";
@@ -97,7 +98,7 @@ export async function getDashboardData(workspaceId: string): Promise<DashboardDa
   });
   const openByUser = await db.task.groupBy({
     by: ["assigneeId"],
-    where: { workspaceId, column: { not: "done" }, assigneeId: { not: null } },
+    where: { workspaceId, column: { in: COLUNAS_ABERTAS }, assigneeId: { not: null } },
     _count: { _all: true },
   });
   const openMap = new Map(openByUser.map((r) => [r.assigneeId as string, r._count._all]));

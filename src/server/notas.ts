@@ -6,6 +6,7 @@
 // não responde "pode ler a nota da outra pessoa". Toda query desta feature passa
 // por noteAccess() ou pelo filtro de visibilidade abaixo.
 import "server-only";
+import { COLUNAS_ABERTAS } from "@/lib/meta";
 import { db } from "@/lib/db";
 import type { Prisma } from "@/generated/prisma";
 
@@ -241,7 +242,7 @@ export async function opcoesVinculo(workspaceId: string, userId: string) {
       take: 200,
     }),
     db.task.findMany({
-      where: { workspaceId, assigneeId: userId, column: { not: "done" } },
+      where: { workspaceId, assigneeId: userId, column: { in: COLUNAS_ABERTAS } },
       select: { id: true, title: true },
       orderBy: { createdAt: "desc" },
       take: 100,

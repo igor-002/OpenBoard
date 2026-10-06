@@ -30,11 +30,15 @@ enum Priority {
   low
 }
 
+// Status da demanda. `waiting` = aguardando cliente/terceiro/peça (era `review`).
+// `canceled` é estado final sem solução — fica fora do quadro e das contas de
+// "aberta"/"concluída". Abertas = todo | doing | waiting (COLUNAS_ABERTAS em lib/meta).
 enum TaskColumn {
   todo
   doing
-  review
+  waiting
   done
+  canceled
 }
 
 enum TimeLogStatus {
@@ -52,10 +56,15 @@ enum MilestoneState {
 // Origem da tarefa/atividade: planejada (atribuída de cima), avulsa (registrada
 // pelo próprio membro) ou presencial (solicitação na porta da sala). Base dos
 // relatórios de volume de demanda.
+// Os três primeiros são os valores originais; `avulsa` segue valendo como
+// "outro canal" para o que já existia. Não planejada = tudo menos `planejada`.
 enum TaskOrigin {
   planejada
   avulsa
   presencial
+  whatsapp
+  telefone
+  monitoramento
 }
 
 model Workspace {
@@ -103,6 +112,8 @@ model User {
 
   memberships    ProjectMember[]
   assignedTasks  Task[]          @relation("TaskAssignee")
+  createdTasks   Task[]          @relation("TaskCreator")
+  taskEvents     TaskEvent[]
   timeLogs       TimeLog[]
   notes          ProjectNote[]
   notasAutor     Note[]          @relation("NoteAutor")
@@ -324,8 +335,16 @@ model Task {
   workspaceId String
   project     Project?   @relation(fields: [projectId], references: [id], onDelete: Cascade)
   projectId   String?
+  // Número do chamado: sequencial, é como as pessoas se referem à demanda.
+  numero      Int        @unique @default(autoincrement())
   title       String
+  description String?    // o pedido em si (≠ comentário, que é acompanhamento)
+  solicitante String?    // quem pediu, texto livre (cliente formal fica em ixcCliente)
+  creator     User?      @relation("TaskCreator", fields: [creatorId], references: [id], onDelete: SetNull)
+  creatorId   String?
   column      TaskColumn @default(todo)
+  waitingReason String?  // por que está em `waiting` (some ao sair)
+  canceledAt  DateTime?
   priority    Priority   @default(med)
   dueDate     DateTime?
   assignee    User?      @relation("TaskAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
@@ -351,12 +370,32 @@ model Task {
   comments TaskComment[]
   acknowledgements TaskAcknowledgement[]
   notas    Note[]
+  events   TaskEvent[]
 
   @@index([workspaceId])
   @@index([projectId])
   @@index([assigneeId])
+  @@index([creatorId])
   @@index([tipoId])
   @@index([ixcClienteId])
+}
+
+// Histórico da demanda: quem mudou status ou responsável, e quando. É daqui que
+// saem tempo em cada status e a linha do tempo do chamado. Só se acrescenta.
+model TaskEvent {
+  id        String   @id @default(cuid())
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  taskId    String
+  actor     User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  actorId   String?
+  kind      String // created | status | assignee
+  from      String?
+  to        String?
+  note      String? // motivo (aguardando / cancelada)
+  createdAt DateTime @default(now())
+
+  @@index([taskId, createdAt])
+  @@index([actorId])
 }
 
 // Tipo/categoria de atividade (Suporte, Instalação, …). Extensível — seed

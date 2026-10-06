@@ -1,4 +1,5 @@
 import "server-only";
+import { COLUNAS_ABERTAS } from "@/lib/meta";
 import { db } from "@/lib/db";
 import { getProjectsList, type ProjectListItem } from "./projects";
 
@@ -66,7 +67,7 @@ export async function getReportsData(workspaceId: string): Promise<ReportsData> 
     db.task.findMany({ where: { workspaceId }, select: { createdAt: true } }),
     db.user.findMany({ where: { workspaceId }, select: { id: true, name: true, initials: true, color: true, jobTitle: true } }),
     db.task.findMany({
-      where: { workspaceId, column: { not: "done" } },
+      where: { workspaceId, column: { in: COLUNAS_ABERTAS } },
       select: { id: true, title: true, column: true, dueDate: true, assigneeId: true, projectId: true, assignee: { select: { name: true } }, project: { select: { name: true } } },
     }),
     db.timeLog.findMany({ where: { project: { workspaceId }, startedAt: { gte: d30 } }, select: { userId: true, durationSec: true } }),

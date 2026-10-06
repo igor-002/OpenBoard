@@ -1,12 +1,13 @@
 import "server-only";
 import { db } from "@/lib/db";
+import type { TaskOrigin } from "@/lib/types";
 
 export type PendingTaskAcknowledgement = {
   id: string;
   taskId: string;
   title: string;
   priority: "high" | "med" | "low";
-  origem: "planejada" | "avulsa" | "presencial";
+  origem: TaskOrigin;
   projectName: string | null;
   tipoName: string | null;
   dueDate: Date | null;

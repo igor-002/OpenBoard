@@ -454,10 +454,10 @@ function SlideEquipeNotas({ d }: { d: TvData; now: Date }) {
 
 /* ============ SLIDE — PROJETO EM DESTAQUE (rotativo) ============ */
 const KAN_LABEL: [keyof TvFeatured["kanban"], string, string][] = [
-  ["todo", "A fazer", "var(--tv-muted)"],
-  ["doing", "Em progresso", "var(--info)"],
-  ["review", "Em revisão", "var(--viol)"],
-  ["done", "Concluído", "var(--ok)"],
+  ["todo", "Na fila", "var(--tv-muted)"],
+  ["doing", "Em atendimento", "var(--info)"],
+  ["waiting", "Aguardando", "var(--viol)"],
+  ["done", "Resolvida", "var(--ok)"],
 ];
 function SlideDestaque({ d, now }: { d: TvData; now: Date }) {
   const list = d.featured;

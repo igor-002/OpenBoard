@@ -2,6 +2,7 @@
 // a página /reports (web) e o PDF (/api/relatorios/produtividade).
 // Semântica do período: "criadas" = createdAt dentro; "concluídas" = doneAt dentro.
 import "server-only";
+import { COLUNAS_ABERTAS, ORIGENS } from "@/lib/meta";
 import { db } from "@/lib/db";
 import type { Priority, TaskColumn, TaskOrigin, AvatarUser } from "@/lib/types";
 
@@ -95,7 +96,6 @@ export type ProdutividadeReport = {
 };
 
 const DAY = 86400000;
-const ORIGENS: TaskOrigin[] = ["planejada", "avulsa", "presencial"];
 
 const execMin = (t: { startedAt: Date | null; doneAt: Date | null }) =>
   t.startedAt && t.doneAt ? Math.max(0, Math.round((+t.doneAt - +t.startedAt) / 60000)) : null;
@@ -133,7 +133,7 @@ export async function getProdutividadeReport(workspaceId: string, from: Date, to
     }),
     // Abertas agora (snapshot — prolongadas, vencidas, carga atual).
     db.task.findMany({
-      where: { workspaceId, column: { not: "done" } },
+      where: { workspaceId, column: { in: COLUNAS_ABERTAS } },
       select: {
         id: true, title: true, column: true, createdAt: true, startedAt: true, dueDate: true,
         estimatedMinutes: true, assigneeId: true, assignee: { select: { name: true } },
@@ -417,7 +417,7 @@ export async function getResumoSemana(workspaceId: string, from: Date, to: Date)
     db.task.findMany({
       where: {
         workspaceId,
-        OR: [{ column: { not: "done" } }, { doneAt: { gte: from, lte: to } }],
+        OR: [{ column: { in: COLUNAS_ABERTAS } }, { doneAt: { gte: from, lte: to } }],
       },
       orderBy: [{ column: "asc" }, { doneAt: "desc" }, { createdAt: "asc" }],
       select: {

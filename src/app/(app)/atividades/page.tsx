@@ -1,7 +1,6 @@
 import { requireTool } from "@/lib/permissions";
 import { getAtividadesData } from "@/server/atividades";
 import { AtividadesView } from "@/components/atividades/AtividadesView";
-import type { TaskColumn, TaskOrigin } from "@/lib/types";
 
 export default async function AtividadesPage({
   searchParams,
@@ -14,8 +13,8 @@ export default async function AtividadesPage({
   const data = await getAtividadesData(user.workspaceId, {
     assigneeId: sp.assignee,
     tipoId: sp.tipo,
-    origem: sp.origem as TaskOrigin | undefined,
-    column: sp.status as TaskColumn | undefined,
+    origem: sp.origem,
+    status: sp.status,
     clienteId: sp.cliente,
     from: sp.from,
     to: sp.to,
@@ -23,11 +22,7 @@ export default async function AtividadesPage({
 
   return (
     <div className="page" style={{ maxWidth: 1400 }}>
-      <AtividadesView
-        data={data}
-        currentUser={{ id: user.id, name: user.name, initials: user.initials, color: user.color }}
-        isAdmin={user.role === "admin"}
-      />
+      <AtividadesView data={data} />
     </div>
   );
 }

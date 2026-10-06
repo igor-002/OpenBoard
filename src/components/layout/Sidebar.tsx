@@ -4,9 +4,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Icon } from "@/components/ui/Icon";
 import { Avatar } from "@/components/ui/Avatar";
-import { NAV_MAIN, NAV_ADMIN } from "./nav";
-import { activeNavHref } from "@/lib/nav-active";
-import { firstToolHref, toolForPath } from "@/lib/modules";
+import { NAV_MAIN, NAV_ADMIN, secaoAtiva, tabsVisiveis } from "./nav";
+import { firstToolHref } from "@/lib/modules";
 import type { AvatarUser } from "@/lib/types";
 
 export function Sidebar({
@@ -23,10 +22,11 @@ export function Sidebar({
   tools: string[];
 }) {
   const pathname = usePathname();
-  const visiveis = NAV_MAIN.filter((n) => {
-    const t = toolForPath(n.href);
-    return !t || tools.includes(t.key);
-  });
+  const ativa = secaoAtiva(pathname);
+  // Cada item aponta pra primeira tela dele que a pessoa pode abrir.
+  const visiveis = NAV_MAIN.map((n) => ({ item: n, href: tabsVisiveis(n, tools)[0]?.href })).filter(
+    (x): x is { item: (typeof NAV_MAIN)[number]; href: string } => !!x.href,
+  );
   const comercialHref = firstToolHref(tools, ["comercial", "leads", "margem"]);
   const marketingHref = firstToolHref(tools, ["marketing"]);
   return (
@@ -37,64 +37,51 @@ export function Sidebar({
         </div>
         <div className="sb-brand-text">
           <div className="sb-brand-name">OpenBoard</div>
-          <div className="sb-brand-sub">Workspace · {workspaceName}</div>
+          <div className="sb-brand-sub">{workspaceName}</div>
         </div>
       </div>
 
-      {visiveis.map((n) => {
-        const active = n.href === activeNavHref(pathname, [...NAV_MAIN, ...NAV_ADMIN].map((x) => x.href));
-        return (
-          <Link key={n.href} href={n.href} className={`sb-item ${active ? "active" : ""}`} title={n.label}>
-            <Icon name={n.icon} />
-            <span className="sb-label">{n.label}</span>
-          </Link>
-        );
-      })}
+      {visiveis.map(({ item: n, href }) => (
+        <Link key={n.href} href={href} className={`sb-item ${ativa === n ? "active" : ""}`} title={n.label}>
+          <Icon name={n.icon} />
+          <span className="sb-label">{n.label}</span>
+        </Link>
+      ))}
 
       {isAdmin && (
         <>
-          <div className="sb-section">Admin</div>
-          {NAV_ADMIN.map((n) => {
-            const active = n.href === activeNavHref(pathname, [...NAV_MAIN, ...NAV_ADMIN].map((x) => x.href));
-            return (
-              <Link key={n.href} href={n.href} className={`sb-item ${active ? "active" : ""}`} title={n.label}>
-                <Icon name={n.icon} />
-                <span className="sb-label">{n.label}</span>
-              </Link>
-            );
-          })}
+          <div className="sb-section">Ajustes</div>
+          {NAV_ADMIN.map((n) => (
+            <Link key={n.href} href={n.href} className={`sb-item ${ativa === n ? "active" : ""}`} title={n.label}>
+              <Icon name={n.icon} />
+              <span className="sb-label">{n.label}</span>
+            </Link>
+          ))}
         </>
       )}
 
-      {(comercialHref || marketingHref) && <div className="sb-section">Sistemas</div>}
+      {(comercialHref || marketingHref) && <div className="sb-section">Outros sistemas</div>}
       {comercialHref && (
-        <Link
-          href={comercialHref}
-          className={`sb-item ${pathname.startsWith("/comercial") ? "active" : ""}`}
-          title="Comercial · IXC"
-        >
+        <Link href={comercialHref} className="sb-item sb-item-ext" title="Comercial · IXC">
           <Icon name="briefcase" />
           <span className="sb-label">Comercial</span>
+          <Icon name="arrowUpRight" size={14} className="sb-label sb-ext" />
         </Link>
       )}
       {marketingHref && (
-        <Link
-          href={marketingHref}
-          className={`sb-item ${pathname.startsWith("/marketing") ? "active" : ""}`}
-          title="Marketing"
-        >
+        <Link href={marketingHref} className="sb-item sb-item-ext" title="Marketing">
           <Icon name="share" />
           <span className="sb-label">Marketing</span>
+          <Icon name="arrowUpRight" size={14} className="sb-label sb-ext" />
         </Link>
       )}
 
       <Link href="/settings/account" className="sb-user" title="Minha conta">
-        <Avatar user={user} size={38} />
+        <Avatar user={user} size={30} ring={false} />
         <div className="sb-brand-text" style={{ flex: 1, minWidth: 0 }}>
           <div className="name">{user.name}</div>
           <div className="role">{user.jobTitle}</div>
         </div>
-        <Icon name="chevRight" size={16} style={{ color: "var(--side-muted)" }} className="sb-label" />
       </Link>
     </aside>
   );

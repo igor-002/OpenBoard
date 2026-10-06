@@ -8,11 +8,7 @@ export default async function KanbanPage() {
 
   return (
     <div className="page" style={{ maxWidth: 1400 }}>
-      <KanbanBoard
-        data={data}
-        currentUser={{ id: user.id, name: user.name, initials: user.initials, color: user.color }}
-        isAdmin={user.role === "admin"}
-      />
+      <KanbanBoard data={data} />
     </div>
   );
 }

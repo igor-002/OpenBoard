@@ -1,235 +1,14 @@
 "use server";
 
+// Checklist e acompanhamentos de uma demanda. Criar, mudar status e trocar
+// responsável ficam em ../demandas/actions.ts (regra única).
 import { revalidatePath } from "next/cache";
-import { z } from "zod";
 import { db } from "@/lib/db";
-import { requireUser } from "@/lib/auth";
+import { requireAnyToolUser, TOOLS_DEMANDA } from "@/lib/permissions";
 import { notify } from "@/server/notifications";
-import { emitAppEvent } from "@/server/events";
-import type { TaskColumn } from "@/lib/types";
-
-const COLUMNS = ["todo", "doing", "review", "done"] as const;
+import { linkDemanda } from "@/server/demandas";
 
 export type TaskActionState = { ok?: boolean; error?: string };
-
-const createSchema = z.object({
-  title: z.string().min(2, "Informe um título"),
-  projectId: z.string().min(1, "Escolha um projeto"),
-  priority: z.enum(["high", "med", "low"]),
-  assigneeId: z.string().optional(),
-  column: z.enum(COLUMNS).optional(),
-  tags: z.string().optional(),
-});
-
-export async function createTask(_prev: TaskActionState, formData: FormData): Promise<TaskActionState> {
-  const user = await requireUser();
-  const parsed = createSchema.safeParse({
-    title: formData.get("title"),
-    projectId: formData.get("projectId"),
-    priority: formData.get("priority") || "med",
-    assigneeId: formData.get("assigneeId") || undefined,
-    column: formData.get("column") || "todo",
-    tags: formData.get("tags") || undefined,
-  });
-  if (!parsed.success) return { error: parsed.error.issues[0].message };
-
-  const project = await db.project.findFirst({
-    where: { id: parsed.data.projectId, workspaceId: user.workspaceId },
-    select: { id: true, name: true },
-  });
-  if (!project) return { error: "Projeto inválido." };
-
-  const tags = (parsed.data.tags ?? "")
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean)
-    .slice(0, 6);
-
-  const count = await db.task.count({ where: { projectId: parsed.data.projectId } });
-
-  let assigneeId: string | null = null;
-  if (parsed.data.assigneeId) {
-    const assignee = await db.user.findFirst({ where: { id: parsed.data.assigneeId, workspaceId: user.workspaceId }, select: { id: true } });
-    if (!assignee) return { error: "Responsável inválido." };
-    assigneeId = assignee.id;
-  }
-
-  await db.task.create({
-    data: {
-      workspaceId: user.workspaceId,
-      projectId: parsed.data.projectId,
-      title: parsed.data.title,
-      priority: parsed.data.priority,
-      column: parsed.data.column ?? "todo",
-      doneAt: parsed.data.column === "done" ? new Date() : null,
-      assigneeId,
-      order: count,
-      tags: tags.length ? { create: tags.map((label) => ({ label })) } : undefined,
-      acknowledgements: assigneeId && assigneeId !== user.id ? { create: { userId: assigneeId } } : undefined,
-    },
-  });
-
-  // Notifica o responsável (se for outra pessoa).
-  if (assigneeId && assigneeId !== user.id) {
-    await notify([assigneeId], {
-      type: "task_assigned",
-      title: "Nova tarefa atribuída a você",
-      body: parsed.data.title,
-      link: "/kanban",
-    });
-    // Abre o modal de confirmação na hora, sem esperar o próximo carregamento.
-    emitAppEvent({
-      kind: "demanda_atribuida",
-      recipientIds: [assigneeId],
-      actorName: user.name,
-      entity: parsed.data.title,
-      link: "/kanban",
-    });
-  }
-
-  // Anúncio para o resto do workspace (menos o autor e o responsável já avisado).
-  const exclude = [user.id];
-  if (assigneeId) exclude.push(assigneeId);
-  const others = await db.user.findMany({
-    where: { workspaceId: user.workspaceId, id: { notIn: exclude } },
-    select: { id: true },
-  });
-  await notify(others.map((u) => u.id), {
-    type: "task_created",
-    title: "Nova tarefa criada",
-    body: `${parsed.data.title} · em ${project.name} · por ${user.name}`,
-    link: "/kanban",
-  });
-
-  // Toast em tempo real para quem estiver online.
-  emitAppEvent({
-    kind: "task_created",
-    workspaceId: user.workspaceId,
-    actorId: user.id,
-    actorName: user.name,
-    entity: parsed.data.title,
-    link: "/kanban",
-  });
-
-  revalidatePath("/kanban");
-  revalidatePath("/atividades");
-  revalidatePath("/dashboard");
-  return { ok: true };
-}
-
-const updateSchema = z.object({
-  title: z.string().min(2, "Informe um título"),
-  priority: z.enum(["high", "med", "low"]),
-  column: z.enum(COLUMNS),
-  assigneeId: z.string().optional(),
-  dueDate: z.string().optional(),
-  tags: z.string().optional(),
-});
-
-// Edita uma tarefa (workspace-scoped).
-export async function updateTask(taskId: string, _prev: TaskActionState, formData: FormData): Promise<TaskActionState> {
-  const user = await requireUser();
-  const task = await db.task.findFirst({
-    where: { id: taskId, workspaceId: user.workspaceId },
-    select: { id: true, assigneeId: true, column: true, doneAt: true, startedAt: true },
-  });
-  if (!task) return { error: "Tarefa não encontrada." };
-
-  const parsed = updateSchema.safeParse({
-    title: formData.get("title"),
-    priority: formData.get("priority") || "med",
-    column: formData.get("column") || "todo",
-    assigneeId: formData.get("assigneeId") || undefined,
-    dueDate: formData.get("dueDate") || undefined,
-    tags: formData.get("tags") || undefined,
-  });
-  if (!parsed.success) return { error: parsed.error.issues[0].message };
-  const d = parsed.data;
-
-  // valida responsável no workspace
-  let assigneeId: string | null = null;
-  if (d.assigneeId) {
-    const u = await db.user.findFirst({ where: { id: d.assigneeId, workspaceId: user.workspaceId }, select: { id: true } });
-    assigneeId = u?.id ?? null;
-  }
-  const tags = (d.tags ?? "").split(",").map((s) => s.trim()).filter(Boolean).slice(0, 6);
-
-  await db.$transaction([
-    db.taskTag.deleteMany({ where: { taskId } }),
-    db.task.update({
-      where: { id: taskId },
-      data: {
-        title: d.title,
-        priority: d.priority,
-        column: d.column,
-        // Carimba a conclusão ao entrar em "done"; limpa se sair de lá.
-        doneAt: d.column === "done" ? (task.column === "done" ? task.doneAt : new Date()) : null,
-        // Carimba o início na 1ª entrada em "doing" (duração real das atividades).
-        startedAt: task.startedAt ?? (d.column === "doing" ? new Date() : null),
-        assigneeId,
-        dueDate: d.dueDate ? new Date(d.dueDate + "T12:00:00") : null,
-        tags: tags.length ? { create: tags.map((label) => ({ label })) } : undefined,
-      },
-    }),
-  ]);
-
-  // Notifica novo responsável (se mudou e não for você).
-  if (assigneeId && assigneeId !== task.assigneeId && assigneeId !== user.id) {
-    await notify([assigneeId], {
-      type: "task_assigned",
-      title: "Tarefa atribuída a você",
-      body: d.title,
-      link: "/kanban",
-    });
-  }
-
-  revalidatePath("/kanban");
-  revalidatePath("/atividades");
-  revalidatePath("/dashboard");
-  return { ok: true };
-}
-
-// Exclui uma tarefa (workspace-scoped).
-export async function deleteTask(taskId: string): Promise<TaskActionState> {
-  const user = await requireUser();
-  const task = await db.task.findFirst({
-    where: { id: taskId, workspaceId: user.workspaceId },
-    select: { id: true },
-  });
-  if (!task) return { error: "Tarefa não encontrada." };
-  await db.task.delete({ where: { id: taskId } });
-  revalidatePath("/kanban");
-  revalidatePath("/atividades");
-  revalidatePath("/dashboard");
-  return { ok: true };
-}
-
-// Move uma tarefa para outra coluna (drag-and-drop).
-export async function moveTask(taskId: string, column: TaskColumn): Promise<TaskActionState> {
-  const user = await requireUser();
-  if (!COLUMNS.includes(column)) return { error: "Coluna inválida." };
-
-  const task = await db.task.findFirst({
-    where: { id: taskId, workspaceId: user.workspaceId },
-    select: { id: true, column: true, doneAt: true, startedAt: true },
-  });
-  if (!task) return { error: "Tarefa não encontrada." };
-
-  await db.task.update({
-    where: { id: taskId },
-    data: {
-      column,
-      // Carimba a conclusão ao entrar em "done"; limpa se sair de lá.
-      doneAt: column === "done" ? (task.column === "done" ? task.doneAt : new Date()) : null,
-      // Carimba o início na 1ª entrada em "doing" (duração real das atividades).
-      startedAt: task.startedAt ?? (column === "doing" ? new Date() : null),
-    },
-  });
-  revalidatePath("/kanban");
-  revalidatePath("/atividades");
-  revalidatePath("/dashboard");
-  return { ok: true };
-}
 
 // ---------- Subtarefas (checklist) ----------
 async function ownTask(taskId: string, workspaceId: string) {
@@ -237,43 +16,40 @@ async function ownTask(taskId: string, workspaceId: string) {
 }
 
 export async function addSubtask(taskId: string, title: string): Promise<TaskActionState> {
-  const user = await requireUser();
+  const user = await requireAnyToolUser(TOOLS_DEMANDA);
   if (!(await ownTask(taskId, user.workspaceId))) return { error: "Tarefa não encontrada." };
   const t = title.trim();
   if (t.length < 1) return { error: "Vazio." };
   const count = await db.subtask.count({ where: { taskId } });
   await db.subtask.create({ data: { taskId, title: t.slice(0, 200), order: count } });
-  revalidatePath("/kanban");
-  revalidatePath("/atividades");
+  revalida();
   return { ok: true };
 }
 
 export async function toggleSubtask(subtaskId: string): Promise<TaskActionState> {
-  const user = await requireUser();
+  const user = await requireAnyToolUser(TOOLS_DEMANDA);
   const s = await db.subtask.findFirst({ where: { id: subtaskId, task: { workspaceId: user.workspaceId } }, select: { id: true, done: true } });
   if (!s) return { error: "Subtarefa não encontrada." };
   await db.subtask.update({ where: { id: subtaskId }, data: { done: !s.done } });
-  revalidatePath("/kanban");
-  revalidatePath("/atividades");
+  revalida();
   return { ok: true };
 }
 
 export async function deleteSubtask(subtaskId: string): Promise<TaskActionState> {
-  const user = await requireUser();
+  const user = await requireAnyToolUser(TOOLS_DEMANDA);
   const s = await db.subtask.findFirst({ where: { id: subtaskId, task: { workspaceId: user.workspaceId } }, select: { id: true } });
   if (!s) return { error: "Subtarefa não encontrada." };
   await db.subtask.delete({ where: { id: subtaskId } });
-  revalidatePath("/kanban");
-  revalidatePath("/atividades");
+  revalida();
   return { ok: true };
 }
 
 // ---------- Comentários (thread) ----------
 export async function addTaskComment(taskId: string, body: string): Promise<TaskActionState> {
-  const user = await requireUser();
+  const user = await requireAnyToolUser(TOOLS_DEMANDA);
   const task = await db.task.findFirst({
     where: { id: taskId, workspaceId: user.workspaceId },
-    select: { id: true, title: true, assigneeId: true },
+    select: { id: true, numero: true, title: true, assigneeId: true },
   });
   if (!task) return { error: "Tarefa não encontrada." };
   const b = body.trim();
@@ -281,15 +57,14 @@ export async function addTaskComment(taskId: string, body: string): Promise<Task
   await db.taskComment.create({ data: { taskId, authorId: user.id, body: b.slice(0, 2000) } });
   // avisa o responsável (se houver e não for você)
   if (task.assigneeId && task.assigneeId !== user.id) {
-    await notify([task.assigneeId], { type: "note_added", title: `Comentário em: ${task.title}`, body: b.slice(0, 90), link: "/kanban" });
+    await notify([task.assigneeId], { type: "note_added", title: `Acompanhamento na demanda #${task.numero}`, body: b.slice(0, 90), link: linkDemanda(task.numero) });
   }
-  revalidatePath("/kanban");
-  revalidatePath("/atividades");
+  revalida();
   return { ok: true };
 }
 
 export async function deleteTaskComment(commentId: string): Promise<TaskActionState> {
-  const user = await requireUser();
+  const user = await requireAnyToolUser(TOOLS_DEMANDA);
   const c = await db.taskComment.findFirst({
     where: { id: commentId, task: { workspaceId: user.workspaceId } },
     select: { id: true, authorId: true },
@@ -297,7 +72,12 @@ export async function deleteTaskComment(commentId: string): Promise<TaskActionSt
   if (!c) return { error: "Comentário não encontrado." };
   if (c.authorId !== user.id && user.role !== "admin") return { error: "Sem permissão." };
   await db.taskComment.delete({ where: { id: commentId } });
+  revalida();
+  return { ok: true };
+}
+
+function revalida() {
   revalidatePath("/kanban");
   revalidatePath("/atividades");
-  return { ok: true };
+  revalidatePath("/dashboard");
 }

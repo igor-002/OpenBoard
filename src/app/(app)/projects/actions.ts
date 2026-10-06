@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { requireUser } from "@/lib/auth";
+import { requireToolUser } from "@/lib/permissions";
 import { notify } from "@/server/notifications";
 import { emitAppEvent } from "@/server/events";
 import { ensureProjectCategory } from "@/server/project-categories";
@@ -57,7 +57,7 @@ async function buildMembers(workspaceId: string, memberIds: string[]) {
 }
 
 export async function createProject(_prev: ProjectActionState, formData: FormData): Promise<ProjectActionState> {
-  const user = await requireUser();
+  const user = await requireToolUser("gestao.projetos");
   const p = parse(formData);
   if (!p.success) return { error: p.error.issues[0].message };
   const d = p.data;
@@ -117,7 +117,7 @@ export async function createProject(_prev: ProjectActionState, formData: FormDat
 }
 
 export async function updateProject(projectId: string, _prev: ProjectActionState, formData: FormData): Promise<ProjectActionState> {
-  const user = await requireUser();
+  const user = await requireToolUser("gestao.projetos");
   const exists = await db.project.findFirst({ where: { id: projectId, workspaceId: user.workspaceId }, select: { id: true } });
   if (!exists) return { error: "Projeto não encontrado." };
 
@@ -163,7 +163,7 @@ export async function updateProject(projectId: string, _prev: ProjectActionState
 // Arrastar o card entre as colunas do quadro só mexe no status — o resto do
 // projeto continua sendo editado pelo formulário (updateProject).
 export async function moveProject(projectId: string, status: string): Promise<ProjectActionState> {
-  const user = await requireUser();
+  const user = await requireToolUser("gestao.projetos");
   const s = statusEnum.safeParse(status);
   if (!s.success) return { error: "Status inválido." };
 
@@ -187,7 +187,7 @@ export type NoteActionState = { ok?: boolean; error?: string };
 const noteSchema = z.object({ body: z.string().min(1, "Escreva algo").max(2000) });
 
 export async function addNote(projectId: string, _prev: NoteActionState, formData: FormData): Promise<NoteActionState> {
-  const user = await requireUser();
+  const user = await requireToolUser("gestao.projetos");
   const project = await db.project.findFirst({
     where: { id: projectId, workspaceId: user.workspaceId },
     select: { id: true, name: true, members: { select: { userId: true } } },
@@ -212,7 +212,7 @@ export async function addNote(projectId: string, _prev: NoteActionState, formDat
 
 // Exclui anotação: autor ou admin.
 export async function deleteNote(noteId: string): Promise<NoteActionState> {
-  const user = await requireUser();
+  const user = await requireToolUser("gestao.projetos");
   const note = await db.projectNote.findFirst({
     where: { id: noteId, project: { workspaceId: user.workspaceId } },
     select: { id: true, authorId: true, projectId: true },
@@ -239,7 +239,7 @@ async function assertProject(projectId: string, workspaceId: string) {
 }
 
 export async function addMilestone(projectId: string, _prev: MilestoneState, formData: FormData): Promise<MilestoneState> {
-  const user = await requireUser();
+  const user = await requireToolUser("gestao.projetos");
   if (!(await assertProject(projectId, user.workspaceId))) return { error: "Projeto não encontrado." };
   const parsed = milestoneSchema.safeParse({
     title: formData.get("title"),
@@ -256,7 +256,7 @@ export async function addMilestone(projectId: string, _prev: MilestoneState, for
 }
 
 export async function setMilestoneState(milestoneId: string, state: "done" | "doing" | "todo"): Promise<MilestoneState> {
-  const user = await requireUser();
+  const user = await requireToolUser("gestao.projetos");
   const m = await db.milestone.findFirst({ where: { id: milestoneId, project: { workspaceId: user.workspaceId } }, select: { id: true, projectId: true } });
   if (!m) return { error: "Marco não encontrado." };
   await db.milestone.update({ where: { id: milestoneId }, data: { state } });
@@ -265,7 +265,7 @@ export async function setMilestoneState(milestoneId: string, state: "done" | "do
 }
 
 export async function deleteMilestone(milestoneId: string): Promise<MilestoneState> {
-  const user = await requireUser();
+  const user = await requireToolUser("gestao.projetos");
   const m = await db.milestone.findFirst({ where: { id: milestoneId, project: { workspaceId: user.workspaceId } }, select: { id: true, projectId: true } });
   if (!m) return { error: "Marco não encontrado." };
   await db.milestone.delete({ where: { id: milestoneId } });
@@ -277,7 +277,7 @@ export async function deleteMilestone(milestoneId: string): Promise<MilestoneSta
 export type MemberState = { ok?: boolean; error?: string };
 
 export async function addMember(projectId: string, userId: string): Promise<MemberState> {
-  const user = await requireUser();
+  const user = await requireToolUser("gestao.projetos");
   if (!(await assertProject(projectId, user.workspaceId))) return { error: "Projeto não encontrado." };
   const target = await db.user.findFirst({ where: { id: userId, workspaceId: user.workspaceId }, select: { id: true } });
   if (!target) return { error: "Usuário inválido." };
@@ -293,7 +293,7 @@ export async function addMember(projectId: string, userId: string): Promise<Memb
 }
 
 export async function removeMember(projectId: string, userId: string): Promise<MemberState> {
-  const user = await requireUser();
+  const user = await requireToolUser("gestao.projetos");
   if (!(await assertProject(projectId, user.workspaceId))) return { error: "Projeto não encontrado." };
   await db.projectMember.deleteMany({ where: { projectId, userId } });
   revalidatePath(`/projects/${projectId}`);
@@ -301,7 +301,7 @@ export async function removeMember(projectId: string, userId: string): Promise<M
 }
 
 export async function deleteProject(projectId: string): Promise<void> {
-  const user = await requireUser();
+  const user = await requireToolUser("gestao.projetos");
   const exists = await db.project.findFirst({ where: { id: projectId, workspaceId: user.workspaceId }, select: { id: true } });
   if (exists) {
     await db.project.delete({ where: { id: projectId } });
