@@ -7,7 +7,7 @@ import { glpiPost, glpiDelete, glpiGetOne, DEFAULT_ENTITY_ID } from "@/lib/glpi"
 import { v1SetTicketStatus, v1SetTicketCategory } from "@/lib/glpi-v1";
 import { db } from "@/lib/db";
 import { syncOneTicket } from "./sync";
-import { isValidRequester } from "./users";
+import { isValidRequester, getAssignableUsers } from "./users";
 
 // Posta um acompanhamento (followup) no chamado.
 export async function addFollowup(glpiId: number, content: string, isPrivate = false): Promise<void> {
@@ -21,6 +21,9 @@ export interface CreateTicketInput {
   name: string;
   content: string;
   requesterId: number; // usuário do time do marketing (ver getTrackedUsers)
+  // Pedido que vem de FORA do marketing (regras de /settings/glpi): o requerente
+  // pode ser qualquer usuário vivo do GLPI, ou ninguém (requesterId 0).
+  requesterDeFora?: boolean;
   assigneeId?: number; // técnico que já sai atribuído (opcional)
   type?: number; // 1 Incidente, 2 Requisição (default)
   categoryId?: number | null; // ITILCategory da entidade Marketing (lista vem da v1)
@@ -40,7 +43,11 @@ export async function createTicket(input: CreateTicketInput): Promise<number | n
   const name = input.name.trim();
   const content = input.content.trim();
   if (!name) throw new Error("Título obrigatório.");
-  if (!(await isValidRequester(input.requesterId))) {
+  if (input.requesterDeFora) {
+    if (input.requesterId && !(await getAssignableUsers()).some((u) => u.id === input.requesterId)) {
+      throw new Error("Solicitante da regra não existe mais no GLPI (ou foi desativado).");
+    }
+  } else if (!(await isValidRequester(input.requesterId))) {
     throw new Error("Solicitante inválido (precisa ser um usuário ativo do time do marketing).");
   }
   const urgency = input.urgency ?? 3;
@@ -60,7 +67,7 @@ export async function createTicket(input: CreateTicketInput): Promise<number | n
   const newId = created?.id ?? null;
   if (!newId) return null;
 
-  await addTeamMember(newId, input.requesterId, "requester");
+  if (input.requesterId) await addTeamMember(newId, input.requesterId, "requester");
   if (input.assigneeId) await addTeamMember(newId, input.assigneeId, "assigned");
   await syncOneTicket(newId);
 

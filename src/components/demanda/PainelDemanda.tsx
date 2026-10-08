@@ -18,6 +18,7 @@ import {
   mudarStatusAction,
   editarDemandaAction,
   excluirDemandaAction,
+  abrirChamadoAction,
   type EditaDemandaInput,
 } from "@/app/(app)/demandas/actions";
 import { addSubtask, toggleSubtask, deleteSubtask, addTaskComment, deleteTaskComment } from "@/app/(app)/kanban/actions";
@@ -111,14 +112,21 @@ export function PainelDemanda({ meId, isAdmin }: { meId: string; isAdmin: boolea
   if (!numero) return null;
 
   // Roda uma ação, mostra o erro se houver e atualiza painel + tela de baixo.
-  function roda(fn: () => Promise<{ ok?: boolean; error?: string }>, feito?: string, depois?: () => void) {
+  // `chamado`/`aviso` vêm das ações que podem abrir chamado no GLPI de carona.
+  function roda(
+    fn: () => Promise<{ ok?: boolean; error?: string; chamado?: number | null; aviso?: string }>,
+    feito?: string,
+    depois?: () => void,
+  ) {
     start(async () => {
       const r = await fn();
       if (r.error) {
         emitToast({ variant: "error", title: r.error });
         return;
       }
-      if (feito) emitToast({ variant: "success", title: feito });
+      if (feito) emitToast({ variant: "success", title: feito, sub: r.chamado ? `Chamado #${r.chamado} aberto no GLPI` : undefined });
+      else if (r.chamado) emitToast({ variant: "success", title: `Chamado #${r.chamado} aberto no GLPI` });
+      if (r.aviso) emitToast({ variant: "error", title: "Não abriu o chamado no GLPI", sub: r.aviso });
       depois?.();
       if (numero) await recarregar(numero);
       router.refresh();
@@ -335,6 +343,38 @@ export function PainelDemanda({ meId, isAdmin }: { meId: string; isAdmin: boolea
                   ))}
                 </select>
               </Campo>
+              {(d.chamado || d.opcoes.regrasGlpi.length > 0) && (
+                <Campo rotulo="Chamado GLPI">
+                  {d.chamado ? (
+                    <span className="dm-campo dm-cliente" title={d.chamado.fechaJunto ? "Quando o chamado for solucionado no GLPI, esta demanda é resolvida sozinha." : undefined}>
+                      <span className="dm-leitura">
+                        #{d.chamado.glpiId}
+                        {d.chamado.status ? ` · ${d.chamado.status}` : ""}
+                        {d.chamado.responsaveis ? ` · ${d.chamado.responsaveis}` : ""}
+                      </span>
+                      {d.chamado.url && (
+                        <a className="dm-link" href={d.chamado.url} target="_blank" rel="noreferrer">
+                          Abrir
+                        </a>
+                      )}
+                    </span>
+                  ) : (
+                    <select
+                      className="dm-campo"
+                      value=""
+                      disabled={pending}
+                      onChange={(e) => e.target.value && roda(() => abrirChamadoAction(d.id, e.target.value))}
+                    >
+                      <option value="">Sem chamado — abrir…</option>
+                      {d.opcoes.regrasGlpi.map((r) => (
+                        <option key={r.id} value={r.id}>
+                          {r.name}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </Campo>
+              )}
               <Campo rotulo="Cliente">
                 <span className="dm-campo dm-cliente">
                   <span className="dm-leitura">{d.cliente ? `${d.cliente.razao}${d.cliente.ixcId ? ` · IXC ${d.cliente.ixcId}` : ""}` : "Nenhum"}</span>

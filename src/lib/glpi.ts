@@ -38,6 +38,11 @@ export function glpiConfigured(): boolean {
   return Boolean(URL_BASE && CLIENT_ID && CLIENT_SECRET && USERNAME && PASSWORD && TRACKED_USER_IDS.length);
 }
 
+// Endereço do chamado na tela do próprio GLPI (pra quem não usa o módulo Marketing).
+export function glpiTicketUrl(glpiId: number): string | null {
+  return URL_BASE ? `${URL_BASE}/front/ticket.form.php?id=${glpiId}` : null;
+}
+
 // ── Erros ────────────────────────────────────────────────────────────────────
 export class GlpiError extends Error {
   constructor(public status: number, public where: string, detail?: string) {

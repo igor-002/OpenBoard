@@ -3,6 +3,7 @@
 import "server-only";
 import { db } from "@/lib/db";
 import { DIAS_CONCLUIDA_QUADRO } from "@/lib/meta";
+import { membrosDaEquipe } from "@/server/demandas";
 import type { Priority, TaskColumn, AvatarUser, TaskOrigin } from "@/lib/types";
 
 export type TaskCardData = {
@@ -50,7 +51,7 @@ export async function getKanbanData(workspaceId: string): Promise<KanbanData> {
     db.task.count({ where: { workspaceId, column: "done", OR: [{ doneAt: null }, { doneAt: { lt: corte } }] } }),
     db.taskType.findMany({ where: { active: true }, orderBy: { order: "asc" }, select: { id: true, name: true } }),
     db.project.findMany({ where: { workspaceId, status: { not: "done" } }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
-    db.user.findMany({ where: { workspaceId, active: true }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
+    membrosDaEquipe(workspaceId),
   ]);
 
   return {
@@ -74,6 +75,6 @@ export async function getKanbanData(workspaceId: string): Promise<KanbanData> {
     antigas,
     tipos,
     projects,
-    members,
+    members: members.map((m) => ({ id: m.id, name: m.name })),
   };
 }

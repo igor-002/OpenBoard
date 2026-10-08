@@ -35,6 +35,7 @@ export const NAV_MAIN: NavItem[] = [
 export const NAV_ADMIN: NavItem[] = [
   { href: "/settings/users", label: "Usuários", icon: "settings" },
   { href: "/settings/categorias", label: "Categorias", icon: "grid" },
+  { href: "/settings/glpi", label: "Chamados GLPI", icon: "share" },
 ];
 
 function podeAbrir(href: string, tools: readonly string[]): boolean {

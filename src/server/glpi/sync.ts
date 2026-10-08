@@ -205,6 +205,16 @@ export async function runGlpiSync(
   const t0 = Date.now();
   try {
     const { processed, errors } = await syncTickets();
+    // Espelho fresco → fecha as demandas do Principal cujo chamado foi solucionado.
+    // Import tardio: regras.ts → write.ts → este arquivo (ciclo). Falha aqui não
+    // invalida o sync, que já gravou o espelho.
+    try {
+      const { fecharDemandasDoGlpi } = await import("./regras");
+      const fechadas = await fecharDemandasDoGlpi();
+      if (fechadas > 0) console.log(`[glpi] ${fechadas} demanda(s) resolvida(s) pelo chamado.`);
+    } catch (e) {
+      console.error("[glpi] falha ao fechar demandas vinculadas:", (e as Error).message);
+    }
     await db.glpiSyncRun.update({
       where: { id: run.id },
       data: { finishedAt: new Date(), durationMs: Date.now() - t0, processed, errors },

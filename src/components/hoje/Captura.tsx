@@ -17,6 +17,7 @@ export function Captura({ membros, meId }: { membros: { id: string; name: string
   const [erro, setErro] = useState<string | null>(null);
   const [pending, start] = useTransition();
   const campo = useRef<HTMLInputElement>(null);
+  const possoReceber = membros.some((m) => m.id === meId);
 
   function registrar(e: React.FormEvent) {
     e.preventDefault();
@@ -29,7 +30,9 @@ export function Captura({ membros, meId }: { membros: { id: string; name: string
         return;
       }
       const para = membros.find((m) => m.id === assigneeId)?.name;
-      emitToast({ variant: "success", title: `Demanda #${r.numero} aberta`, sub: para ? `Passada para ${para}` : "Ficou em Sem dono" });
+      const dono = para ? `Passada para ${para}` : "Ficou em Sem dono";
+      emitToast({ variant: "success", title: `Demanda #${r.numero} aberta`, sub: r.chamado ? `${dono} · chamado #${r.chamado} no GLPI` : dono });
+      if (r.aviso) emitToast({ variant: "error", title: "Demanda aberta, mas sem chamado no GLPI", sub: r.aviso });
       setTitle("");
       setUrgente(false);
       campo.current?.focus();
@@ -53,7 +56,7 @@ export function Captura({ membros, meId }: { membros: { id: string; name: string
       />
       <select className="hj-select" value={assigneeId} onChange={(e) => setAssigneeId(e.target.value)} aria-label="Responsável">
         <option value="">Sem dono</option>
-        <option value={meId}>Para mim</option>
+        {possoReceber && <option value={meId}>Para mim</option>}
         {membros
           .filter((m) => m.id !== meId)
           .map((m) => (

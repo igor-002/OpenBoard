@@ -8,9 +8,30 @@ import { notify } from "@/server/notifications";
 import { emitAppEvent } from "@/server/events";
 import { isAberta, STATUS_DEMANDA } from "@/lib/meta";
 import type { Priority, TaskColumn, TaskOrigin, AvatarUser } from "@/lib/types";
+import { glpiTicketUrl } from "@/lib/glpi";
+import { abrirChamadoDaDemanda, listarRegras } from "@/server/glpi/regras";
 
 export type Ator = { id: string; name: string; workspaceId: string };
 export type Resultado<T = object> = ({ ok: true } & T) | { ok: false; error: string; falta?: "solucao" | "motivo" };
+
+// Pessoas que podem receber demanda: quem está marcado como da equipe. Usuário de
+// outra área (Comercial, Marketing) tem login no mesmo sistema mas não entra aqui.
+// `incluir` mantém na lista quem já é responsável por algo mesmo sem ser da
+// equipe, pra seletor não ficar sem o valor atual. Enquanto ninguém for marcado,
+// devolve todos os ativos — sistema recém-configurado não pode ficar sem opções.
+export async function membrosDaEquipe(
+  workspaceId: string,
+  incluir: (string | null | undefined)[] = [],
+): Promise<{ id: string; name: string; initials: string; color: string; jobTitle: string; equipe: boolean }[]> {
+  const select = { id: true, name: true, initials: true, color: true, jobTitle: true, equipe: true } as const;
+  const ids = incluir.filter((x): x is string => !!x);
+  const marcados = await db.user.count({ where: { workspaceId, active: true, equipe: true } });
+  return db.user.findMany({
+    where: marcados === 0 ? { workspaceId, active: true } : { workspaceId, OR: [{ active: true, equipe: true }, { id: { in: ids } }] },
+    orderBy: { name: "asc" },
+    select,
+  });
+}
 
 // Endereço da demanda: abre o painel de detalhe por cima da lista.
 export function linkDemanda(numero: number): string {
@@ -48,9 +69,16 @@ export type NovaDemanda = {
   // trás pela duração informada (o tempo real do sistema é sempre doneAt − startedAt).
   jaFeita?: { realMinutes: number; solucao: string } | null;
   iniciar?: boolean; // nasce em atendimento
+  // Chamado no GLPI: ausente = pelas regras de /settings/glpi; null = não abrir;
+  // id = abrir por essa regra mesmo que o gatilho dela não case.
+  glpiRegraId?: string | null;
 };
 
-export async function criarDemanda(ator: Ator, d: NovaDemanda): Promise<Resultado<{ id: string; numero: number }>> {
+// `chamado` = nº do chamado aberto no GLPI junto com a demanda. `aviso` = a
+// demanda foi criada mas o chamado não — a demanda nunca se perde por causa do GLPI.
+export type DemandaCriada = { id: string; numero: number; chamado?: number | null; aviso?: string };
+
+export async function criarDemanda(ator: Ator, d: NovaDemanda): Promise<Resultado<DemandaCriada>> {
   const title = d.title.trim().slice(0, 200);
   if (title.length < 2) return { ok: false, error: "Escreva o que precisa ser feito." };
   const ws = ator.workspaceId;
@@ -128,11 +156,21 @@ export async function criarDemanda(ator: Ator, d: NovaDemanda): Promise<Resultad
     entity: `#${task.numero} ${title}`,
     link: linkDemanda(task.numero),
   });
-  return { ok: true, id: task.id, numero: task.numero };
+
+  if (d.jaFeita || d.glpiRegraId === null) return { ok: true, id: task.id, numero: task.numero };
+  const g = await abrirChamadoDaDemanda(ator, task.id, d.glpiRegraId ?? "auto");
+  return g.ok
+    ? { ok: true, id: task.id, numero: task.numero, chamado: g.chamado }
+    : { ok: true, id: task.id, numero: task.numero, aviso: g.error };
 }
 
 // Troca o responsável (null = volta pra "sem dono"). Sempre registra e avisa.
-export async function atribuirDemanda(ator: Ator, taskId: string, assigneeId: string | null): Promise<Resultado> {
+// Passar pra alguém que é gatilho de regra do GLPI abre o chamado (se ainda não há).
+export async function atribuirDemanda(
+  ator: Ator,
+  taskId: string,
+  assigneeId: string | null,
+): Promise<Resultado<{ chamado?: number | null; aviso?: string }>> {
   const task = await db.task.findFirst({
     where: { id: taskId, workspaceId: ator.workspaceId },
     select: { id: true, numero: true, title: true, assigneeId: true },
@@ -153,7 +191,9 @@ export async function atribuirDemanda(ator: Ator, taskId: string, assigneeId: st
   ]);
   if (novo) await avisaResponsavel(taskId, task.numero, novo, task.title, ator);
   else await db.taskAcknowledgement.deleteMany({ where: { taskId, receivedAt: null } });
-  return { ok: true };
+  if (!novo) return { ok: true };
+  const g = await abrirChamadoDaDemanda(ator, taskId, "auto");
+  return g.ok ? { ok: true, chamado: g.chamado } : { ok: true, aviso: g.error };
 }
 
 // Muda o status. Regras, iguais em qualquer tela:
@@ -249,7 +289,10 @@ export type DemandaDetalhe = {
   aguardandoVer: boolean;
   subtasks: { id: string; title: string; done: boolean }[];
   linha: DemandaEvento[];
+  // Chamado aberto no GLPI por esta demanda. Status vem do espelho local (sync).
+  chamado: { glpiId: number; status: string | null; responsaveis: string | null; url: string | null; fechaJunto: boolean } | null;
   opcoes: {
+    regrasGlpi: { id: string; name: string }[]; // pra abrir chamado à mão (vazio se já tem)
     membros: { id: string; name: string }[];
     tipos: { id: string; name: string }[];
     projetos: { id: string; name: string }[];
@@ -275,18 +318,23 @@ export async function getDemanda(workspaceId: string, numero: number): Promise<D
   });
   if (!t) return null;
 
-  const [membros, tipos, projetos] = await Promise.all([
-    db.user.findMany({ where: { workspaceId, active: true }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
+  const [membros, tipos, projetos, ticket, regras] = await Promise.all([
+    membrosDaEquipe(workspaceId, [t.assigneeId]),
     db.taskType.findMany({ where: { active: true }, orderBy: { order: "asc" }, select: { id: true, name: true } }),
     db.project.findMany({ where: { workspaceId, status: { not: "done" } }, orderBy: { name: "asc" }, select: { id: true, name: true }, take: 200 }),
+    t.glpiId ? db.glpiTicket.findUnique({ where: { glpiId: t.glpiId }, select: { statusName: true, assignees: true } }) : null,
+    t.glpiId || !isAberta(t.column) ? [] : listarRegras(workspaceId, true),
   ]);
-  const nomeDe = new Map(membros.map((m) => [m.id, m.name]));
+  // O histórico cita gente que pode ter saído da equipe: nomes vêm de todos.
+  const todos = await db.user.findMany({ where: { workspaceId }, select: { id: true, name: true } });
+  const nomeDe = new Map(todos.map((m) => [m.id, m.name]));
 
   const linha: DemandaEvento[] = [
     ...t.comments.map((c) => ({ tipo: "comentario" as const, id: c.id, quando: c.createdAt, autor: c.author, autorId: c.authorId, texto: c.body })),
     ...t.events.map((e) => {
       let texto: string;
       if (e.kind === "created") texto = "abriu a demanda";
+      else if (e.kind === "glpi") texto = `abriu o chamado #${e.to} no GLPI`;
       else if (e.kind === "assignee") texto = e.to ? `passou para ${nomeDe.get(e.to) ?? "outra pessoa"}` : "deixou sem dono";
       else texto = `mudou para ${STATUS_DEMANDA[e.to as TaskColumn]?.label ?? e.to}`;
       return { tipo: "evento" as const, id: e.id, quando: e.createdAt, autor: e.actor, texto, nota: e.note };
@@ -324,6 +372,20 @@ export async function getDemanda(workspaceId: string, numero: number): Promise<D
     aguardandoVer: !!ack && !ack.receivedAt,
     subtasks: t.subtasks,
     linha,
-    opcoes: { membros, tipos, projetos },
+    chamado: t.glpiId
+      ? {
+          glpiId: t.glpiId,
+          status: ticket?.statusName || null,
+          responsaveis: ticket?.assignees || null,
+          url: glpiTicketUrl(t.glpiId),
+          fechaJunto: t.glpiFechaJunto,
+        }
+      : null,
+    opcoes: {
+      membros: membros.map((m) => ({ id: m.id, name: m.name })),
+      tipos,
+      projetos,
+      regrasGlpi: regras.map((r) => ({ id: r.id, name: r.name })),
+    },
   };
 }

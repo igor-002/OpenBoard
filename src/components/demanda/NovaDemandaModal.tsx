@@ -3,13 +3,13 @@
 // Formulário completo de nova demanda — o mesmo na lista, no quadro e no projeto.
 // O essencial fica à vista; o resto abre em "Mais detalhes" pra não virar um
 // formulário de 11 campos quando a pessoa só quer registrar e despachar.
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { PickerCampo } from "@/components/ui/PickerCampo";
 import { ClientePicker } from "@/components/atividades/ClientePicker";
 import { emitToast } from "@/lib/toast";
 import { ORIGEM_META, ORIGENS } from "@/lib/meta";
-import { criarDemandaAction } from "@/app/(app)/demandas/actions";
+import { criarDemandaAction, regrasGlpiAction } from "@/app/(app)/demandas/actions";
 import type { Priority, TaskOrigin } from "@/lib/types";
 
 export function NovaDemandaModal({
@@ -30,11 +30,23 @@ export function NovaDemandaModal({
   const [jaFeita, setJaFeita] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [pending, start] = useTransition();
+  // Regras de chamado GLPI (/settings/glpi). Sem regra, o campo não aparece.
+  const [regras, setRegras] = useState<{ id: string; name: string }[]>([]);
+  useEffect(() => {
+    let vivo = true;
+    void regrasGlpiAction()
+      .then((r) => vivo && setRegras(r))
+      .catch(() => {});
+    return () => {
+      vivo = false;
+    };
+  }, []);
 
   function enviar(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const f = new FormData(e.currentTarget);
     const s = (k: string) => (f.get(k) as string | null)?.trim() || null;
+    const glpi = s("glpi");
     setErro(null);
     start(async () => {
       const r = await criarDemandaAction({
@@ -50,9 +62,15 @@ export function NovaDemandaModal({
         dueDate: s("dueDate"),
         estimatedMinutes: s("estimatedMinutes"),
         jaFeita: jaFeita ? { realMinutes: s("realMinutes") ?? "", solucao: s("solucao") ?? "" } : null,
+        glpiRegraId: glpi === "nao" ? null : glpi === "auto" || !glpi ? undefined : glpi,
       });
       if (!r.ok) return setErro(r.error);
-      emitToast({ variant: "success", title: `Demanda #${r.numero} ${jaFeita ? "registrada como resolvida" : "aberta"}` });
+      emitToast({
+        variant: "success",
+        title: `Demanda #${r.numero} ${jaFeita ? "registrada como resolvida" : "aberta"}`,
+        sub: r.chamado ? `Chamado #${r.chamado} aberto no GLPI` : undefined,
+      });
+      if (r.aviso) emitToast({ variant: "error", title: "Demanda aberta, mas sem chamado no GLPI", sub: r.aviso });
       onClose(r.numero);
     });
   }
@@ -108,6 +126,21 @@ export function NovaDemandaModal({
           <label htmlFor="nd-desc">Descrição</label>
           <textarea className="input" id="nd-desc" name="description" rows={3} placeholder="Contexto, o que foi combinado…" style={{ resize: "vertical" }} />
         </div>
+
+        {regras.length > 0 && !jaFeita && (
+          <div className="field">
+            <label htmlFor="nd-glpi">Chamado no GLPI do Marketing</label>
+            <select className="input" id="nd-glpi" name="glpi" defaultValue="auto">
+              <option value="auto">Pelas regras (abre sozinho se o tipo ou o responsável pedir)</option>
+              <option value="nao">Não abrir chamado</option>
+              {regras.map((r) => (
+                <option key={r.id} value={r.id}>
+                  Abrir: {r.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         <label className="row gap8" style={{ fontSize: 13.5, fontWeight: 500, cursor: "pointer" }}>
           <input type="checkbox" checked={jaFeita} onChange={(e) => setJaFeita(e.target.checked)} />

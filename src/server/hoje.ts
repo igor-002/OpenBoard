@@ -3,6 +3,7 @@
 // Tudo lido de Task; nada aqui é estimado ou inventado.
 import "server-only";
 import { COLUNAS_ABERTAS, isAtrasada } from "@/lib/meta";
+import { membrosDaEquipe } from "@/server/demandas";
 import { db } from "@/lib/db";
 import type { Priority, TaskColumn, TaskOrigin, AvatarUser } from "@/lib/types";
 
@@ -45,6 +46,10 @@ export type HojeData = {
   totais: { fazendo: number; aguardando: number; fila: number; atrasadas: number; feitasHoje: number };
   membros: { id: string; name: string }[];
   projetosAtivos: number;
+  // Falso enquanto ninguém foi marcado como da equipe: a tela mostra todo mundo.
+  equipeDefinida: boolean;
+  // Todos os usuários ativos, pra tela de escolher a equipe.
+  usuarios: { id: string; name: string; jobTitle: string; equipe: boolean }[];
   agora: number; // relógio do servidor no momento da leitura (base dos "há 2h")
 };
 
@@ -72,13 +77,13 @@ export async function getHojeData(workspaceId: string): Promise<HojeData> {
     acknowledgements: { where: { receivedAt: null }, select: { userId: true } },
   } as const;
 
-  const [abertasRaw, feitasRaw, users, projetosAtivos] = await Promise.all([
+  const [abertasRaw, feitasRaw, usuarios, projetosAtivos] = await Promise.all([
     db.task.findMany({ where: { workspaceId, column: { in: COLUNAS_ABERTAS } }, orderBy: { createdAt: "asc" }, take: 1000, include }),
     db.task.findMany({ where: { workspaceId, column: "done", doneAt: { gte: inicioDoDia } }, orderBy: { doneAt: "desc" }, include }),
     db.user.findMany({
       where: { workspaceId, active: true },
       orderBy: { name: "asc" },
-      select: { id: true, name: true, initials: true, color: true, jobTitle: true },
+      select: { id: true, name: true, jobTitle: true, equipe: true },
     }),
     db.project.count({ where: { workspaceId, status: { in: ["progress", "review"] } } }),
   ]);
@@ -101,6 +106,11 @@ export async function getHojeData(workspaceId: string): Promise<HojeData> {
     atrasada: isAtrasada(t.column, t.dueDate, inicioDoDia),
     semConfirmacao: !!t.assigneeId && t.acknowledgements.some((a) => a.userId === t.assigneeId),
   });
+
+  // Equipe marcada + quem, mesmo de fora, está com demanda aberta ou resolveu
+  // algo hoje — trabalho em andamento não pode sumir da tela.
+  const users = await membrosDaEquipe(workspaceId, [...abertasRaw, ...feitasRaw].map((t) => t.assigneeId));
+  const equipeDefinida = usuarios.some((u) => u.equipe);
 
   const abertas = abertasRaw.map(toTask);
   const feitasHoje = feitasRaw.map(toTask);
@@ -140,7 +150,10 @@ export async function getHojeData(workspaceId: string): Promise<HojeData> {
       atrasadas: abertas.filter((t) => t.atrasada).length,
       feitasHoje: feitasHoje.length,
     },
-    membros: users.map((u) => ({ id: u.id, name: u.name })),
+    // Opções de "passar para": só a equipe, sem os de fora que apareceram acima.
+    membros: users.filter((u) => u.equipe || !equipeDefinida).map((u) => ({ id: u.id, name: u.name })),
+    equipeDefinida,
+    usuarios,
     projetosAtivos,
     agora: Date.now(),
   };

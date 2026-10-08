@@ -1,6 +1,6 @@
 "use client";
 
-// Paleta de comandos global (Ctrl+K). Captura rápida de tarefa/atividade e
+// Paleta de comandos global (Ctrl+K). Captura rápida de demanda/nota e
 // "ir para" de qualquer lugar do app.
 //
 // Atalho: Ctrl+K (padrão de mercado) e Ctrl+J como reserva. Alt+Espaço NÃO dá:
@@ -19,7 +19,7 @@ import {
 } from "@/app/(app)/palette-actions";
 import type { PaletteHit, PaletteKind } from "@/server/palette";
 
-type Modo = "busca" | "atividade" | "nota";
+type Modo = "busca" | "demanda" | "nota";
 type Prioridade = "high" | "med" | "low";
 
 const ICONE: Record<PaletteKind, IconName> = {
@@ -31,7 +31,7 @@ const ICONE: Record<PaletteKind, IconName> = {
 };
 const ROTULO: Record<PaletteKind, string> = {
   projeto: "Projeto",
-  tarefa: "Tarefa",
+  tarefa: "Demanda",
   cliente: "Cliente",
   chamado: "Chamado",
   nota: "Nota",
@@ -134,7 +134,7 @@ export function CommandPalette() {
   function executar(indice: number) {
     if (indice < acoes.length) {
       const id = acoes[indice].id;
-      setModo(id === "nova-nota" ? "nota" : "atividade");
+      setModo(id === "nova-nota" ? "nota" : "demanda");
       return;
     }
     const hit = hitsVisiveis[indice - acoes.length];
@@ -179,7 +179,7 @@ export function CommandPalette() {
     });
   }
 
-  function criarAtividade() {
+  function criarDemanda() {
     setBusy(true);
     void paletteCriarDemandaAction({
       title: q,
@@ -239,9 +239,9 @@ export function CommandPalette() {
           <div className="palette-content" style={{ maxHeight: "50vh", overflowY: "auto" }}>
             {!temTexto && (
               <div className="muted" style={{ padding: "18px 16px", fontSize: 12.5, lineHeight: 1.7 }}>
-                Digite para buscar projetos, tarefas, clientes e chamados.
+                Busque demanda (pelo número ou texto), projeto, cliente ou nota.
                 <br />
-                Ou escreva um título e crie uma tarefa na hora.
+                Ou escreva um título e crie uma demanda ou nota na hora.
               </div>
             )}
 
@@ -322,7 +322,7 @@ export function CommandPalette() {
           </div>
         )}
 
-        {modo === "atividade" && (
+        {modo === "demanda" && (
           <div style={{ padding: 14, display: "flex", flexDirection: "column", gap: 12 }}>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
               <PickerCampo
@@ -360,7 +360,7 @@ export function CommandPalette() {
                 calcula (fim − início), então relatório e média já pegam certo. */}
             <label className="row gap8" style={{ alignItems: "center", fontSize: 12.5, fontWeight: 600 }}>
               <input type="checkbox" checked={jaFeita} onChange={(e) => setJaFeita(e.target.checked)} />
-              Já fiz esta atividade
+              Já foi feito — só estou registrando
             </label>
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
@@ -396,7 +396,7 @@ export function CommandPalette() {
 
             <Rodape
               onVoltar={() => setModo("busca")}
-              onConfirmar={criarAtividade}
+              onConfirmar={criarDemanda}
               busy={busy}
               podeConfirmar={!!q.trim() && (!jaFeita || Number(minutosReais) > 0)}
               rotulo={jaFeita ? "Registrar como feita" : "Criar demanda"}

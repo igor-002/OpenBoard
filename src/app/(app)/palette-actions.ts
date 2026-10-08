@@ -5,10 +5,10 @@
 // qualquer página do app.
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/auth";
-import { requireToolUser } from "@/lib/permissions";
+import { requireToolUser, hasModule } from "@/lib/permissions";
 import { db } from "@/lib/db";
 import { searchPalette, type PaletteHit } from "@/server/palette";
-import { criarDemanda, linkDemanda } from "@/server/demandas";
+import { criarDemanda, linkDemanda, membrosDaEquipe } from "@/server/demandas";
 import { normalizaMarkdownDigitado, resumoDoMarkdown } from "@/server/notas";
 
 export type PaletteCreateState = { ok: boolean; error?: string; href?: string };
@@ -16,7 +16,7 @@ export type PaletteCreateState = { ok: boolean; error?: string; href?: string };
 export async function paletteSearchAction(q: string): Promise<PaletteHit[]> {
   const user = await requireUser();
   try {
-    return await searchPalette(user.workspaceId, q, user.id);
+    return await searchPalette(user.workspaceId, q, user.id, { chamados: hasModule(user, "marketing") });
   } catch {
     return [];
   }
@@ -60,11 +60,15 @@ export async function paletteCriarDemandaAction(input: {
 }): Promise<PaletteCreateState> {
   const user = await requireUser();
   const jaFeita = !!input.realMinutes && input.realMinutes > 0;
+  const membros = await membrosDaEquipe(user.workspaceId);
+  const podeReceber = membros.some((m) => m.id === user.id);
   const r = await criarDemanda(user, {
     title: input.title,
     origem: "planejada",
     priority: input.priority ?? "med",
-    assigneeId: user.id,
+    // Quem está fora da equipe pode registrar demanda, mas ela nasce sem dono.
+    // Registro de algo já feito continua no nome de quem efetivamente o fez.
+    assigneeId: jaFeita || podeReceber ? user.id : null,
     tipoId: input.tipoId || null,
     projectId: input.projectId || null,
     ixcClienteId: input.clienteId || null,

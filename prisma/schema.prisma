@@ -105,6 +105,10 @@ model User {
   manages      String[] @default([])
   mustChangePassword Boolean @default(false)
   active       Boolean  @default(true)
+  // Faz parte da equipe que atende demandas (aparece no Hoje e como opção de
+  // responsável). Não tem relação com permissão: admin de outra área vê tudo
+  // mas não é da equipe. Ver membrosDaEquipe em src/server/demandas.ts.
+  equipe       Boolean  @default(false)
   // "Esqueci minha senha": guarda só o SHA-256 do token (nunca o token cru).
   resetTokenHash      String?
   resetTokenExpiresAt DateTime?
@@ -365,6 +369,12 @@ model Task {
   estimatedMinutes Int?
   report           String?     // relato final de execução (ao concluir)
 
+  // Chamado aberto no GLPI a partir desta demanda (loose FK -> GlpiTicket.glpiId).
+  // `glpiFechaJunto` é cópia da regra no momento da abertura: chamado solucionado
+  // lá resolve a demanda aqui. Ver src/server/glpi/regras.ts.
+  glpiId         Int?
+  glpiFechaJunto Boolean @default(false)
+
   tags     TaskTag[]
   subtasks Subtask[]
   comments TaskComment[]
@@ -378,6 +388,32 @@ model Task {
   @@index([creatorId])
   @@index([tipoId])
   @@index([ixcClienteId])
+  @@index([glpiId])
+}
+
+// Regra de envio de demanda pro GLPI: QUANDO a demanda casa com o gatilho (tipo
+// e/ou responsável), abre um chamado COM estes parâmetros. Gatilho todo vazio =
+// regra só manual (escolhida na hora de abrir a demanda). Configurado em
+// /settings/glpi. Vínculos frouxos de propósito: tipo ou usuário removido só faz
+// a regra parar de casar, não some com ela.
+model GlpiRegra {
+  id          String   @id @default(cuid())
+  workspaceId String
+  name        String
+  active      Boolean  @default(true)
+  order       Int      @default(0)
+  // Gatilho (demanda do OpenBoard)
+  tipoId      String? // loose FK -> TaskType.id
+  assigneeId  String? // loose FK -> User.id
+  // Chamado (ids do GLPI)
+  glpiAssigneeId  Int? // técnico que já sai atribuído
+  glpiRequesterId Int? // requerente; vazio = chamado fica em nome do usuário de serviço
+  glpiCategoryId  Int? // ITILCategory da entidade Marketing
+  glpiType        Int     @default(2) // 1 Incidente, 2 Requisição
+  fecharJunto     Boolean @default(true)
+  createdAt   DateTime @default(now())
+
+  @@index([workspaceId, active])
 }
 
 // Histórico da demanda: quem mudou status ou responsável, e quando. É daqui que
@@ -388,7 +424,7 @@ model TaskEvent {
   taskId    String
   actor     User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
   actorId   String?
-  kind      String // created | status | assignee
+  kind      String // created | status | assignee | glpi (to = nº do chamado)
   from      String?
   to        String?
   note      String? // motivo (aguardando / cancelada)

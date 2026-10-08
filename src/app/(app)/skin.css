@@ -1284,3 +1284,39 @@ body:has(.app[data-skin="ob2"]) {
   justify-content: space-between;
   gap: 8px;
 }
+
+/* ---------- Escolher equipe ---------- */
+.hj-secao-titulo .dm-link {
+  margin-left: auto;
+}
+.eq-lista {
+  display: flex;
+  flex-direction: column;
+  max-height: 52vh;
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+.eq-lista label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--line);
+}
+.eq-lista label:last-child {
+  border-bottom: none;
+}
+.eq-lista label:hover {
+  background: var(--surface-2);
+}
+.eq-nome {
+  font-size: 13.5px;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+.eq-cargo {
+  font-size: 12px;
+  color: var(--muted);
+}

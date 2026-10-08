@@ -1,11 +1,12 @@
 import Link from "next/link";
-import { requireTool } from "@/lib/permissions";
+import { requireTool, managesModule } from "@/lib/permissions";
 import { getHojeData, type HojeTask } from "@/server/hoje";
 import { Avatar } from "@/components/ui/Avatar";
 import { Icon, type IconName } from "@/components/ui/Icon";
 import { AutoRefresh } from "@/components/common/AutoRefresh";
 import { Captura } from "@/components/hoje/Captura";
 import { LinhaTarefa } from "@/components/hoje/LinhaTarefa";
+import { EscolherEquipe } from "@/components/hoje/EscolherEquipe";
 import { deadlineInfo, hourLabel } from "@/lib/format";
 
 const fmtHoje = new Intl.DateTimeFormat("pt-BR", { weekday: "long", day: "numeric", month: "long" });
@@ -185,7 +186,15 @@ export default async function HojePage() {
         </div>
 
         <section>
-          <h2 className="hj-secao-titulo">Equipe</h2>
+          <h2 className="hj-secao-titulo">
+            Equipe
+            {managesModule(user, "gestao") && <EscolherEquipe usuarios={d.usuarios} definida={d.equipeDefinida} />}
+          </h2>
+          {!d.equipeDefinida && managesModule(user, "gestao") && (
+            <div className="hj-vazio" style={{ marginBottom: 12 }}>
+              Mostrando todos os usuários do sistema, inclusive os de outras áreas. Escolha quem é da sua equipe para ver só eles aqui.
+            </div>
+          )}
           {d.pessoas.length === 0 && <div className="hj-vazio">Nenhuma pessoa ativa no workspace.</div>}
           {d.pessoas.map((p) => {
             const doDia = p.feitasHoje + p.fazendo.length + p.filaTotal;

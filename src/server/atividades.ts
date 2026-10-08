@@ -3,6 +3,7 @@
 import "server-only";
 import { db } from "@/lib/db";
 import { COLUNAS_ABERTAS, ORIGENS, STATUS_DEMANDA } from "@/lib/meta";
+import { membrosDaEquipe } from "@/server/demandas";
 import type { Priority, TaskColumn, TaskOrigin, AvatarUser } from "@/lib/types";
 
 export type AtividadeRow = {
@@ -87,7 +88,8 @@ export async function getAtividadesData(workspaceId: string, filters: AtividadeF
       },
     }),
     db.taskType.findMany({ where: { active: true }, orderBy: { order: "asc" }, select: { id: true, name: true } }),
-    db.user.findMany({ where: { workspaceId, active: true }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
+    // O filtro também precisa de quem está de fora mas é o responsável filtrado.
+    membrosDaEquipe(workspaceId, [filters.assigneeId]),
     db.project.findMany({ where: { workspaceId, status: { not: "done" } }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
     db.task.findMany({
       where: { workspaceId, ixcClienteId: { not: null } },
@@ -118,7 +120,7 @@ export async function getAtividadesData(workspaceId: string, filters: AtividadeF
     })),
     limite: LIMITE,
     tipos,
-    members,
+    members: members.map((m) => ({ id: m.id, name: m.name })),
     projects,
     clientes: clientesRaw
       .map((r) => r.ixcCliente)

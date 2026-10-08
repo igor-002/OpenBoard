@@ -5,15 +5,17 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { requireAnyToolUser, TOOLS_DEMANDA } from "@/lib/permissions";
+import { requireAnyToolUser, TOOLS_DEMANDA, managesModule } from "@/lib/permissions";
 import {
   criarDemanda,
   atribuirDemanda,
   mudarStatusDemanda,
   getDemanda,
+  type DemandaCriada,
   type DemandaDetalhe,
   type Resultado,
 } from "@/server/demandas";
+import { abrirChamadoDaDemanda, listarRegras } from "@/server/glpi/regras";
 
 const ORIGENS = ["planejada", "avulsa", "presencial", "whatsapp", "telefone", "monitoramento"] as const;
 const STATUS = ["todo", "doing", "waiting", "done", "canceled"] as const;
@@ -37,10 +39,12 @@ const novaSchema = z.object({
   estimatedMinutes: z.coerce.number().int().min(1).max(60000).nullish(),
   iniciar: z.boolean().optional(),
   jaFeita: z.object({ realMinutes: z.coerce.number().int().min(1).max(60000), solucao: z.string() }).nullish(),
+  // Ausente = pelas regras; null = não abrir chamado; id = abrir por essa regra.
+  glpiRegraId: z.string().nullable().optional(),
 });
 export type NovaDemandaInput = z.input<typeof novaSchema>;
 
-export async function criarDemandaAction(input: NovaDemandaInput): Promise<Resultado<{ id: string; numero: number }>> {
+export async function criarDemandaAction(input: NovaDemandaInput): Promise<Resultado<DemandaCriada>> {
   const user = await requireAnyToolUser(TOOLS_DEMANDA);
   const parsed = novaSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
@@ -49,7 +53,10 @@ export async function criarDemandaAction(input: NovaDemandaInput): Promise<Resul
   return r;
 }
 
-export async function atribuirDemandaAction(taskId: string, assigneeId: string | null): Promise<Resultado> {
+export async function atribuirDemandaAction(
+  taskId: string,
+  assigneeId: string | null,
+): Promise<Resultado<{ chamado?: number | null; aviso?: string }>> {
   const user = await requireAnyToolUser(TOOLS_DEMANDA);
   const r = await atribuirDemanda(user, taskId, assigneeId || null);
   if (r.ok) revalida();
@@ -65,6 +72,23 @@ export async function mudarStatusAction(
   const status = z.enum(STATUS).safeParse(para);
   if (!status.success) return { ok: false, error: "Status inválido." };
   const r = await mudarStatusDemanda(user, taskId, status.data, extra);
+  if (r.ok) revalida();
+  return r;
+}
+
+// Regras ativas de chamado GLPI, pro formulário de nova demanda mostrar qual vai
+// disparar. Lista vazia = integração sem regra, o campo nem aparece.
+export async function regrasGlpiAction(): Promise<{ id: string; name: string; tipoId: string | null; assigneeId: string | null }[]> {
+  const user = await requireAnyToolUser(TOOLS_DEMANDA);
+  const regras = await listarRegras(user.workspaceId, true);
+  return regras.map((r) => ({ id: r.id, name: r.name, tipoId: r.tipoId, assigneeId: r.assigneeId }));
+}
+
+// Abre à mão o chamado de uma demanda que já existe, pela regra escolhida.
+export async function abrirChamadoAction(taskId: string, regraId: string): Promise<Resultado<{ chamado: number | null }>> {
+  const user = await requireAnyToolUser(TOOLS_DEMANDA);
+  if (!regraId || regraId === "auto") return { ok: false, error: "Escolha a regra do chamado." };
+  const r = await abrirChamadoDaDemanda(user, taskId, regraId);
   if (r.ok) revalida();
   return r;
 }
@@ -161,5 +185,21 @@ export async function excluirDemandaAction(taskId: string): Promise<Resultado> {
   }
   await db.task.delete({ where: { id: taskId } });
   revalida(task.projectId);
+  return { ok: true };
+}
+
+// Define quem é da equipe de demandas (substitui a lista inteira). Só admin ou
+// quem administra o módulo de Gestão.
+export async function definirEquipeAction(userIds: string[]): Promise<Resultado> {
+  const user = await requireAnyToolUser(TOOLS_DEMANDA);
+  if (!managesModule(user, "gestao")) return { ok: false, error: "Só um administrador pode escolher a equipe." };
+  const ids = z.array(z.string()).max(500).safeParse(userIds);
+  if (!ids.success) return { ok: false, error: "Lista inválida." };
+
+  await db.$transaction([
+    db.user.updateMany({ where: { workspaceId: user.workspaceId }, data: { equipe: false } }),
+    db.user.updateMany({ where: { workspaceId: user.workspaceId, active: true, id: { in: ids.data } }, data: { equipe: true } }),
+  ]);
+  revalida();
   return { ok: true };
 }
