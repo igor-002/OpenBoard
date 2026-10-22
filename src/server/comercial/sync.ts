@@ -130,8 +130,11 @@ export async function syncContratos(): Promise<{ processed: number; errors: numb
 
       const mrrCents = await calcMrrCents(c);
       // Data de referência por status (handoff §7).
-      const dataAtivacao = ixcDate(c.data_ativacao);
       const dataCadastro = ixcDate(c.data_cadastro_sistema ?? c.data);
+      // Contrato com acesso liberado (status_internet=A) mas nunca "ativado" no IXC
+      // (status=P, data_ativacao vazia — ex.: Online Guard) sumia de Ativados/MRR.
+      // Sem data real, a ativação é estimada pela data de cadastro.
+      const dataAtivacao = ixcDate(c.data_ativacao) ?? (status === "A" ? dataCadastro : null);
 
       // Transição de status (base do relatório de churn): o IXC não guarda esse
       // histórico, então comparamos com o espelho antes do upsert. Ao sair de
