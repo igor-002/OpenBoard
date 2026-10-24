@@ -63,6 +63,7 @@ if ($Instalar) {
   Register-ScheduledTask -TaskName $NomeTarefa -Action $acao -Trigger $gatilho -Settings $cfg -Force | Out-Null
   Start-ScheduledTask -TaskName $NomeTarefa
   Write-Host "Instalado. Tarefa '$NomeTarefa' rodando. Log: $LogPath"
+  Write-Host "Link da pagina de upload: $($Url.TrimEnd('/'))/arquivo-txt?key=$Chave"
   exit 0
 }
 
