@@ -1143,3 +1143,20 @@ model MktLabel {
 
   @@index([boardId])
 }
+
+// Arquivo .txt enviado pela página pública /arquivo-txt (chave ARQUIVO_TXT_TOKEN).
+// Um script no PC de destino (scripts/arquivo-txt-sync.ps1) baixa a versão mais
+// nova e grava por cima do arquivo local; depois confirma em `aplicadoEm`.
+// Guarda só as últimas versões (poda no upload).
+model ArquivoTxt {
+  id          String    @id @default(cuid())
+  nome        String // nome original do upload (o destino local tem nome fixo)
+  tamanho     Int
+  linhas      Int
+  data        Bytes
+  createdAt   DateTime  @default(now())
+  aplicadoEm  DateTime? // quando o PC confirmou que gravou na pasta
+  aplicadoPor String? // hostname do PC que aplicou
+
+  @@index([createdAt])
+}

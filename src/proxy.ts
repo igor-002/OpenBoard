@@ -10,7 +10,7 @@ const AUTH_PAGES = ["/login", "/register", "/esqueci-senha", "/redefinir-senha"]
 // `/api/v1/integrations` é chamada por sistema, sem cookie de sessão: sem estar
 // aqui, o proxy responde 307 para /login e o consumidor nunca chega no handler.
 // Cada rota de lá exige Bearer + HTTPS + rate limit por conta própria.
-const PUBLIC_PAGES = ["/tv", "/api/tv", "/api/comercial/leads", "/api/v1/integrations", "/r/", "/solicitar-cadastro"];
+const PUBLIC_PAGES = ["/tv", "/api/tv", "/api/comercial/leads", "/api/v1/integrations", "/r/", "/solicitar-cadastro", "/arquivo-txt", "/api/arquivo-txt"];
 
 // Convenção "proxy" do Next 16 (substitui o antigo middleware).
 export async function proxy(req: NextRequest) {

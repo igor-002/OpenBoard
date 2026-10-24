@@ -87,6 +87,9 @@ services:
       # fallback: é o id real do workspace que recebe os projetos.
       INTEGRATION_TOKEN: ${INTEGRATION_TOKEN:-}
       INTEGRATION_WORKSPACE_ID: ${INTEGRATION_WORKSPACE_ID:-}
+      # Página pública /arquivo-txt?key=... (upload do 009.txt) e script do PC
+      # (scripts/arquivo-txt-sync.ps1). Sem ela as rotas respondem nao_configurado.
+      ARQUIVO_TXT_TOKEN: ${ARQUIVO_TXT_TOKEN:-}
       # Análise IA da conversa (OpenAI). Sem OPENAI_API_KEY o botão de análise fica off.
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_MODEL: ${OPENAI_MODEL:-}
