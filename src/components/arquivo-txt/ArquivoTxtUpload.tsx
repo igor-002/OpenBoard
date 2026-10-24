@@ -138,8 +138,7 @@ export function ArquivoTxtUpload({ chave }: { chave: string }) {
               </div>
             ) : (
               <div style={{ display: "flex", gap: 6, alignItems: "center", opacity: 0.8 }}>
-                <Icon name="clock" size={16} /> Aguardando o computador gravar na pasta (leva até 1 minuto; o PC precisa
-                estar ligado)
+                <Icon name="clock" size={16} /> Aguardando o computador gravar na pasta
               </div>
             )}
             {atual.previa.length > 0 && (
